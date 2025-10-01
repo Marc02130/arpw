@@ -1,0 +1,174 @@
+Rule Name: rag-patterns.mdc
+Description: Patterns and best practices specific to RAG (Retrieval-Augmented Generation) applications
+
+# RAG Application Patterns
+
+<rule>
+name: rag_patterns
+description: Enforces best practices for RAG application development with Supabase, OpenAI, and vector operations
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|ts)$"
+  - type: content
+    pattern: "(openai|supabase|vector|embedding|langchain|RAG|PGVector)"
+  - type: path
+    pattern: "(edge-functions|api|services|utils)"
+
+actions:
+  - type: enforce
+    patterns:
+      # OpenAI API Usage
+      - pattern: |
+          const response = await openai\.(chat|embeddings)\.create\(\{
+            model: ["'](gpt-4|gpt-3\.5-turbo|text-embedding-ada-002)["'],
+            (input|messages): .*
+          \}\);
+        message: "Use proper OpenAI API error handling and rate limiting"
+
+      # Supabase RLS Enforcement
+      - pattern: |
+          const \{ data, error \} = await supabase
+            \.from\(['"](documents|threads|conversations|vector_chunks)['"]\)
+            \.(select|insert|update|delete)\(.*\)
+            \.eq\(['"]user_id['"], userId\);
+        message: "Always include user_id filtering for RLS compliance"
+
+      # Vector Operations
+      - pattern: |
+          const \{ data: chunks \} = await supabase\.rpc\(['"]match_documents['"], \{
+            query_embedding: embedding,
+            match_threshold: 0\.7,
+            match_count: 10,
+            filter_user_id: userId
+          \}\);
+        message: "Use proper vector similarity search with user scoping"
+
+      # Edge Function Structure
+      - pattern: |
+          export default async function handler\(req: Request\) \{
+            const \{ data: \{ user \}, error: authError \} = await supabase\.auth\.getUser\(req\.headers\.get\(['"]authorization['"]\)\);
+            if \(authError \|\| !user\) \{
+              return new Response\(JSON\.stringify\(\{ error: ['"]Unauthorized['"] \}\), \{ status: 401 \}\);
+            \}
+            // Implementation
+          \}
+        message: "Edge Functions must include proper authentication and error handling"
+
+  - type: suggest
+    message: |
+      RAG Application Best Practices:
+      
+      1. Security & Privacy:
+         - Always scope operations by user_id for RLS compliance
+         - Validate file uploads (size, type, content)
+         - Implement proper authentication in all Edge Functions
+         - Use secure storage paths with user/thread scoping
+      
+      2. Vector Operations:
+         - Use consistent chunk sizes (1000 tokens, 200 overlap)
+         - Implement proper error handling for embedding failures
+         - Cache vector search results when appropriate
+         - Monitor vector storage usage and cleanup
+      
+      3. Performance:
+         - Implement async processing for document vectorization
+         - Use batch operations for multiple vector insertions
+         - Implement proper timeout handling for OpenAI API calls
+         - Monitor and log processing times
+      
+      4. Data Management:
+         - Implement soft deletes for threads and documents
+         - Maintain conversation history with proper metadata
+         - Archive conversations with full context preservation
+         - Clean up orphaned vectors and files
+
+examples:
+  - description: "Proper RAG Query Implementation"
+    input: |
+      async function processRAGQuery(query: string, threadId: string, userId: string) {
+        try {
+          // 1. Authenticate user
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+          if (authError || !user || user.id !== userId) {
+            throw new Error('Unauthorized');
+          }
+
+          // 2. Vectorize query
+          const queryEmbedding = await openai.embeddings.create({
+            model: "text-embedding-ada-002",
+            input: [query]
+          });
+
+          // 3. Search vectors (user-scoped)
+          const { data: relevantChunks, error: searchError } = await supabase.rpc('match_documents', {
+            query_embedding: queryEmbedding.data[0].embedding,
+            match_threshold: 0.7,
+            match_count: 10,
+            filter_thread_id: threadId,
+            filter_user_id: userId
+          });
+
+          if (searchError) throw searchError;
+
+          // 4. Generate response
+          const response = await openai.chat.completions.create({
+            model: "gpt-4",
+            messages: [
+              { role: "system", content: "You are a helpful assistant." },
+              { role: "user", content: `Context: ${relevantChunks.map(c => c.content).join('\n')}\n\nQuestion: ${query}` }
+            ]
+          });
+
+          return { response: response.choices[0].message.content, sources: relevantChunks };
+        } catch (error) {
+          console.error('RAG query error:', error);
+          throw error;
+        }
+      }
+    output: "Valid RAG implementation with proper error handling and user scoping"
+
+  - description: "Document Vectorization"
+    input: |
+      async function vectorizeDocument(docId: string, userId: string, threadId: string) {
+        const splitter = new RecursiveCharacterTextSplitter({
+          chunkSize: 1000,
+          chunkOverlap: 200,
+          separators: ["\n\n", "\n", " ", ""]
+        });
+
+        const chunks = await splitter.splitDocuments([document]);
+        
+        const embeddings = await openai.embeddings.create({
+          model: "text-embedding-ada-002",
+          input: chunks.map(chunk => chunk.pageContent)
+        });
+
+        const vectorData = chunks.map((chunk, index) => ({
+          chunk_id: generateUUID(),
+          doc_id: docId,
+          thread_id: threadId,
+          user_id: userId,
+          chunk_index: index,
+          content: chunk.pageContent,
+          embedding: embeddings.data[index].embedding,
+          metadata: { type: 'document', doc_name: document.metadata.fileName }
+        }));
+
+        await supabase.from('vector_chunks').insert(vectorData);
+      }
+    output: "Valid document vectorization with proper chunking and metadata"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - rag
+    - openai
+    - supabase
+    - vectors
+    - security
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,91 @@
+# Rule Name: Supabase Server-Only
+# Description: Enforces server-only Supabase usage, preventing local Supabase commands
+
+<rule>
+name: supabase-server-only
+description: Prevents local Supabase CLI usage and enforces server-only operations
+filters:
+  - type: content
+    pattern: (supabase|supabase\.co)
+  - type: file
+    pattern: **/*.{js,jsx,ts,tsx,json,md}
+  - type: event
+    pattern: command_execute
+actions:
+  - type: reject
+    conditions:
+      - pattern: supabase\s+(start|stop|status|reset|db\s+reset|db\s+start|db\s+stop)
+        message: "Local Supabase commands are not allowed. Use Supabase cloud services only."
+      - pattern: supabase\s+(link|init|new|login)
+        message: "Local Supabase CLI setup is not allowed. Use Supabase cloud dashboard."
+      - pattern: supabase\s+(functions\s+serve|functions\s+new)
+        message: "Local Supabase functions are not allowed. Deploy to Supabase cloud."
+      - pattern: supabase\s+(migration|db\s+diff|db\s+push|db\s+pull)
+        message: "Local database operations are not allowed. Use Supabase cloud dashboard."
+  - type: warn
+    conditions:
+      - pattern: supabase\s+(deploy|functions\s+deploy)
+        message: "Ensure you're deploying to Supabase cloud, not local instance."
+  - type: suggest
+    message: |
+      Supabase Server-Only Best Practices:
+      
+      1. Database Operations:
+         - Use Supabase cloud dashboard for schema changes
+         - Run migrations through cloud interface
+         - Use SQL editor in dashboard for queries
+      
+      2. Edge Functions:
+         - Deploy directly to Supabase cloud
+         - Use supabase functions deploy command
+         - Test in cloud environment
+      
+      3. Authentication:
+         - Configure auth in cloud dashboard
+         - Use cloud auth endpoints
+         - No local auth setup needed
+      
+      4. Storage:
+         - Use cloud storage buckets
+         - Configure RLS in dashboard
+         - No local storage setup
+      
+      5. Development Workflow:
+         - Use cloud project for development
+         - Connect via environment variables
+         - Test against cloud services
+
+examples:
+  - bad: "supabase start"
+    good: "Use Supabase cloud project"
+  - bad: "supabase db reset"
+    good: "Use cloud dashboard SQL editor"
+  - bad: "supabase functions serve"
+    good: "supabase functions deploy"
+  - bad: "supabase migration new"
+    good: "Use cloud dashboard for schema changes"
+</rule>
+
+## Server-Only Supabase Guidelines
+
+### ✅ Allowed Commands
+- `supabase functions deploy` - Deploy to cloud
+- `supabase status` - Check cloud project status
+- `supabase link` - Link to cloud project (if needed)
+
+### ❌ Forbidden Commands
+- `supabase start/stop` - Local instance management
+- `supabase db reset/start/stop` - Local database operations
+- `supabase functions serve` - Local function serving
+- `supabase migration` - Local migration commands
+- `supabase init` - Local project initialization
+
+### Cloud-First Development
+- All development should use Supabase cloud services
+- No local Supabase instances required
+- Use cloud dashboard for all administrative tasks
+- Connect applications via environment variables
+description:
+globs:
+alwaysApply: false
+---

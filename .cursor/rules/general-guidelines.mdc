@@ -1,0 +1,125 @@
+---
+description: Standards for code quality and best practices
+globs: **/*
+---
+Rule Name: general_guidelines
+
+# General Guidelines Standards
+
+Rules for maintaining code quality and consistency across the project.
+
+<rule>
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|css)$"
+  - type: content
+    pattern: ".*"
+
+actions:
+  - type: enforce
+    patterns:
+      # Import Requirements
+      - pattern: |
+          import React from 'react'
+          import \{ .+ \} from 'react-router-dom'
+          import \{ .+ \} from '@/components'
+        message: "Use consistent import structure and paths"
+
+      # Error Handling
+      - pattern: |
+          (try|catch|async|await).*
+          try \{
+              .+
+          \} catch \(error\) \{
+              .+
+          \}
+        message: "Implement proper error handling with try/catch"
+
+      # Supabase Operations
+      - pattern: |
+          const \{ data, error \} = await supabase
+            \.from\(['"](documents|threads|conversations|vector_chunks)['"]\)
+            \.(select|insert|update|delete)\(.*\)
+            \.eq\(['"]user_id['"], userId\);
+        message: "Always include user_id filtering for RLS compliance"
+
+      # Edge Function Authentication
+      - pattern: |
+          export default async function handler\(req: Request\) \{
+            const \{ data: \{ user \}, error: authError \} = await supabase\.auth\.getUser\(req\.headers\.get\(['"]authorization['"]\)\);
+            if \(authError \|\| !user\) \{
+              return new Response\(JSON\.stringify\(\{ error: ['"]Unauthorized['"] \}\), \{ status: 401 \}\);
+            \}
+            // Implementation
+          \}
+        message: "Edge Functions must include proper authentication and error handling"
+
+      # Documentation
+      - pattern: |
+          /\*\*
+           \* @param \{.*\}.*
+           \* @returns \{.*\}.*
+           \* @throws \{.*\}.*
+           \*/
+        message: "Include complete JSDoc documentation"
+
+      # TODO Prevention
+      - pattern: "// TODO:|//TODO:|// FIXME:|//FIXME:"
+        message: "Resolve TODOs before committing"
+
+      # Debug Logging
+      - pattern: |
+          console\.(log|debug|info|warn|error)\(.*\)
+        message: "Use appropriate console logging levels"
+
+examples:
+  - description: "Error Handling"
+    input: |
+      try {
+        const response = await api.fetchData(id);
+        setData(response);
+      } catch (error) {
+        console.error('API Error:', error);
+        setError(error.message);
+      }
+    output: "Valid error handling"
+
+  - description: "Documentation"
+    input: |
+      /**
+       * Fetches and processes data from API
+       * @param {string} id - Unique identifier
+       * @returns {Promise<Data>} Processed data object
+       * @throws {ApiError} When API request fails
+       */
+      async function fetchData(id) {
+        // Implementation
+      }
+    output: "Valid documentation"
+
+  - description: "Component Structure"
+    input: |
+      function DataTable({ data }) {
+        const [sortConfig, setSortConfig] = useState(null);
+        
+        useEffect(() => {
+          // Effect implementation
+        }, [data]);
+        
+        return (
+          <div className="w-full overflow-x-auto">
+            {/* Component implementation */}
+          </div>
+        );
+      }
+    output: "Valid component structure"
+
+metadata:
+  priority: high
+  version: 1.1
+  tags:
+    - react
+    - node
+    - tailwind
+    - typescript
+</rule>

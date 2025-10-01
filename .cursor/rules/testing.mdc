@@ -1,0 +1,186 @@
+---
+description: Rules for implementing tests in React/Node projects.
+globs: 
+---
+# Testing Standards
+
+
+
+<rule>
+name: testing_standards
+description: Standards for unit tests, integration tests, and component testing
+
+filters:
+  - type: file_extension
+    pattern: "\\.(test|spec)\\.(jsx?|tsx?)$"
+  - type: path
+    pattern: "(/__tests__/|/test/|/tests/)"
+
+actions:
+  - type: enforce
+    patterns:
+      # Test Suite Structure
+      - pattern: |
+          describe\(['"][\w\s]+['"], \(\) => \{
+            let \w+;
+            
+            beforeEach\(\(\) => \{
+              // Setup
+            \}\);
+            
+            afterEach\(\(\) => \{
+              // Cleanup
+              jest\.clearAllMocks\(\);
+            \}\);
+          \}\);
+        message: "Follow standard Jest/React Testing Library structure"
+
+      # Test Naming
+      - pattern: |
+          (it|test)\(['"]should \w+( when \w+)?['"]
+        message: "Use 'should behavior [when condition]' naming"
+
+      # Mock Functions
+      - pattern: |
+          const mock\w+ = jest\.fn\(\)\.mockImplementation\(\(\) => \{
+            return \{
+              \w+: jest\.fn\(\),
+              \w+: jest\.fn\(\)
+            \};
+          \}\);
+        message: "Create proper mock functions"
+
+      # Component Testing
+      - pattern: |
+          import \{ render, screen, fireEvent \} from '@testing-library/react';
+          
+          describe\(['"]<\w+/>['"], \(\) => \{
+            it\(['"]should render.*['"], \(\) => \{
+              render\(<\w+.*\/>\);
+              expect\(screen\.\w+\(.*\)\)\.to\w+;
+            \}\);
+          \}\);
+        message: "Follow React Testing Library patterns"
+
+      # Hook Testing
+      - pattern: |
+          import \{ renderHook, act \} from '@testing-library/react-hooks';
+          
+          describe\(['"]use\w+['"], \(\) => \{
+            it\(['"]should.*['"], \(\) => \{
+              const \{ result \} = renderHook\(\(\) => use\w+\(\)\);
+              expect\(result\.current\)\.to\w+;
+            \}\);
+          \}\);
+        message: "Follow hook testing patterns"
+
+      # RAG API Testing
+      - pattern: |
+          describe\(['"]RAG API['"], \(\) => \{
+            it\(['"]should process query with proper user scoping['"], async \(\) => \{
+              const mockUser = \{ id: 'user-123' \};
+              const mockQuery = 'test query';
+              const mockThreadId = 'thread-456';
+              
+              // Mock Supabase and OpenAI calls
+              // Test user authentication
+              // Test vector search with user filtering
+              // Test response generation
+            \}\);
+          \}\);
+        message: "Test RAG operations with proper user scoping and authentication"
+
+      # Vector Operations Testing
+      - pattern: |
+          describe\(['"]Vector Operations['"], \(\) => \{
+            it\(['"]should vectorize document with proper chunking['"], async \(\) => \{
+              const mockDocument = \{ content: 'test content' \};
+              const mockUserId = 'user-123';
+              const mockThreadId = 'thread-456';
+              
+              // Test document chunking
+              // Test embedding generation
+              // Test vector storage with metadata
+            \}\);
+          \}\);
+        message: "Test vector operations with proper chunking and metadata handling"
+
+examples:
+  - description: "Component Test"
+    input: |
+      import { render, screen, fireEvent } from '@testing-library/react';
+      import { DataTable } from './DataTable';
+
+      describe('<DataTable/>', () => {
+        const mockData = [/* test data */];
+        const mockOnSort = jest.fn();
+
+        beforeEach(() => {
+          jest.clearAllMocks();
+        });
+
+        it('should render all columns', () => {
+          render(<DataTable data={mockData} onSort={mockOnSort} />);
+          expect(screen.getAllByRole('columnheader')).toHaveLength(3);
+        });
+
+        it('should call onSort when header clicked', () => {
+          render(<DataTable data={mockData} onSort={mockOnSort} />);
+          fireEvent.click(screen.getByText('Name'));
+          expect(mockOnSort).toHaveBeenCalledWith('name');
+        });
+      });
+    output: "Valid component test"
+
+  - description: "Hook Test"
+    input: |
+      import { renderHook, act } from '@testing-library/react-hooks';
+      import { useSort } from './useSort';
+
+      describe('useSort', () => {
+        const testData = [/* test data */];
+
+        it('should sort data when key changes', () => {
+          const { result } = renderHook(() => useSort(testData));
+
+          act(() => {
+            result.current.setSort({ key: 'name', direction: 'asc' });
+          });
+
+          expect(result.current.sortedData[0].name).toBe('Alice');
+        });
+      });
+    output: "Valid hook test"
+
+  - description: "API Test"
+    input: |
+      import { rest } from 'msw';
+      import { setupServer } from 'msw/node';
+      import { fetchData } from './api';
+
+      const server = setupServer(
+        rest.get('/api/data', (req, res, ctx) => {
+          return res(ctx.json({ data: 'test' }));
+        })
+      );
+
+      beforeAll(() => server.listen());
+      afterEach(() => server.resetHandlers());
+      afterAll(() => server.close());
+
+      it('should fetch data successfully', async () => {
+        const result = await fetchData();
+        expect(result).toEqual({ data: 'test' });
+      });
+    output: "Valid API test"
+
+metadata:
+  priority: high
+  version: 1.1
+  tags:
+    - testing
+    - react
+    - jest
+    - rtl
+    - msw
+</rule>

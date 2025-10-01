@@ -1,0 +1,104 @@
+---
+description: Guidelines for incremental testing to catch bugs early in the development process
+globs: 
+alwaysApply: false
+---
+
+# Incremental Testing Guidelines
+
+This rule promotes a testing-focused workflow where tests are written alongside or before implementation, ensuring:
+
+1. Each new feature or change has corresponding tests
+2. Tests are run regularly during development, not just at the end
+3. Both unit and integration tests are considered
+
+<rule>
+name: incremental_testing
+description: Enforces writing tests incrementally alongside implementation to catch bugs early
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?)$"
+  - type: file_path
+    pattern: "(?!.*\\.test\\.|.*\\.spec\\.)"
+  - type: content
+    pattern: "function|class|const.*=.*\\(.*\\)|export"
+
+actions:
+  - type: warn
+    conditions:
+      - pattern: "function\\s+\\w+.*\\{[^}]{100,}\\}(?![\\s\\S]*test|[\\s\\S]*spec)"
+        message: "Complex functions (>100 chars) should have corresponding tests in a .test or .spec file"
+      
+      - pattern: "export\\s+(default\\s+)?class\\s+\\w+(?![\\s\\S]*test|[\\s\\S]*spec)"
+        message: "Exported classes should have corresponding tests in a .test or .spec file"
+      
+      - pattern: "export\\s+(default\\s+)?function\\s+\\w+(?![\\s\\S]*test|[\\s\\S]*spec)"
+        message: "Exported functions should have corresponding tests in a .test or .spec file"
+
+  - type: suggest
+    message: |
+      Incremental Testing Best Practices:
+      
+      1. Test Coverage:
+         - Write tests before or alongside implementation
+         - Create test files with naming pattern: `[filename].test.tsx` or `[filename].spec.tsx`
+         - Test both success and error paths
+      
+      2. Testing Approach:
+         - Use Test-Driven Development (TDD) where appropriate
+         - Write unit tests for utility functions
+         - Write component tests for UI elements
+         - Consider integration tests for complex interactions
+      
+      3. Testing Schedule:
+         - Run relevant tests after each significant change
+         - Run the full test suite before committing
+         - Fix failing tests immediately, don't commit broken tests
+      
+      4. Testing Quality:
+         - Make tests descriptive and maintainable
+         - Group related tests in describe blocks
+         - Use clear test names that explain the expected behavior
+
+examples:
+  - input: |
+      export function calculateTotal(items) {
+        return items.reduce((total, item) => {
+          return total + (item.price * item.quantity);
+        }, 0);
+      }
+      
+      // No test file created
+    output: "Missing tests for exported function"
+
+  - input: |
+      // utils.ts
+      export function formatCurrency(amount) {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD'
+        }).format(amount);
+      }
+      
+      // utils.test.ts
+      describe('formatCurrency', () => {
+        it('formats number as USD currency', () => {
+          expect(formatCurrency(1234.56)).toBe('$1,234.56');
+        });
+        
+        it('handles zero correctly', () => {
+          expect(formatCurrency(0)).toBe('$0.00');
+        });
+      });
+    output: "Good practice: function has corresponding tests with multiple scenarios"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - testing
+    - quality
+    - tdd
+    - best-practices
+</rule>

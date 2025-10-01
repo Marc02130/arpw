@@ -1,0 +1,198 @@
+# Documentation Placement Rule
+
+## Overview
+This rule enforces proper placement and structure of general documentation files in the `documents` folder, ensuring consistent organization and maintainability of project documentation.
+
+<rule>
+name: documentation_placement
+description: Enforces proper placement and structure of general documentation files in the documents folder
+
+filters:
+  - type: file_extension
+    pattern: "\\.(md|mdx|txt|pdf|doc|docx)$"
+  - type: content
+    pattern: "(documentation|specification|requirements|design|architecture|planning|analysis)"
+  - type: file_path
+    exclude: "guides/.*"
+  - type: file_path
+    exclude: "supabase/functions/.*"
+
+actions:
+  - type: enforce
+    conditions:
+      # Require placement in documents folder
+      - pattern: "^(?!documents/).*"
+        message: "General documentation files must be placed in the documents/ folder"
+      
+      # Enforce UPPER_SNAKE_CASE naming
+      - pattern: "documents/[a-z].*"
+        message: "Documentation files must use UPPER_SNAKE_CASE naming convention"
+      
+      # Require proper file structure
+      - pattern: "^# [A-Z].*"
+        message: "Documentation files must start with a title heading"
+
+  - type: suggest
+    message: |
+      Place general documentation files in the documents/ folder with:
+      
+      1. UPPER_SNAKE_CASE naming (e.g., PROJECT_ARCHITECTURE.md)
+      2. Clear title heading
+      3. Proper sections: Overview, Content, References
+      4. Appropriate file format (.md, .mdx, .txt, .pdf, .doc, .docx)
+      
+      Example structure:
+      ```markdown
+      # PROJECT_ARCHITECTURE
+      
+      ## Overview
+      Brief description of the document's purpose and scope.
+      
+      ## Content
+      Main content sections with detailed information.
+      
+      ## References
+      Links to related documents, resources, or specifications.
+      ```
+
+examples:
+  - description: "Proper documentation placement"
+    input: |
+      documents/PROJECT_ARCHITECTURE.md
+      documents/API_SPECIFICATION.md
+      documents/DATABASE_DESIGN.md
+    output: "Valid documentation file placement"
+
+  - description: "Correct file structure"
+    input: |
+      # DATABASE_SCHEMA_DESIGN
+      
+      ## Overview
+      This document describes the database schema design for the RAG application.
+      
+      ## Content
+      ### Tables
+      - users
+      - documents
+      - vector_chunks
+      - threads
+      - conversations
+      
+      ## References
+      - Initial migration: supabase/migrations/00000_initial_schema.sql
+      - Optimization migration: supabase/migrations/00002_vector_chunks_optimization.sql
+    output: "Well-structured documentation file"
+
+  - description: "Documentation categories"
+    input: |
+      documents/
+      ├── PROJECT_ARCHITECTURE.md
+      ├── API_SPECIFICATION.md
+      ├── DATABASE_DESIGN.md
+      ├── SECURITY_REQUIREMENTS.md
+      ├── PERFORMANCE_ANALYSIS.md
+      └── DEPLOYMENT_PLAN.md
+    output: "Organized documentation structure"
+
+metadata:
+  priority: high
+  version: 1.0
+  category: documentation
+  tags:
+    - documentation
+    - file_organization
+    - naming_conventions
+    - project_structure
+</rule>
+
+## Implementation Guidelines
+
+### 1. Documentation Categories
+Place different types of documentation in the `documents/` folder:
+
+- **Architecture**: System design, component relationships
+- **Specifications**: API specs, interface definitions
+- **Requirements**: Functional and non-functional requirements
+- **Design**: UI/UX designs, database schemas
+- **Planning**: Project plans, roadmaps, timelines
+- **Analysis**: Performance analysis, security assessments
+
+### 2. Naming Convention
+Use UPPER_SNAKE_CASE for all documentation files:
+
+```
+documents/
+├── PROJECT_ARCHITECTURE.md
+├── API_SPECIFICATION.md
+├── DATABASE_DESIGN.md
+├── SECURITY_REQUIREMENTS.md
+├── PERFORMANCE_ANALYSIS.md
+└── DEPLOYMENT_PLAN.md
+```
+
+### 3. File Structure
+Each documentation file should follow this structure:
+
+```markdown
+# DOCUMENT_TITLE
+
+## Overview
+Brief description of the document's purpose and scope.
+
+## Content
+Main content sections with detailed information.
+
+## References
+Links to related documents, resources, or specifications.
+```
+
+### 4. File Formats
+Supported documentation formats:
+- **Markdown** (.md, .mdx) - Preferred for text-based documentation
+- **Text** (.txt) - For simple text documents
+- **PDF** (.pdf) - For formal documents, specifications
+- **Word** (.doc, .docx) - For collaborative documents
+
+### 5. Content Guidelines
+- Use clear, concise language
+- Include diagrams and examples where helpful
+- Maintain consistent formatting
+- Update documentation when code changes
+- Link to related documents and resources
+
+### 6. Version Control
+- Track documentation changes in git
+- Use meaningful commit messages
+- Review documentation updates
+- Maintain document history
+
+## File Organization
+```
+documents/
+├── ARCHITECTURE/
+│   ├── SYSTEM_OVERVIEW.md
+│   ├── COMPONENT_DIAGRAMS.md
+│   └── DATA_FLOW.md
+├── SPECIFICATIONS/
+│   ├── API_SPECIFICATION.md
+│   ├── DATABASE_SCHEMA.md
+│   └── INTERFACE_DEFINITIONS.md
+├── REQUIREMENTS/
+│   ├── FUNCTIONAL_REQUIREMENTS.md
+│   ├── NON_FUNCTIONAL_REQUIREMENTS.md
+│   └── SECURITY_REQUIREMENTS.md
+└── PLANNING/
+    ├── PROJECT_ROADMAP.md
+    ├── DEPLOYMENT_PLAN.md
+    └── MAINTENANCE_SCHEDULE.md
+```
+
+## Best Practices
+- Keep documentation up-to-date with code changes
+- Use consistent terminology across documents
+- Include examples and use cases
+- Maintain a documentation index
+- Regular documentation reviews
+- Version documentation with code releases
+alwaysApply: true
+---

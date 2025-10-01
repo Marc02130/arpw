@@ -1,0 +1,67 @@
+
+# Rule Name: Commit Messages
+# Description: Standardized commit message format for consistent version control history
+
+<rule>
+name: commit-messages
+description: Enforces standardized commit message format with types and scopes
+filters:
+  - type: content
+    pattern: git commit
+  - type: file
+    pattern: **/*.{js,jsx,ts,tsx,md,mdx}
+actions:
+  - type: suggest
+    pattern: git commit -m "(?!.*\(.*\):.*)"
+    message: "Use format: Type(scope): description (e.g., Feat(auth): add login component)"
+  - type: suggest
+    pattern: git commit -m "(?!.*(Feat|Fix|Docs|Style|Refactor|Test|Chore|RAG|Auth|DB|API)\(.*\):.*)"
+    message: "Use valid commit type: Feat, Fix, Docs, Style, Refactor, Test, Chore, RAG, Auth, DB, API"
+  - type: suggest
+    pattern: git commit -m ".*[A-Z].*:"
+    message: "Use lowercase for descriptions (e.g., 'add' not 'Add')"
+  - type: suggest
+    pattern: git commit -m ".*\."
+    message: "No period at end of commit message"
+examples:
+  - bad: "git commit -m 'add button component'"
+    good: "git commit -m 'Feat(component): add button component'"
+  - bad: "git commit -m 'Fix: resolve login issue.'"
+    good: "git commit -m 'Fix(auth): resolve login issue'"
+  - bad: "git commit -m 'RAG: implement vectorization'"
+    good: "git commit -m 'RAG(vectorization): implement document chunking'"
+</rule>
+
+## Commit Message Types
+- `Feat`: New feature or enhancement
+- `Fix`: Bug fix
+- `Docs`: Documentation changes
+- `Style`: Code style/formatting changes
+- `Refactor`: Code refactoring
+- `Test`: Adding or updating tests
+- `Chore`: Maintenance tasks, dependencies, etc.
+- `RAG`: RAG-specific changes (vectorization, embeddings, queries)
+- `Auth`: Authentication and authorization changes
+- `DB`: Database schema or query changes
+- `API`: API endpoint changes
+
+## Guidelines
+- Use imperative mood in descriptions ("add", not "added")
+- Keep descriptions concise but meaningful
+- Always include both type and scope
+- Use lowercase for descriptions
+- No period at the end of the message
+
+## Common Patterns
+- Documentation: `Docs(readme): update installation steps`
+- Dependencies: `Chore(deps): update package versions`
+- Bug fixes: `Fix(api): resolve undefined user error`
+- New features: `Feat(auth): add Google OAuth login`
+- RAG features: `RAG(vectorization): implement document chunking`
+- Authentication: `Auth(rls): add user-scoped policies`
+- Database: `DB(schema): add vector_chunks table`
+- API endpoints: `API(query): add RAG query endpoint`
+git add .
+git commit -m "Type(scope): description"
+```
+</rule>

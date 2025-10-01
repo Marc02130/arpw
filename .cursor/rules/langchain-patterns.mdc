@@ -1,0 +1,88 @@
+# Rule Name: Langchain Patterns
+# Description: Best practices for Langchain.js implementation in RAG applications
+
+<rule>
+name: langchain-patterns
+description: Enforces Langchain.js best practices for document processing and RAG chains
+filters:
+  - type: content
+    pattern: (langchain|RecursiveCharacterTextSplitter|OpenAIEmbeddings)
+  - type: file
+    pattern: **/*.{js,jsx,ts,tsx}
+actions:
+  - type: warn
+    pattern: new RecursiveCharacterTextSplitter\(\{[^}]*chunkSize:\s*[0-9]{4,}
+    message: "Consider if chunk size > 1000 is necessary - may impact performance"
+  - type: warn
+    pattern: new RecursiveCharacterTextSplitter\(\{[^}]*chunkOverlap:\s*[0-9]{3,}
+    message: "Consider if chunk overlap > 200 is necessary - may create redundancy"
+  - type: suggest
+    pattern: new RecursiveCharacterTextSplitter\(\{[^}]*\}\)
+    message: "Use recommended settings: chunkSize: 1000, chunkOverlap: 200"
+  - type: warn
+    pattern: OpenAIEmbeddings\(\{[^}]*model:\s*"[^"]*ada-002"
+    message: "Use text-embedding-ada-002 model for consistency"
+  - type: suggest
+    pattern: openai\.embeddings\.create\(\{[^}]*model:\s*"[^"]*ada-002"
+    message: "Consider using Langchain's OpenAIEmbeddings wrapper for consistency"
+examples:
+  - bad: |
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 2000,
+        chunkOverlap: 500
+      });
+    good: |
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+        separators: ["\n\n", "\n", " ", ""]
+      });
+  - bad: |
+      const embeddings = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: texts
+      });
+    good: |
+      const embeddings = new OpenAIEmbeddings({
+        modelName: "text-embedding-ada-002"
+      });
+      const vectors = await embeddings.embedDocuments(texts);
+</rule>
+
+## Langchain.js Best Practices
+
+### Document Processing
+- Use `RecursiveCharacterTextSplitter` with recommended settings:
+  - `chunkSize: 1000` (tokens)
+  - `chunkOverlap: 200` (tokens)
+  - Custom separators for better chunking
+- Implement proper error handling for document loading
+- Use appropriate document loaders for file types
+
+### Embeddings
+- Use `OpenAIEmbeddings` wrapper for consistency
+- Stick to `text-embedding-ada-002` model as specified in PRD
+- Implement batch processing for large document sets
+- Add proper error handling and retry logic
+
+### RAG Chains
+- Use `RetrievalQAChain` for simple Q&A
+- Implement proper context window management
+- Add metadata to chunks for better retrieval
+- Use similarity search with appropriate thresholds
+
+### Performance Optimization
+- Implement caching for embeddings
+- Use batch operations for vector insertions
+- Monitor processing times and memory usage
+- Implement proper cleanup for large documents
+
+### Error Handling
+- Handle OpenAI API rate limits
+- Implement retry logic for failed requests
+- Log processing errors for debugging
+- Graceful degradation for partial failures
+description:
+globs:
+alwaysApply: false
+---

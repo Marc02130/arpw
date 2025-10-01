@@ -1,0 +1,162 @@
+Rule Name: data-privacy.mdc
+Description: Data privacy and compliance standards for RAG applications
+
+# Data Privacy & Compliance Standards
+
+<rule>
+name: data_privacy
+description: Enforces data privacy and compliance practices for RAG applications handling user documents
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|ts)$"
+  - type: content
+    pattern: "(privacy|gdpr|compliance|data|user|consent|delete)"
+  - type: path
+    pattern: "(edge-functions|services|utils|components)"
+
+actions:
+  - type: enforce
+    patterns:
+      # User Data Deletion
+      - pattern: |
+          const deleteUserData = async \(userId: string\) => \{
+            // Delete all user data across tables
+            await supabase\.from\('documents'\)\.delete\(\)\.eq\('user_id', userId\);
+            await supabase\.from\('threads'\)\.delete\(\)\.eq\('user_id', userId\);
+            await supabase\.from\('conversations'\)\.delete\(\)\.eq\('user_id', userId\);
+            await supabase\.from\('vector_chunks'\)\.delete\(\)\.eq\('user_id', userId\);
+            
+            // Delete storage files
+            await deleteUserStorageFiles\(userId\);
+          \};
+        message: "Implement comprehensive user data deletion for GDPR compliance"
+
+      # Data Access Logging
+      - pattern: |
+          const logDataAccess = async \(userId: string, operation: string, resourceType: string, resourceId: string\) => \{
+            await supabase\.from\('access_logs'\)\.insert\(\{
+              user_id: userId,
+              operation: operation,
+              resource_type: resourceType,
+              resource_id: resourceId,
+              timestamp: new Date\(\)\.toISOString\(\),
+              ip_address: req\.headers\.get\('x-forwarded-for'\)
+            \}\);
+          \};
+        message: "Log all data access operations for audit compliance"
+
+      # Consent Management
+      - pattern: |
+          const checkUserConsent = async \(userId: string, consentType: string\) => \{
+            const \{ data: consent \} = await supabase
+              \.from\('user_consents'\)
+              \.select\('granted, granted_at'\)
+              \.eq\('user_id', userId\)
+              \.eq\('consent_type', consentType\)
+              \.single\(\);
+            
+            return consent?.granted === true;
+          \};
+        message: "Check user consent before processing personal data"
+
+      # Data Retention Policy
+      - pattern: |
+          const cleanupExpiredData = async \(\) => \{
+            const retentionDays = 365; // 1 year
+            const cutoffDate = new Date\(\);
+            cutoffDate\.setDate\(cutoffDate\.getDate\(\) - retentionDays\);
+            
+            // Delete expired data
+            await supabase\.from\('archived_threads'\)\.delete\(\)\.lt\('archived_at', cutoffDate\.toISOString\(\)\);
+            await supabase\.from\('access_logs'\)\.delete\(\)\.lt\('timestamp', cutoffDate\.toISOString\(\)\);
+          \};
+        message: "Implement data retention policies for compliance"
+
+  - type: suggest
+    message: |
+      Data Privacy & Compliance Best Practices:
+      
+      1. GDPR Compliance:
+         - Implement right to be forgotten (data deletion)
+         - Provide data export functionality
+         - Obtain explicit consent for data processing
+         - Maintain data processing records
+      
+      2. Data Minimization:
+         - Only collect necessary user data
+         - Implement data retention policies
+         - Anonymize data where possible
+         - Use pseudonymization for sensitive data
+      
+      3. Access Controls:
+         - Implement role-based access controls
+         - Log all data access operations
+         - Regular access reviews
+         - Secure data transmission
+      
+      4. Audit Trail:
+         - Log all data operations
+         - Maintain audit logs for compliance
+         - Regular compliance reviews
+         - Data breach notification procedures
+
+examples:
+  - description: "GDPR Data Export"
+    input: |
+      const exportUserData = async (userId: string) => {
+        const userData = {
+          profile: await supabase.from('user_info').select('*').eq('user_id', userId).single(),
+          threads: await supabase.from('threads').select('*').eq('user_id', userId),
+          documents: await supabase.from('documents').select('*').eq('user_id', userId),
+          conversations: await supabase.from('conversations').select('*').eq('user_id', userId),
+          access_logs: await supabase.from('access_logs').select('*').eq('user_id', userId)
+        };
+        
+        return {
+          export_date: new Date().toISOString(),
+          user_id: userId,
+          data: userData
+        };
+      };
+    output: "Valid GDPR data export implementation"
+
+  - description: "Consent Management"
+    input: |
+      const updateUserConsent = async (userId: string, consentType: string, granted: boolean) => {
+        await supabase.from('user_consents').upsert({
+          user_id: userId,
+          consent_type: consentType,
+          granted: granted,
+          granted_at: granted ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        });
+        
+        // Log consent change
+        await logDataAccess(userId, 'consent_update', 'consent', consentType);
+      };
+      
+      const processUserData = async (userId: string, dataType: string) => {
+        const hasConsent = await checkUserConsent(userId, `${dataType}_processing`);
+        if (!hasConsent) {
+          throw new Error('User consent required for data processing');
+        }
+        
+        // Process data with consent
+        await logDataAccess(userId, 'data_processing', dataType, 'batch');
+      };
+    output: "Valid consent management with audit logging"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - privacy
+    - gdpr
+    - compliance
+    - security
+</rule>
+description:
+globs:
+alwaysApply: false
+---

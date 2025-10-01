@@ -1,0 +1,147 @@
+---
+description: Rules for creating and using reusable React components.
+globs: 
+---
+# Reusable Components Standards
+
+
+
+<rule>
+name: reusable_components
+description: Standards for component reusability and composition
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?)$"
+  - type: content
+    pattern: "(function|const).*\\(?{.*}\\)?.*=>|React\\.memo|React\\.forwardRef"
+
+actions:
+  - type: enforce
+    patterns:
+      # Higher Order Components
+      - pattern: |
+          (function|const) with\w+\s*=\s*\(Component\)\s*=>\s*\{
+            return \(props\)\s*=>\s*\{
+              // Implementation
+            \}
+          \}
+        message: "Create HOCs for shared component logic"
+
+      # Style Components
+      - pattern: |
+          (function|const) \w+Styles\s*=\s*\{
+            base: ".*",
+            variants: \{
+              .*
+            \}
+          \}
+        message: "Create consistent style objects for components"
+
+      # Component Interfaces
+      - pattern: |
+          interface \w+Props \{
+            children(\?)?:.+
+            className(\?)?:\s*string
+            .*
+          \}
+        message: "Define clear component interfaces"
+
+      # Reusable Components
+      - pattern: |
+          (function|const) \w+ = \((\{ .* \}|props)\) => \{
+            (const|let) \[.*\] = useState\(.*\)
+            .*
+            return \(
+              <.*>
+            \)
+          \}
+        message: "Create reusable functional components"
+
+      # RAG-Specific Components
+      - pattern: |
+          interface \w+Props \{
+            threadId: string
+            userId: string
+            onQuerySubmit: \(query: string\) => Promise<void>
+            documents\?: Document\[\]
+            conversations\?: Conversation\[\]
+          \}
+        message: "Define RAG component interfaces with proper typing"
+
+      # Thread Management Components
+      - pattern: |
+          const ThreadList = \(\{ threads, onThreadSelect, onThreadDelete \}: ThreadListProps\) => \{
+            return \(
+              <div className="space-y-2">
+                \{threads\.map\(thread => \(
+                  <ThreadItem
+                    key={thread\.thread_id}
+                    thread={thread}
+                    onSelect={onThreadSelect}
+                    onDelete={onThreadDelete}
+                  />
+                \)\)\}
+              </div>
+            \)
+          \}
+        message: "Create reusable thread management components with proper event handling"
+
+examples:
+  - description: "Higher Order Component"
+    input: |
+      const withLoading = (Component) => {
+        return ({ isLoading, ...props }) => {
+          if (isLoading) {
+            return <div className="animate-spin">Loading...</div>
+          }
+          return <Component {...props} />
+        }
+      }
+    output: "Valid HOC pattern"
+
+  - description: "Style Object"
+    input: |
+      const buttonStyles = {
+        base: "px-4 py-2 rounded-lg font-medium transition-colors",
+        variants: {
+          primary: "bg-blue-500 hover:bg-blue-600 text-white",
+          secondary: "bg-gray-200 hover:bg-gray-300 text-gray-800"
+        }
+      }
+    output: "Valid style object"
+
+  - description: "Reusable Component"
+    input: |
+      interface DataGridProps<T> {
+        data: T[]
+        columns: Column<T>[]
+        onSort?: (column: keyof T) => void
+        className?: string
+      }
+
+      const DataGrid = <T extends object>({ 
+        data,
+        columns,
+        onSort,
+        className
+      }: DataGridProps<T>) => {
+        const [sortConfig, setSortConfig] = useState(null)
+        
+        return (
+          <div className={cn("overflow-x-auto", className)}>
+            {/* Implementation */}
+          </div>
+        )
+      }
+    output: "Valid reusable component pattern"
+
+metadata:
+  priority: high
+  version: 1.1
+  tags:
+    - react
+    - components
+    - typescript
+    - tailwind
+</rule>

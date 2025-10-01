@@ -1,0 +1,100 @@
+---
+description: Standard format and structure for Cursor rule files
+globs: *.mdc
+---
+
+# Cursor Rule Format Standards
+
+<rule>
+name: cursor_rule_format
+description: Defines the required structure and format for all Cursor rule files
+filters:
+  - type: file_extension
+    pattern: "\\.mdc$"
+  - type: content
+    pattern: "(?s)<rule>.*?</rule>"
+  - type: event
+    pattern: "file_create"
+
+actions:
+  - type: reject
+    conditions:
+      - pattern: "^(?!Rule Name:.*\\nDescription:.*\\n)"
+        message: "Rule files must start with 'Rule Name:' and 'Description:' headers"
+      
+      - pattern: "(?s)<rule>\\s*(?!(name:|description:))"
+        message: "Rule block must contain 'name' and 'description' fields"
+      
+      - pattern: "(?s)<rule>[^{]*?(?!(filters:|actions:))"
+        message: "Rule block must contain 'filters' and 'actions' sections"
+
+  - type: suggest
+    message: |
+      Cursor rule files should follow this structure:
+      
+      ```markdown
+      Rule Name: descriptive-name.mdc
+      Description: Brief description of the rule's purpose
+
+      # Optional Title
+
+      <rule>
+      name: rule_identifier
+      description: Detailed description of what the rule does
+      filters:
+        - type: file_extension|content|event
+          pattern: "regex_pattern"
+      
+      actions:
+        - type: reject|suggest|warn
+          conditions:
+            - pattern: "regex_pattern"
+          message: "Action message"
+      
+      examples:
+        - input: |
+            example input
+          output: "expected output"
+      
+      metadata:
+        priority: low|medium|high
+        version: 1.0
+        tags:
+          - relevant_tag1
+          - relevant_tag2
+      </rule>
+      ```
+
+examples:
+  - input: |
+      Rule Name: my-rule.mdc
+      Description: Example rule
+
+      <rule>
+      name: example_rule
+      description: Does something useful
+      filters:
+        - type: file_extension
+          pattern: "\\.js$"
+      actions:
+        - type: suggest
+          message: "Suggestion message"
+      </rule>
+    output: "Valid rule format"
+
+  - input: |
+      <rule>
+      filters:
+        - type: file_extension
+          pattern: "\\.js$"
+      </rule>
+    output: "Invalid rule format - missing required fields"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - formatting
+    - standards
+    - documentation
+</rule>

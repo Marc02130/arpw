@@ -1,0 +1,168 @@
+Rule Name: performance-monitoring.mdc
+Description: Performance monitoring and optimization standards for RAG applications
+
+# Performance & Monitoring Standards
+
+<rule>
+name: performance_monitoring
+description: Enforces performance monitoring and optimization practices for RAG applications
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|ts)$"
+  - type: content
+    pattern: "(performance|monitoring|metrics|logging|cache|optimization)"
+  - type: path
+    pattern: "(edge-functions|services|utils|hooks)"
+
+actions:
+  - type: enforce
+    patterns:
+      # Performance Monitoring
+      - pattern: |
+          const startTime = performance\.now\(\);
+          // ... operation ...
+          const endTime = performance\.now\(\);
+          const duration = endTime - startTime;
+          console\.log\(`Operation completed in \$\{duration\}ms`\);
+        message: "Implement performance monitoring for critical operations"
+
+      # API Response Time Tracking
+      - pattern: |
+          const processQuery = async \(query: string\) => \{
+            const startTime = Date\.now\(\);
+            try \{
+              const result = await openai\.chat\.completions\.create\(\{\.\.\.\}\);
+              const duration = Date\.now\(\) - startTime;
+              console\.log\(`Query processed in \$\{duration\}ms`\);
+              return result;
+            \} catch \(error\) \{
+              const duration = Date\.now\(\) - startTime;
+              console\.error\(`Query failed after \$\{duration\}ms:`, error\);
+              throw error;
+            \}
+          \};
+        message: "Track API response times and log performance metrics"
+
+      # Caching Implementation
+      - pattern: |
+          const getCachedResult = async \(key: string\) => \{
+            const cached = await redis\.get\(key\);
+            if \(cached\) \{
+              return JSON\.parse\(cached\);
+            \}
+            return null;
+          \};
+          
+          const setCachedResult = async \(key: string, data: any, ttl: number = 3600\) => \{
+            await redis\.setex\(key, ttl, JSON\.stringify\(data\)\);
+          \};
+        message: "Implement caching for expensive operations"
+
+      # Error Rate Monitoring
+      - pattern: |
+          const trackError = \(operation: string, error: Error\) => \{
+            console\.error\(`Error in \$\{operation\}:`, error\.message\);
+            // Send to monitoring service
+            metrics\.increment\(`errors\.\$\{operation\}`\);
+          \};
+        message: "Track error rates for different operations"
+
+  - type: suggest
+    message: |
+      Performance & Monitoring Best Practices:
+      
+      1. Response Time Monitoring:
+         - Track query processing times
+         - Monitor vector search performance
+         - Log slow operations (>3s)
+         - Set up alerts for performance degradation
+      
+      2. Resource Usage:
+         - Monitor vector storage usage
+         - Track OpenAI API usage and costs
+         - Monitor Supabase storage and compute usage
+         - Implement usage quotas and limits
+      
+      3. Caching Strategy:
+         - Cache frequent query results
+         - Cache vector search results
+         - Implement cache invalidation
+         - Use Redis for distributed caching
+      
+      4. Error Tracking:
+         - Log all errors with context
+         - Track error rates by operation
+         - Monitor API failure rates
+         - Set up error alerting
+
+examples:
+  - description: "Performance Monitoring Hook"
+    input: |
+      const usePerformanceMonitor = () => {
+        const trackOperation = useCallback((operation: string, fn: () => Promise<any>) => {
+          return async (...args: any[]) => {
+            const startTime = performance.now();
+            try {
+              const result = await fn(...args);
+              const duration = performance.now() - startTime;
+              
+              // Log performance metrics
+              console.log(`${operation} completed in ${duration.toFixed(2)}ms`);
+              
+              // Send to monitoring service if slow
+              if (duration > 3000) {
+                metrics.histogram('slow_operations', duration, { operation });
+              }
+              
+              return result;
+            } catch (error) {
+              const duration = performance.now() - startTime;
+              console.error(`${operation} failed after ${duration.toFixed(2)}ms:`, error);
+              metrics.increment('errors', { operation });
+              throw error;
+            }
+          };
+        }, []);
+        
+        return { trackOperation };
+      };
+    output: "Valid performance monitoring hook with metrics tracking"
+
+  - description: "Cached Vector Search"
+    input: |
+      const cachedVectorSearch = async (query: string, userId: string, threadId: string) => {
+        const cacheKey = `vector_search:${userId}:${threadId}:${hash(query)}`;
+        
+        // Check cache first
+        const cached = await getCachedResult(cacheKey);
+        if (cached) {
+          console.log('Vector search result found in cache');
+          return cached;
+        }
+        
+        // Perform search
+        const startTime = performance.now();
+        const result = await performVectorSearch(query, userId, threadId);
+        const duration = performance.now() - startTime;
+        
+        // Cache result for 1 hour
+        await setCachedResult(cacheKey, result, 3600);
+        
+        console.log(`Vector search completed in ${duration.toFixed(2)}ms`);
+        return result;
+      };
+    output: "Valid cached vector search with performance tracking"
+
+metadata:
+  priority: medium
+  version: 1.0
+  tags:
+    - performance
+    - monitoring
+    - caching
+    - metrics
+description:
+globs:
+alwaysApply: false
+---

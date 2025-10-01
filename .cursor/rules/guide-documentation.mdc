@@ -1,0 +1,237 @@
+# Guide Documentation Rule
+
+## Overview
+This rule enforces proper placement and structure of guide documentation files in the `guides` folder, ensuring consistent organization and maintainability of tutorial and how-to documentation.
+
+<rule>
+name: guide_documentation
+description: Enforces proper placement and structure of guide documentation files in the guides folder
+
+filters:
+  - type: file_extension
+    pattern: "\\.(md|mdx|txt)$"
+  - type: content
+    pattern: "(guide|documentation|tutorial|how-to|walkthrough|setup|configuration)"
+  - type: file_path
+    exclude: "supabase/functions/.*"
+
+actions:
+  - type: enforce
+    conditions:
+      # Require placement in guides folder
+      - pattern: "^(?!guides/).*"
+        message: "Guide documentation files must be placed in the guides/ folder"
+      
+      # Enforce UPPER_SNAKE_CASE naming
+      - pattern: "guides/[a-z].*"
+        message: "Guide files must use UPPER_SNAKE_CASE naming convention"
+      
+      # Require proper file structure
+      - pattern: "^# [A-Z].*"
+        message: "Guide files must start with a title heading"
+      
+      # Require key sections
+      - pattern: "## Overview"
+        message: "Guide files must include an Overview section"
+      
+      - pattern: "## Key Features"
+        message: "Guide files must include a Key Features section"
+      
+      - pattern: "## Usage Examples"
+        message: "Guide files must include Usage Examples section"
+
+  - type: suggest
+    message: |
+      Place guide documentation files in the guides/ folder with:
+      
+      1. UPPER_SNAKE_CASE naming (e.g., DENO_SETUP_GUIDE.md)
+      2. Clear title heading
+      3. Required sections: Overview, Key Features, Usage Examples, Configuration, Best Practices
+      4. Step-by-step instructions
+      5. Code examples and screenshots where helpful
+      
+      Example structure:
+      ```markdown
+      # DENO_SETUP_GUIDE
+      
+      ## Overview
+      Brief description of what this guide covers and why it's needed.
+      
+      ## Key Features
+      List of main features or capabilities covered in this guide.
+      
+      ## Usage Examples
+      Step-by-step examples with code snippets and explanations.
+      
+      ## Configuration
+      Configuration options and settings.
+      
+      ## Best Practices
+      Recommended practices and tips for optimal usage.
+      ```
+
+examples:
+  - description: "Proper guide placement"
+    input: |
+      guides/DENO_SETUP_GUIDE.md
+      guides/OPTIMIZATION_GUIDE.md
+      guides/LOGGING_GUIDE.md
+    output: "Valid guide file placement"
+
+  - description: "Correct guide structure"
+    input: |
+      # DENO_SETUP_GUIDE
+      
+      ## Overview
+      This guide explains how to set up deno.json for Supabase Edge Functions to resolve import issues and manage dependencies properly.
+      
+      ## Key Features
+      - Import map configuration
+      - Dependency management
+      - TypeScript compiler options
+      - Lint and format settings
+      
+      ## Usage Examples
+      ### Creating deno.json
+      ```json
+      {
+        "imports": {
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+          "std/http/server": "https://deno.land/std@0.208.0/http/server.ts"
+        }
+      }
+      ```
+      
+      ## Configuration
+      Available configuration options and their purposes.
+      
+      ## Best Practices
+      - Use specific version pins for stability
+      - Keep imports organized by category
+      - Test functions after dependency updates
+    output: "Well-structured guide file"
+
+  - description: "Guide categories"
+    input: |
+      guides/
+      ├── DENO_SETUP_GUIDE.md
+      ├── OPTIMIZATION_GUIDE.md
+      ├── LOGGING_GUIDE.md
+      ├── RAG_QUERY_GUIDE.md
+      ├── RETRIEVAL_FILTERING_GUIDE.md
+      └── NO_RESULTS_HANDLING_GUIDE.md
+    output: "Organized guide structure"
+
+metadata:
+  priority: high
+  version: 1.0
+  category: documentation
+  tags:
+    - guides
+    - tutorials
+    - how-to
+    - documentation
+    - file_organization
+    - naming_conventions
+</rule>
+
+## Implementation Guidelines
+
+### 1. Guide Categories
+Place different types of guides in the `guides/` folder:
+
+- **Setup**: Installation, configuration, environment setup
+- **Usage**: How to use specific features or components
+- **Optimization**: Performance tuning, best practices
+- **Troubleshooting**: Common issues and solutions
+- **Integration**: How to integrate with other systems
+- **Development**: Development workflows and practices
+
+### 2. Naming Convention
+Use UPPER_SNAKE_CASE for all guide files:
+
+```
+guides/
+├── DENO_SETUP_GUIDE.md
+├── OPTIMIZATION_GUIDE.md
+├── LOGGING_GUIDE.md
+├── RAG_QUERY_GUIDE.md
+├── RETRIEVAL_FILTERING_GUIDE.md
+└── NO_RESULTS_HANDLING_GUIDE.md
+```
+
+### 3. File Structure
+Each guide file should follow this structure:
+
+```markdown
+# GUIDE_TITLE
+
+## Overview
+Brief description of what this guide covers and why it's needed.
+
+## Key Features
+List of main features or capabilities covered in this guide.
+
+## Usage Examples
+Step-by-step examples with code snippets and explanations.
+
+## Configuration
+Configuration options and settings.
+
+## Best Practices
+Recommended practices and tips for optimal usage.
+```
+
+### 4. Content Guidelines
+- Use clear, step-by-step instructions
+- Include code examples and screenshots
+- Provide context and explanations
+- Link to related guides and documentation
+- Keep guides focused on specific topics
+- Update guides when features change
+
+### 5. Code Examples
+- Use syntax highlighting for code blocks
+- Include complete, runnable examples
+- Explain what each example does
+- Provide both simple and advanced examples
+- Include error handling where relevant
+
+### 6. Screenshots and Diagrams
+- Include screenshots for UI-related guides
+- Use diagrams for complex workflows
+- Keep images up-to-date with current versions
+- Provide alt text for accessibility
+
+## File Organization
+```
+guides/
+├── SETUP/
+│   ├── DENO_SETUP_GUIDE.md
+│   ├── SUPABASE_SETUP_GUIDE.md
+│   └── ENVIRONMENT_SETUP_GUIDE.md
+├── USAGE/
+│   ├── RAG_QUERY_GUIDE.md
+│   ├── VECTORIZATION_GUIDE.md
+│   └── THREAD_MANAGEMENT_GUIDE.md
+├── OPTIMIZATION/
+│   ├── PERFORMANCE_GUIDE.md
+│   ├── SCALING_GUIDE.md
+│   └── MONITORING_GUIDE.md
+└── TROUBLESHOOTING/
+    ├── COMMON_ISSUES_GUIDE.md
+    ├── DEBUGGING_GUIDE.md
+    └── ERROR_RESOLUTION_GUIDE.md
+```
+
+## Best Practices
+- Keep guides focused and concise
+- Use consistent terminology
+- Include prerequisites and requirements
+- Provide both beginner and advanced content
+- Regular guide reviews and updates
+- Test all code examples
+- Include troubleshooting sections
+- Link to related resources and documentation
+alwaysApply: true
+---

@@ -1,0 +1,201 @@
+Rule Name: prd-scope-limits.mdc
+Description: Enforces adherence to PRD specifications and prevents scope creep
+
+# PRD Scope Limits
+
+<rule>
+name: prd_scope_limits
+description: Enforces strict adherence to the PRD specifications and prevents scope creep by limiting development to only explicitly defined requirements
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|ts|md|mdx)$"
+  - type: content
+    pattern: "(function|class|component|feature|TODO|FIXME|enhancement|improvement)"
+  - type: path
+    pattern: "(src|components|pages|api|edge-functions|utils|services)"
+
+actions:
+  - type: reject
+    conditions:
+      # Reject features not in PRD
+      - pattern: "(?i)(analytics|dashboard|metrics|reporting|export|import|collaboration|sharing|team|workspace|organization)"
+        message: "Feature not in PRD scope. PRD explicitly excludes: 'Advanced analytics, multi-user collaboration, custom model training, payment integration'"
+      
+      - pattern: "(?i)(payment|billing|subscription|plan|upgrade|premium|pro|enterprise)"
+        message: "Payment features not in PRD scope. PRD targets individual users with no payment integration"
+      
+      - pattern: "(?i)(real-time|websocket|live|streaming|notification|alert|email|sms)"
+        message: "Real-time features not in PRD scope. Focus on core RAG functionality only"
+      
+      - pattern: "(?i)(plugin|extension|integration|api|webhook|third-party|external)"
+        message: "External integrations not in PRD scope. PRD specifies: 'OpenAI API, Langchain, Supabase' only"
+      
+      - pattern: "(?i)(mobile|app|native|pwa|offline|sync)"
+        message: "Mobile/offline features not in PRD scope. PRD specifies web-based React application"
+      
+      - pattern: "(?i)(ai|ml|training|fine-tune|custom-model|embedding-model)"
+        message: "Custom AI/ML features not in PRD scope. PRD specifies: 'OpenAI API for embeddings and completions' only"
+
+  - type: warn
+    conditions:
+      # Warn about potential scope creep
+      - pattern: "(?i)(future|later|enhancement|improvement|optimization|refactor)"
+        message: "Consider if this is within current PRD scope. Focus on core requirements first"
+      
+      - pattern: "(?i)(nice-to-have|bonus|extra|additional|optional)"
+        message: "Verify this feature is explicitly required in the PRD before implementation"
+
+  - type: enforce
+    patterns:
+      # Enforce PRD-specified tech stack
+      - pattern: |
+          import.*from ['"]@supabase/supabase-js['"]
+        message: "Use Supabase JS client as specified in PRD"
+
+      - pattern: |
+          import.*from ['"]openai['"]
+        message: "Use OpenAI API as specified in PRD for embeddings and completions"
+
+      - pattern: |
+          import.*from ['"]langchain['"]
+        message: "Use Langchain for document processing as specified in PRD"
+
+      - pattern: |
+          className=".*"
+        message: "Use Tailwind CSS as specified in PRD for styling"
+
+      # Enforce PRD-specified database schema
+      - pattern: |
+          CREATE TABLE (user_info|threads|documents|conversations|vector_chunks)
+        message: "Use exact table names and schema as specified in PRD"
+
+      # Enforce PRD-specified file upload limits
+      - pattern: |
+          (10MB|10485760|file.*size.*10)
+        message: "Enforce 10MB file size limit as specified in PRD"
+
+      # Enforce PRD-specified performance targets
+      - pattern: |
+          (5s|5000|vectorization.*time)
+        message: "Aim for <5s vectorization time as specified in PRD"
+
+      - pattern: |
+          (3s|3000|query.*response.*time)
+        message: "Aim for <3s query response time as specified in PRD"
+
+  - type: suggest
+    message: |
+      PRD Scope Compliance Checklist:
+      
+      1. Core Features Only:
+         ✅ User authentication (Supabase Auth)
+         ✅ Thread management (create, list, delete with archival)
+         ✅ Document upload and vectorization
+         ✅ RAG queries with chat interface
+         ✅ Chat history vectorization
+      
+      2. Tech Stack Compliance:
+         ✅ React frontend with Tailwind CSS
+         ✅ Supabase Edge Functions (TypeScript)
+         ✅ Supabase Postgres with PGVector
+         ✅ OpenAI API (embeddings + completions)
+         ✅ Langchain for document processing
+      
+      3. Database Schema:
+         ✅ user_info table
+         ✅ threads table
+         ✅ documents table
+         ✅ conversations table
+         ✅ vector_chunks table
+         ✅ RLS policies on all tables
+      
+      4. Performance Targets:
+         ✅ <5s vectorization time
+         ✅ <3s query response time
+         ✅ Handle 100 users initially
+      
+      5. Security Requirements:
+         ✅ JWT authentication
+         ✅ RLS for user-scoped access
+         ✅ User-scoped storage paths
+      
+      6. Explicitly Excluded:
+         ❌ Advanced analytics
+         ❌ Multi-user collaboration
+         ❌ Custom model training
+         ❌ Payment integration
+         ❌ Real-time features
+         ❌ Mobile applications
+         ❌ External integrations
+
+examples:
+  - description: "Valid PRD-Compliant Feature"
+    input: |
+      // ✅ PRD-compliant: Document upload with vectorization
+      const uploadDocument = async (file: File, threadId: string) => {
+        // Validate file size (10MB limit per PRD)
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error('File too large');
+        }
+        
+        // Upload to Supabase Storage (user-scoped paths per PRD)
+        const filePath = `/users/${userId}/threads/${threadId}/${file.name}`;
+        
+        // Trigger vectorization (Edge Function per PRD)
+        await triggerVectorization(docId, userId, threadId);
+      };
+    output: "Valid implementation within PRD scope"
+
+  - description: "Invalid Scope Creep"
+    input: |
+      // ❌ Not in PRD: Analytics dashboard
+      const AnalyticsDashboard = () => {
+        return (
+          <div>
+            <h1>Usage Analytics</h1>
+            <Chart data={analyticsData} />
+            <MetricsPanel />
+          </div>
+        );
+      };
+    output: "Feature not in PRD scope - explicitly excluded"
+
+  - description: "Invalid Tech Stack"
+    input: |
+      // ❌ Not in PRD: Using different database
+      import { MongoClient } from 'mongodb';
+      
+      const client = new MongoClient(process.env.MONGODB_URI);
+    output: "Tech stack not specified in PRD - use Supabase Postgres"
+
+  - description: "Valid Performance Target"
+    input: |
+      // ✅ PRD-compliant: Performance monitoring
+      const processQuery = async (query: string) => {
+        const startTime = Date.now();
+        
+        const result = await performRAGQuery(query);
+        
+        const duration = Date.now() - startTime;
+        if (duration > 3000) { // 3s limit per PRD
+          console.warn('Query response time exceeded PRD target');
+        }
+        
+        return result;
+      };
+    output: "Valid performance monitoring within PRD scope"
+
+metadata:
+  priority: critical
+  version: 1.0
+  tags:
+    - prd
+    - scope
+    - requirements
+    - compliance
+</rule>
+description:
+globs:
+alwaysApply: false
+---

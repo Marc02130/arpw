@@ -1,0 +1,169 @@
+Rule Name: file-processing.mdc
+Description: Standards for file upload, validation, and processing in RAG applications
+
+# File Processing Standards
+
+<rule>
+name: file_processing
+description: Enforces best practices for file upload, validation, and processing in RAG applications
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|ts)$"
+  - type: content
+    pattern: "(upload|file|document|validation|mime|size)"
+  - type: path
+    pattern: "(components|utils|services|edge-functions)"
+
+actions:
+  - type: enforce
+    patterns:
+      # File Upload Validation
+      - pattern: |
+          const validateFile = \(file: File\) => \{
+            const maxSize = 10 \* 1024 \* 1024; // 10MB
+            const allowedTypes = \['application/pdf', 'application/vnd\.openxmlformats-officedocument\.wordprocessingml\.document', 'text/plain'\];
+            
+            if \(file\.size > maxSize\) \{
+              throw new Error\('File too large'\);
+            \}
+            
+            if \(!allowedTypes\.includes\(file\.type\)\) \{
+              throw new Error\('Unsupported file type'\);
+            \}
+          \};
+        message: "Implement comprehensive file validation with size and type checks"
+
+      # Secure File Upload
+      - pattern: |
+          const uploadFile = async \(file: File, userId: string, threadId: string\) => \{
+            const timestamp = new Date\(\)\.toISOString\(\)\.replace\(/[:.]/g, '-'\)\;
+            const fileName = `\$\{timestamp\}_\$\{file\.name\}`;
+            const filePath = `/users/\$\{userId\}/threads/\$\{threadId\}/\$\{fileName\}`;
+            
+            const \{ data, error \} = await supabase\.storage
+              \.from\('documents'\)
+              \.upload\(filePath, file\);
+          \};
+        message: "Use secure file paths with user/thread scoping and timestamp prefixes"
+
+      # File Processing Status
+      - pattern: |
+          const updateProcessingStatus = async \(docId: string, status: 'pending' \| 'processing' \| 'ready' \| 'failed'\) => \{
+            await supabase
+              \.from\('documents'\)
+              \.update\(\{ 
+                vector_status: status,
+                processed_at: status === 'ready' ? new Date\(\)\.toISOString\(\) : null
+              \}\)
+              \.eq\('doc_id', docId\);
+          \};
+        message: "Track file processing status with proper timestamps"
+
+  - type: suggest
+    message: |
+      File Processing Best Practices:
+      
+      1. File Validation:
+         - Check file size (10MB limit per file)
+         - Validate MIME types (PDF, DOCX, TXT, RTF)
+         - Scan for malicious content
+         - Implement virus scanning for uploaded files
+      
+      2. Secure Storage:
+         - Use user-scoped storage paths
+         - Implement proper access controls
+         - Clean up temporary files
+         - Monitor storage usage
+      
+      3. Processing Pipeline:
+         - Implement async processing queues
+         - Track processing status with real-time updates
+         - Handle processing failures gracefully
+         - Implement retry mechanisms
+      
+      4. Error Handling:
+         - Provide clear error messages to users
+         - Log processing errors for debugging
+         - Implement fallback processing options
+         - Clean up failed uploads
+
+examples:
+  - description: "Complete File Upload Handler"
+    input: |
+      const handleFileUpload = async (file: File, threadId: string, userId: string) => {
+        try {
+          // 1. Validate file
+          validateFile(file);
+          
+          // 2. Upload to storage
+          const { data: uploadData, error: uploadError } = await uploadFile(file, userId, threadId);
+          if (uploadError) throw uploadError;
+          
+          // 3. Create document record
+          const { data: docData, error: docError } = await supabase
+            .from('documents')
+            .insert({
+              thread_id: threadId,
+              user_id: userId,
+              file_name: file.name,
+              file_path: uploadData.path,
+              file_size: file.size,
+              mime_type: file.type,
+              vector_status: 'pending'
+            })
+            .select()
+            .single();
+          
+          if (docError) throw docError;
+          
+          // 4. Trigger vectorization
+          await triggerVectorization(docData.doc_id, userId, threadId);
+          
+          return docData;
+        } catch (error) {
+          console.error('File upload error:', error);
+          throw error;
+        }
+      };
+    output: "Valid file upload implementation with proper validation and error handling"
+
+  - description: "File Validation Utility"
+    input: |
+      const validateFile = (file: File): void => {
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        const allowedTypes = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+          'application/rtf'
+        ];
+        
+        if (file.size > maxSize) {
+          throw new Error(`File size exceeds 10MB limit. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+        }
+        
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error(`Unsupported file type: ${file.type}. Supported types: PDF, DOCX, TXT, RTF`);
+        }
+        
+        // Additional security checks
+        if (file.name.includes('..') || file.name.includes('/')) {
+          throw new Error('Invalid filename');
+        }
+      };
+    output: "Comprehensive file validation with security checks"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - file-upload
+    - validation
+    - security
+    - processing
+</rule>
+description:
+globs:
+alwaysApply: false
+---

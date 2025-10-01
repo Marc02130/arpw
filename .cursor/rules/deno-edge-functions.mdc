@@ -1,0 +1,212 @@
+# Deno Configuration for Supabase Edge Functions
+
+## Overview
+This rule enforces the use of `deno.json` configuration files for Supabase Edge Functions to properly manage imports, resolve linter errors, and ensure consistent dependency management.
+
+<rule>
+name: deno_edge_functions
+description: Enforces deno.json configuration for Supabase Edge Functions to manage imports and dependencies properly
+
+filters:
+  - type: file_path
+    pattern: "supabase/functions/.*\\.ts$"
+  - type: file_extension
+    pattern: "\\.ts$"
+  - type: content
+    pattern: "import.*from.*https://"
+
+actions:
+  - type: enforce
+    conditions:
+      # Require deno.json in function directories
+      - pattern: "import.*from.*https://"
+        message: "Use deno.json for dependency management instead of direct URL imports"
+      
+      # Enforce proper import structure
+      - pattern: "import.*from.*'https://esm\\.sh/"
+        message: "Configure dependencies in deno.json and use import maps"
+      
+      # Prevent mixed import styles
+      - pattern: "import.*from.*'@supabase/supabase-js'"
+        message: "Use deno.json import map for Supabase client imports"
+
+  - type: suggest
+    message: |
+      For Supabase Edge Functions, create a deno.json file with:
+      
+      1. Import map for dependencies
+      2. Compiler options for TypeScript
+      3. Lint and format configurations
+      
+      Example deno.json structure:
+      ```json
+      {
+        "imports": {
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+          "langchain/": "https://esm.sh/langchain@0.1.0/",
+          "std/": "https://deno.land/std@0.208.0/"
+        },
+        "compilerOptions": {
+          "allowJs": true,
+          "lib": ["deno.window"],
+          "strict": true
+        },
+        "lint": {
+          "rules": {
+            "tags": ["recommended"]
+          }
+        },
+        "fmt": {
+          "files": {
+            "include": ["**/*.ts"]
+          }
+        }
+      }
+      ```
+
+examples:
+  - description: "Proper deno.json configuration"
+    input: |
+      // deno.json
+      {
+        "imports": {
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+          "langchain/text_splitter": "https://esm.sh/langchain@0.1.0/text_splitter",
+          "langchain/embeddings/openai": "https://esm.sh/langchain@0.1.0/embeddings/openai",
+          "langchain/llms/openai": "https://esm.sh/langchain@0.1.0/llms/openai",
+          "std/http/server": "https://deno.land/std@0.208.0/http/server.ts"
+        },
+        "compilerOptions": {
+          "allowJs": true,
+          "lib": ["deno.window"],
+          "strict": true
+        }
+      }
+    output: "Valid deno.json configuration for Edge Functions"
+
+  - description: "Updated import statements"
+    input: |
+      import { serve } from "std/http/server"
+      import { createClient } from '@supabase/supabase-js'
+      import { RecursiveCharacterTextSplitter } from "langchain/text_splitter"
+      import { OpenAIEmbeddings } from "langchain/embeddings/openai"
+    output: "Clean imports using deno.json import map"
+
+  - description: "Before and after comparison"
+    input: |
+      // Before (direct URLs)
+      import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+      
+      // After (with deno.json)
+      import { serve } from "std/http/server"
+      import { createClient } from '@supabase/supabase-js'
+    output: "Cleaner, maintainable imports with proper dependency management"
+
+metadata:
+  priority: high
+  version: 1.0
+  category: edge_functions
+  tags:
+    - deno
+    - supabase
+    - imports
+    - typescript
+    - edge_functions
+</rule>
+
+## Implementation Guidelines
+
+### 1. Create deno.json in Each Function Directory
+Each Edge Function should have its own `deno.json` file for dependency management:
+
+```json
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "langchain/text_splitter": "https://esm.sh/langchain@0.1.0/text_splitter",
+    "langchain/embeddings/openai": "https://esm.sh/langchain@0.1.0/embeddings/openai",
+    "langchain/llms/openai": "https://esm.sh/langchain@0.1.0/llms/openai",
+    "std/http/server": "https://deno.land/std@0.208.0/http/server.ts"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["**/*.ts"]
+    }
+  }
+}
+```
+
+### 2. Update Import Statements
+Replace direct URL imports with import map references:
+
+```typescript
+// Before
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+// After
+import { serve } from "std/http/server"
+import { createClient } from '@supabase/supabase-js'
+```
+
+### 3. Version Management
+- Pin specific versions in deno.json for stability
+- Use semantic versioning for dependencies
+- Document version updates in commit messages
+
+### 4. Benefits
+- **Linter Compatibility**: Resolves TypeScript linter errors
+- **Dependency Management**: Centralized version control
+- **Maintainability**: Easier to update dependencies
+- **Type Safety**: Better TypeScript support
+- **Performance**: Deno can cache and optimize imports
+
+### 5. Best Practices
+- Keep deno.json files in each function directory
+- Use consistent versioning across functions
+- Document dependency changes
+- Test functions after dependency updates
+- Use import maps for all external dependencies
+
+## File Structure
+```
+supabase/
+  functions/
+    vectorize/
+      deno.json
+      index.ts
+    rag-query/
+      deno.json
+      index.ts
+    delete-thread/
+      deno.json
+      index.ts
+```
+
+## Migration Steps
+1. Create deno.json in each function directory
+2. Update import statements to use import maps
+3. Test functions locally with `supabase functions serve`
+4. Deploy functions with updated configuration
+5. Verify functionality in production
+
+## Troubleshooting
+- **Import Errors**: Check deno.json import map configuration
+- **Version Conflicts**: Ensure consistent versions across functions
+- **Type Errors**: Verify compiler options in deno.json
+- **Deployment Issues**: Test locally before deploying
+description:
+globs:
+alwaysApply: false
+---

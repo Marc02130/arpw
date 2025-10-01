@@ -1,0 +1,78 @@
+
+# Rule Name: Tailwind CSS Standards
+# Description: Best practices for Tailwind CSS v4+ implementation and optimization
+
+<rule>
+name: tailwind-standards
+description: Enforces Tailwind CSS v4+ best practices and prevents overcomplexity
+filters:
+  - type: content
+    pattern: (className|class)=
+  - type: file
+    pattern: **/*.{js,jsx,ts,tsx}
+  - type: file
+    pattern: **/*.css
+actions:
+  - type: warn
+    pattern: className="[^"]*[a-z]+-[a-z]+-[a-z]+-[a-z]+-[a-z]+"
+    message: "Consider if complex Tailwind classes could be simplified or extracted to a component"
+  - type: warn
+    pattern: className="[^"]*\{.*\}"
+    message: "Consider using Tailwind utilities instead of dynamic class generation"
+  - type: suggest
+    pattern: className="[^"]*bg-gray-[0-9]+[0-9]+[0-9]+"
+    message: "Use Tailwind v4+ color system (e.g., bg-gray-950 instead of bg-gray-900)"
+  - type: suggest
+    pattern: className="[^"]*text-[0-9]+px"
+    message: "Use Tailwind's text sizing utilities (text-sm, text-base, text-lg, etc.)"
+examples:
+  - bad: "className='bg-gray-900 text-white p-4 m-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ease-in-out'"
+    good: "className='bg-gray-950 text-white p-4 m-2 rounded-lg shadow-md hover:shadow-lg transition-all'"
+  - bad: "className={`bg-${color}-500 text-${textColor}`}"
+    good: "className={cn('bg-blue-500 text-white', color === 'red' && 'bg-red-500')}"
+</rule>
+
+## Tailwind v4+ Best Practices
+
+### Code Style and Structure
+- Use Tailwind CSS version 4.0 or higher
+- Avoid legacy Tailwind classes that were removed in version 4.0
+- Ensure class names and utility usage align with Tailwind 4+ best practices
+
+### Complexity Management
+- Use complex Tailwind features ONLY when explicitly requested
+- Default to simpler approaches even when more advanced options are available
+- Advanced features requiring explicit request include:
+  - JIT mode optimizations
+  - Complex gradient effects
+  - Advanced responsive designs using multiple breakpoints
+  - Dynamic class generation with state management
+  - RTL/bidirectional text support
+  - PurgeCSS optimizations
+  - Complex animation sequences
+
+### React Best Practices
+- Use Tailwind classes directly within JSX without abstraction unless necessary
+- Extract repeated class combinations into reusable components
+- Avoid excessive nesting of elements when styling can be achieved with Tailwind utilities
+- Use React's `useMemo` and `useCallback` to optimize component re-renders when applying dynamic Tailwind classes
+
+### Performance Optimization
+- Use Tailwind's built-in PurgeCSS to remove unused styles in production
+- Optimize class combinations to minimize unnecessary style computations
+- Avoid unnecessary `useState` or `useEffect` for class toggling; prefer `useMemo` where applicable
+
+### Accessibility (a11y)
+- Use Tailwind's `sr-only` class for hidden but accessible text
+- Ensure proper contrast ratios using Tailwind's built-in color utilities
+- Use focus-visible utilities to enhance keyboard navigation
+
+### Key Conventions
+- Optimize Web Vitals by keeping Tailwind styles lean and efficient
+- Balance readability and performance when applying multiple utility classes
+- Always use the latest Tailwind features and remove deprecated syntax when upgrading
+## Key Conventions
+- Optimize Web Vitals by keeping Tailwind styles lean and efficient
+- Balance readability and performance when applying multiple utility classes
+- Always use the latest Tailwind features and remove deprecated syntax when upgrading
+</rule>

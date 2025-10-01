@@ -1,0 +1,113 @@
+---
+description: Guidelines for effective self and peer code reviews to maintain code quality
+globs: **/*
+alwaysApply: true
+---
+
+
+# Code Review Guidelines
+
+This rule establishes best practices for code reviews, focusing on:
+
+1. Self-reviews before submission
+2. Comprehensive review criteria 
+3. Constructive feedback processes
+
+<rule>
+name: code_review
+description: Enforces effective code review practices to catch issues early and maintain code quality
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|css|scss)$"
+  - type: content
+    pattern: "function|class|const|import|export"
+  - type: event
+    pattern: "commit_prepare|pull_request"
+
+actions:
+  - type: warn
+    conditions:
+      - pattern: "function\\s+\\w+.*\\{[^}]{200,}\\}"
+        message: "Function exceeds 200 characters. Consider refactoring for readability and testability."
+      
+      - pattern: "if\\s*\\([^)]{80,}\\)"
+        message: "Complex conditional. Extract into a named function or variable for clarity."
+      
+      - pattern: "\\w+\\s*=\\s*\\w+\\s*\\?{2,}\\s*\\w+"
+        message: "Nested ternary operators reduce readability. Consider using if statements or extracted conditions."
+
+  - type: suggest
+    message: |
+      Code Review Checklist:
+      
+      1. Before Submitting:
+         - Review your own code first
+         - Run linters and tests
+         - Check for code smells and anti-patterns
+      
+      2. Review Criteria:
+         - Functionality: Does it work as intended?
+         - Security: Are there any security risks?
+         - Performance: Are there inefficient operations?
+         - Readability: Is the code easy to understand?
+         - Maintainability: Will it be easy to modify later?
+         - Testability: Is the code testable?
+      
+      3. Review Process:
+         - Be specific in comments
+         - Suggest alternatives, not just point out problems
+         - Separate "must-fix" from "nice-to-have" feedback
+         - Focus on the code, not the developer
+      
+      4. Common Issues to Watch For:
+         - Duplicated code
+         - Overly complex functions
+         - Missing error handling
+         - Inadequate comments or documentation
+         - Inconsistent naming or styling
+
+examples:
+  - input: |
+      function processUserData(user) {
+        if (user && user.profile && user.profile.preferences && user.profile.preferences.notifications && user.profile.preferences.notifications.email) {
+          return sendEmail(user.profile.preferences.notifications.email);
+        }
+        return false;
+      }
+    output: "Review issues: Complex conditional that's hard to read and maintain"
+
+  - input: |
+      // Before review
+      function handleSubmit() {
+        const isValid = name.length > 0 && email.includes('@') && password.length >= 8;
+        if (isValid) {
+          // Submit form
+        }
+      }
+      
+      // After review
+      function handleSubmit() {
+        if (isFormValid()) {
+          // Submit form
+        }
+      }
+      
+      function isFormValid() {
+        return isNameValid() && isEmailValid() && isPasswordValid();
+      }
+      
+      function isNameValid() { return name.length > 0; }
+      function isEmailValid() { return email.includes('@'); }
+      function isPasswordValid() { return password.length >= 8; }
+    output: "Good review outcome: Complex validation logic refactored into readable functions"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - code-review
+    - quality
+    - readability
+    - best-practices
+</rule>

@@ -1,0 +1,121 @@
+Rule Name: supabase-migrations.mdc
+Description: Standards for Supabase migration file naming and organization
+
+# Supabase Migration Standards
+
+<rule>
+name: supabase_migrations
+description: Enforces consistent naming conventions and organization for Supabase migration files
+filters:
+  - type: file_extension
+    pattern: "\\.sql$"
+  - type: file_path
+    pattern: "supabase/migrations/.*"
+  - type: event
+    pattern: "file_create"
+
+actions:
+  - type: reject
+    conditions:
+      - pattern: "^(?!\\d{5}_.*\\.sql$)"
+        message: "Migration files must follow the pattern: 00000_description.sql (5-digit prefix, underscore, description, .sql extension)"
+      
+      - pattern: "^(\\d{5})_.*\\1"
+        message: "Migration file prefix must be unique and sequential"
+      
+      - pattern: "^\\d{5}_[^a-z].*\\.sql$"
+        message: "Description must start with lowercase letter and use underscores for spaces"
+      
+      - pattern: "^\\d{5}_.*[A-Z].*\\.sql$"
+        message: "Description must be lowercase with underscores, no uppercase letters"
+      
+      - pattern: "^\\d{5}_.*\\s.*\\.sql$"
+        message: "Description must use underscores instead of spaces"
+
+  - type: suggest
+    message: |
+      Supabase Migration File Naming Standards:
+      
+      1. File Format: 00000_description.sql
+         - 5-digit sequential prefix (00000, 00001, 00002, etc.)
+         - Underscore separator
+         - Descriptive name using lowercase and underscores
+         - .sql extension
+      
+      2. Naming Examples:
+         ✅ 00000_initial_schema.sql
+         ✅ 00001_add_user_profiles.sql
+         ✅ 00002_create_documents_table.sql
+         ✅ 00003_add_vector_embeddings.sql
+         ✅ 00004_update_rls_policies.sql
+      
+      3. Naming Guidelines:
+         - Use descriptive, action-oriented names
+         - Keep names concise but clear
+         - Use underscores for word separation
+         - Avoid abbreviations unless widely understood
+         - Include the main entity or feature being modified
+      
+      4. Sequential Ordering:
+         - Start with 00000 for the first migration
+         - Increment by 1 for each subsequent migration
+         - Never reuse or skip numbers
+         - Maintain chronological order of changes
+      
+      5. Content Requirements:
+         - Each migration should be idempotent
+         - Include proper up and down migrations
+         - Add comments explaining complex operations
+         - Test migrations before committing
+
+examples:
+  - input: |
+      # Valid migration files
+      00000_initial_schema.sql
+      00001_add_user_authentication.sql
+      00002_create_documents_table.sql
+      00003_add_vector_search.sql
+    output: "Valid migration naming convention"
+
+  - input: |
+      # Invalid migration files
+      initial_schema.sql
+      1_add_users.sql
+      00001_AddUsers.sql
+      00001_add users.sql
+      migration_001.sql
+    output: "Invalid migration naming - must follow 00000_description.sql pattern"
+
+  - input: |
+      -- Example migration content
+      -- Migration: 00001_add_user_profiles.sql
+      -- Description: Creates user_profiles table with basic fields
+      
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+        full_name TEXT,
+        avatar_url TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+      
+      -- Add RLS policies
+      ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+      
+      CREATE POLICY "Users can view own profile" ON user_profiles
+        FOR SELECT USING (auth.uid() = user_id);
+      
+      CREATE POLICY "Users can update own profile" ON user_profiles
+        FOR UPDATE USING (auth.uid() = user_id);
+    output: "Valid migration content with proper structure and comments"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - supabase
+    - migrations
+    - database
+    - naming-conventions
+</rule>

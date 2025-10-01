@@ -1,0 +1,109 @@
+---
+description: Guidelines for quality-focused development with incremental changes and early bug detection
+globs: 
+alwaysApply: false
+---
+
+# Quality-First Development Guidelines
+
+This rule enforces development practices that prioritize code quality over delivery speed, ensuring:
+
+1. Incremental development with small, focused changes
+2. Early bug detection through methodical testing
+3. Proper documentation and verification at each step
+
+<rule>
+name: quality_first
+description: Enforces quality-first development practices with incremental changes and early bug detection
+
+filters:
+  - type: file_extension
+    pattern: "\\.(jsx?|tsx?|css|scss)$"
+  - type: content
+    pattern: "function|class|const|let|var|import|export"
+  - type: event
+    pattern: "commit_prepare"
+
+actions:
+  - type: warn
+    conditions:
+      - pattern: "(?s).*TODO.*implement.*later.*"
+        message: "Avoid TODO placeholders without specific details. Fully implement features or document exact requirements."
+      
+      - pattern: "console\\.(log|warn|error)\\("
+        message: "Remove debugging statements before committing. Use proper error handling instead."
+      
+      - pattern: "setTimeout\\(\\s*function\\s*\\(\\)\\s*\\{|setTimeout\\(\\s*\\(\\)\\s*=>\\s*\\{"
+        message: "Avoid arbitrary timeouts. Use proper state management or event handling."
+
+      - pattern: "openai\\.(chat|embeddings)\\.create\\(\\{[^}]*\\}\\)"
+        message: "Implement proper error handling and rate limiting for OpenAI API calls."
+
+      - pattern: "supabase\\.from\\(['\"](documents|threads|conversations|vector_chunks)['\"]\\)\\.(select|insert|update|delete)\\([^)]*\\)(?!.*\\.eq\\(['\"]user_id['\"])"
+        message: "Missing user_id filtering for RLS compliance. Always scope operations by user."
+
+  - type: suggest
+    message: |
+      Quality-First Development Practices:
+      
+      1. Change Scope:
+         - Modify no more than 3 files at once
+         - Each change should have a single, clear purpose
+         - Commit frequently with descriptive messages
+      
+      2. Testing:
+         - Write tests before or alongside implementation
+         - Manually verify functionality after each change
+         - Test edge cases and error handling
+      
+      3. Code Review:
+         - Self-review before committing
+         - Document design decisions
+         - Explain any trade-offs or complex logic
+      
+      4. Documentation:
+         - Include JSDoc comments for functions
+         - Document component props
+         - Update README/docs for user-facing changes
+
+examples:
+  - input: |
+      // TODO: Implement proper validation later
+      function submitForm() {
+        console.log('Form submitted');
+        setTimeout(() => {
+          window.location.href = '/success';
+        }, 1000);
+      }
+    output: "Contains multiple quality issues: TODO without details, console.log, and arbitrary timeout"
+
+  - input: |
+      /**
+       * Submits the form data after validation
+       * @param {Object} data - The form data
+       * @returns {Promise<boolean>} Success status
+       */
+      async function submitForm(data) {
+        try {
+          const isValid = await validateFormData(data);
+          if (!isValid) {
+            return false;
+          }
+          await saveFormData(data);
+          return true;
+        } catch (error) {
+          recordError(error);
+          return false;
+        }
+      }
+    output: "Good quality: proper documentation, error handling, and no quick fixes"
+
+metadata:
+  priority: high
+  version: 1.0
+  tags:
+    - quality
+    - testing
+    - documentation
+    - best-practices
+</rule>
