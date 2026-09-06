@@ -21,40 +21,50 @@ A web-based AI-powered application designed to assist academic users in generati
 
 ## Setup Instructions
 
-### 1. Install Dependencies
+Local stack: Vite on port 3000 + Supabase CLI (Postgres, Auth, Storage).
+
+Paper generation, quality checks, and export are not implemented yet. Auth, document upload UI, and the library shell are.
+
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Environment Variables
+You also need Docker Desktop (for `supabase start`) and the [Supabase CLI](https://supabase.com/docs/guides/cli).
 
-Create a `.env` file in the root directory with the following variables:
+### 2. Start local Supabase
 
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-
-# Grok API Configuration (Optional - can be set in user profile)
-VITE_GROK_API_KEY=your-grok-api-key
+```bash
+supabase start
 ```
 
-### 3. Supabase Setup
+Copy the printed `API URL` and `anon key` into `.env`:
 
-1. Create a new Supabase project
-2. Enable the `pgvector` extension in your database
-3. Run the database migrations (see `.docs/` folder for schema)
-4. Set up Row Level Security (RLS) policies
-5. Configure Supabase Storage buckets for `references`, `examples`, and `papers`
+```bash
+cp .env.example .env
+```
 
-### 4. Development
+```env
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=<anon key from supabase status>
+```
+
+Schema, RLS, and storage buckets (`references`, `examples`, `papers`) come from `supabase/migrations/`.
+
+### 3. Run the app
 
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+Open `http://localhost:5173`. Sign up with any email/password (confirmations are off locally). Port 3000 is left free for other apps.
+
+### 4. Build
+
+```bash
+npm run build
+```
 
 ### 5. Build for Production
 

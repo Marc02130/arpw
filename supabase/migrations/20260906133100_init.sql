@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
 
 -- Create user_profile table
 CREATE TABLE IF NOT EXISTS user_profile (
-    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID PRIMARY KEY  REFERENCES  auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL UNIQUE,
     full_name TEXT,
     grok_api_key TEXT, -- This should be encrypted in production
@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS user_profile (
 );
 
 -- Create references table
-CREATE TABLE IF NOT EXISTS references (
+CREATE TABLE IF NOT EXISTS "references" (
     file_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL  REFERENCES  auth.users(id) ON DELETE CASCADE,
     document_type TEXT NOT NULL DEFAULT 'reference' CHECK (document_type = 'reference'),
     file_name TEXT NOT NULL,
     file_size INTEGER NOT NULL CHECK (file_size > 0 AND file_size <= 10485760), -- Max 10MB
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS references (
 -- Create examples table
 CREATE TABLE IF NOT EXISTS examples (
     file_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL  REFERENCES  auth.users(id) ON DELETE CASCADE,
     document_type TEXT NOT NULL DEFAULT 'example' CHECK (document_type = 'example'),
     file_name TEXT NOT NULL,
     file_size INTEGER NOT NULL CHECK (file_size > 0 AND file_size <= 10485760), -- Max 10MB
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS examples (
 -- Create reference_vectors table
 CREATE TABLE IF NOT EXISTS reference_vectors (
     vector_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    file_id UUID NOT NULL REFERENCES references(file_id) ON DELETE CASCADE,
+    file_id UUID NOT NULL REFERENCES "references"(file_id) ON DELETE CASCADE,
     vector vector(384), -- 384 dimensions for all-MiniLM-L6-v2
     chunk_text TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS reference_vectors (
 -- Create example_vectors table
 CREATE TABLE IF NOT EXISTS example_vectors (
     vector_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    file_id UUID NOT NULL REFERENCES examples(file_id) ON DELETE CASCADE,
+    file_id UUID NOT NULL  REFERENCES  examples(file_id) ON DELETE CASCADE,
     vector vector(384), -- 384 dimensions for all-MiniLM-L6-v2
     chunk_text TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS example_vectors (
 -- Create user_papers table
 CREATE TABLE IF NOT EXISTS user_papers (
     paper_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL  REFERENCES  auth.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     sections TEXT[] NOT NULL,
@@ -67,14 +67,14 @@ CREATE TABLE IF NOT EXISTS user_papers (
 
 -- Create paper_references table
 CREATE TABLE IF NOT EXISTS paper_references (
-    paper_id UUID NOT NULL REFERENCES user_papers(paper_id) ON DELETE CASCADE,
-    file_id UUID NOT NULL REFERENCES references(file_id) ON DELETE CASCADE,
+    paper_id UUID NOT NULL  REFERENCES  user_papers(paper_id) ON DELETE CASCADE,
+    file_id UUID NOT NULL REFERENCES "references"(file_id) ON DELETE CASCADE,
     PRIMARY KEY (paper_id, file_id)
 );
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_user_profile_user_id ON user_profile(user_id);
-CREATE INDEX IF NOT EXISTS idx_references_user_id ON references(user_id);
+CREATE INDEX IF NOT EXISTS idx_references_user_id ON "references"(user_id);
 CREATE INDEX IF NOT EXISTS idx_examples_user_id ON examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_reference_vectors_file_id ON reference_vectors(file_id);
 CREATE INDEX IF NOT EXISTS idx_example_vectors_file_id ON example_vectors(file_id);
@@ -82,15 +82,13 @@ CREATE INDEX IF NOT EXISTS idx_user_papers_user_id ON user_papers(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_papers_title_version ON user_papers(user_id, title, version);
 CREATE INDEX IF NOT EXISTS idx_paper_references_paper_id ON paper_references(paper_id);
 
--- Create vector similarity indexes
-CREATE INDEX IF NOT EXISTS idx_reference_vectors_vector ON reference_vectors USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX IF NOT EXISTS idx_example_vectors_vector ON example_vectors USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
+-- IVFFlat needs rows to train; skip at init. Add HNSW later once data exists.
 
 -- Row Level Security (RLS) Policies
 
 -- Enable RLS on all tables
 ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
-ALTER TABLE references ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "references" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE examples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reference_vectors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE example_vectors ENABLE ROW LEVEL SECURITY;
@@ -108,16 +106,16 @@ CREATE POLICY "Users can update own profile" ON user_profile
     FOR UPDATE USING (auth.uid() = user_id);
 
 -- References policies
-CREATE POLICY "Users can view own references" ON references
+CREATE POLICY "Users can view own references" ON "references"
     FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert own references" ON references
+CREATE POLICY "Users can insert own references" ON "references"
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can update own references" ON references
+CREATE POLICY "Users can update own references" ON "references"
     FOR UPDATE USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can delete own references" ON references
+CREATE POLICY "Users can delete own references" ON "references"
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Examples policies
@@ -137,27 +135,27 @@ CREATE POLICY "Users can delete own examples" ON examples
 CREATE POLICY "Users can view own reference vectors" ON reference_vectors
     FOR SELECT USING (
         EXISTS (
-            SELECT 1 FROM references 
-            WHERE references.file_id = reference_vectors.file_id 
-            AND references.user_id = auth.uid()
+            SELECT 1 FROM "references" 
+            WHERE "references".file_id = reference_vectors.file_id 
+            AND "references".user_id = auth.uid()
         )
     );
 
 CREATE POLICY "Users can insert own reference vectors" ON reference_vectors
     FOR INSERT WITH CHECK (
         EXISTS (
-            SELECT 1 FROM references 
-            WHERE references.file_id = reference_vectors.file_id 
-            AND references.user_id = auth.uid()
+            SELECT 1 FROM "references" 
+            WHERE "references".file_id = reference_vectors.file_id 
+            AND "references".user_id = auth.uid()
         )
     );
 
 CREATE POLICY "Users can delete own reference vectors" ON reference_vectors
     FOR DELETE USING (
         EXISTS (
-            SELECT 1 FROM references 
-            WHERE references.file_id = reference_vectors.file_id 
-            AND references.user_id = auth.uid()
+            SELECT 1 FROM "references" 
+            WHERE "references".file_id = reference_vectors.file_id 
+            AND "references".user_id = auth.uid()
         )
     );
 
@@ -250,7 +248,8 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO public.user_profile (user_id, email, full_name)
-    VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
+    VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name')
+    ON CONFLICT (user_id) DO NOTHING;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -259,3 +258,25 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- Storage: authenticated users can manage objects in app buckets.
+-- Current upload client writes to the bucket root as {fileId}_{fileName}.
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES
+  ('references', 'references', false, 10485760),
+  ('examples', 'examples', false, 10485760),
+  ('papers', 'papers', false, 10485760)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Authenticated read own buckets"
+ON storage.objects FOR SELECT TO authenticated
+USING (bucket_id IN ('references', 'examples', 'papers'));
+
+CREATE POLICY "Authenticated insert own buckets"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id IN ('references', 'examples', 'papers'));
+
+CREATE POLICY "Authenticated delete own buckets"
+ON storage.objects FOR DELETE TO authenticated
+USING (bucket_id IN ('references', 'examples', 'papers'));

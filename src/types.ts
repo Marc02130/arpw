@@ -32,6 +32,7 @@ export interface UserProfile {
   user_id: string
   email: string
   full_name: string | null
+  grok_api_key?: string | null
   created_at: string
   updated_at: string
 }
