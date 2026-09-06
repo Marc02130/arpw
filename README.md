@@ -92,9 +92,14 @@ src/
 
 ## Documentation
 
-- **Product Requirements**: `.docs/AI_Research_Paper_Writer_PRD.markdown`
-- **Technical Documentation**: `.docs/AI_Research_Paper_Writer_Technical_Doc.markdown`
-- **User Stories**: `.docs/AI_Research_Paper_Writer_User_Stories.markdown`
+Current:
+
+- **Index**: `.docs/README.md`
+- **PRD**: `.docs/PRODUCT_REQUIREMENTS.md`
+- **Tech spec**: `.docs/TECHNICAL_SPECIFICATION.md`
+- **Gap analysis**: `.docs/GAP_ANALYSIS.md`
+
+Superseded drafts (do not treat as status): `.docs/legacy/`
 
 ## License
 
