@@ -2,14 +2,14 @@
 
 ## Overview
 
-Product requirements for AI Research Paper Writer (ARPW), a web app that helps a researcher draft a paper from their own uploaded sources. This document states the intended MVP. It is not a status report. For what the code actually does today, read `documents/GAP_ANALYSIS.md`.
+Product requirements for AI Research Paper Writer (ARPW), a web app that helps a researcher draft a paper from their own uploaded sources. This document states the intended MVP. It is not a status report. For what the code actually does today, read `.docs/GAP_ANALYSIS.md`.
 
 - Product: ARPW
 - Audience: individual academic users (researchers, PIs, graduate students)
 - Platform: web (desktop first)
-- Version of this PRD: 1.1
+- Version of this PRD: 1.2
 - Date: 2026-09-06
-- Status: current product intent for `feat/get-running`
+- Status: current product intent on `main`
 
 ARPW is a **grounded drafting assistant**. It retrieves passages from the user’s corpus, generates section drafts with citations that map to those passages, and requires human review before anything looks like a submission. It is not a paper mill and it must not emit citations that are not in the retrieved set.
 
@@ -55,12 +55,14 @@ Each item has an ID for the gap analysis.
 
 | ID | Requirement | Priority |
 |---|---|---|
-| AUTH-1 | Email/password sign up and sign in via Supabase Auth. | P0 |
+| AUTH-1 | Email/password sign up and sign in via Supabase Auth. Signup is open; no invite list. | P0 |
 | AUTH-2 | Session persist and restore; sign out. | P0 |
 | AUTH-3 | Create `user_profile` on first signup (`user_id` = `auth.uid()`). | P0 |
 | AUTH-4 | Profile page: edit full name. | P1 |
 | AUTH-5 | Store Grok API key server-side, not as plaintext readable by the SPA. | P0 |
 | AUTH-6 | Invalid credentials show a clear error. | P0 |
+| AUTH-7 | No app access until the email is confirmed (`email_confirmed_at`). Unverified users stay on a verify screen; they can resend the email. | P0 |
+| AUTH-8 | Password reset: request a link by email, land on a reset page, set a new password. | P0 |
 
 #### DOCS
 
@@ -123,7 +125,7 @@ Each item has an ID for the gap analysis.
 
 ### 5. UX flow
 
-1. Sign up / sign in.
+1. Sign up, confirm email (or request a password reset), then sign in.
 2. Dashboard: upload references (and optional examples).
 3. Wait until files show as processed (not only “uploaded”).
 4. Enter prompt, pick sections and paper type.
@@ -155,13 +157,13 @@ Measure these; do not invent pass rates.
 
 ### 8. MVP cut line
 
-**Must ship for “MVP”:** AUTH-1–3, AUTH-5–6, DOCS-1, DOCS-4–6, GEN-1–2, GEN-4–6, GEN-9–10, QUAL-1–2, QUAL-4, LIB-1, LIB-3, NFR-1–3, NFR-7.
+**Must ship for “MVP”:** AUTH-1–3, AUTH-5–8, DOCS-1, DOCS-4–6, GEN-1–2, GEN-4–6, GEN-9–10, QUAL-1–2, QUAL-4, LIB-1, LIB-3, NFR-1–3, NFR-7.
 
 Everything else can follow without pretending it is done.
 
 ## References
 
-- `documents/TECHNICAL_SPECIFICATION.md` — as-built and target architecture
-- `documents/GAP_ANALYSIS.md` — PRD vs code
+- `.docs/TECHNICAL_SPECIFICATION.md` — as-built and target architecture
+- `.docs/GAP_ANALYSIS.md` — PRD vs code
 - `supabase/migrations/20260906133100_init.sql` — current schema
-- `.docs/AI_Research_Paper_Writer_User_Stories.markdown` — original stories (stale; superseded where they conflict)
+- `.docs/legacy/AI_Research_Paper_Writer_User_Stories.markdown` — original stories (stale; superseded where they conflict)

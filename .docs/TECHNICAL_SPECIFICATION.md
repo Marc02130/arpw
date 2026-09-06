@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system on branch `feat/get-running` (2026-09-06) and the **target** RAG pipeline required by `documents/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system on `main` (2026-09-06, after `feat/fix-login`) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system on branch
 | Embeddings (intended) | Hugging Face `all-MiniLM-L6-v2` via Langchain | Edge function; wrong runtime for Transformers.js |
 | LLM (intended) | xAI Grok, user-supplied key | Profile field `grok_api_key` plaintext |
 
-Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`) and `npm run dev` on `:5173`. Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
 ### 2. Runtime topology
 
@@ -47,12 +47,15 @@ The SPA must not hold the Grok key. TARGET: Edge Function or worker reads the ke
 | Path | Component actually mounted | Notes |
 |---|---|---|
 | `/login` | `src/components/Login.tsx` | `LoginPage.tsx` is unused |
+| `/verify-email` | `src/components/VerifyEmail.tsx` | after signup or unconfirmed sign-in |
+| `/forgot-password` | `src/components/ForgotPassword.tsx` | sends reset mail |
+| `/reset-password` | `src/components/ResetPassword.tsx` | recovery session from email link |
 | `/dashboard` | `src/pages/DashboardPage.tsx` | upload + generate form |
 | `/profile` | `src/components/Profile.tsx` | `ProfilePage.tsx` is unused |
 | `/library` | `src/pages/LibraryPage.tsx` | list/view stubs |
 | `*` | redirect | |
 
-Auth gate: `user && userProfile` (`App.tsx`). Missing profile row traps the user on login.
+Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `user_profile` row no longer blocks the app; `Layout` falls back to email / `user_metadata.full_name`. Unconfirmed sessions go to `/verify-email`. A recovery session stays on `/reset-password` until the password is updated.
 
 ### 4. Data model (as-built)
 
@@ -72,11 +75,19 @@ RLS: row owner = `auth.uid()`; vector tables via EXISTS to parent file. Storage 
 
 IVFFlat indexes are **not** created at init (empty corpus). TARGET: HNSW after data exists.
 
-Triggers: `handle_new_user` inserts profile (`ON CONFLICT DO NOTHING`); `useAuth.ts` also inserts (duplicate path).
+Triggers: `handle_new_user` inserts profile (`ON CONFLICT DO NOTHING`). After a confirmed session, `ensureUserProfile` in `useAuth.tsx` inserts if the trigger missed (ignores unique conflicts). Signup itself does not insert a profile from the client.
 
 ### 5. Auth (as-built)
 
-`src/hooks/useAuth.ts`: `getSession`, `onAuthStateChange`, `signUp` / `signInWithPassword` / `signOut`, profile fetch.
+`src/hooks/useAuth.tsx` is an `AuthProvider` (wrapped in `src/main.tsx`). One shared state: session, profile, `isRecovery`, `isEmailConfirmed`.
+
+- `signUp`: `emailRedirectTo` → `{origin}/login`. Success with no session means confirmation is required.
+- `signInWithPassword`: unconfirmed accounts are rejected (`email_not_confirmed` or missing `email_confirmed_at`); UI sends them to `/verify-email`.
+- `resetPasswordForEmail` → `{origin}/reset-password`; `updateUser({ password })` clears recovery.
+- `resend({ type: 'signup' })` on the verify screen.
+- `onAuthStateChange`: `PASSWORD_RECOVERY` sets `isRecovery`.
+
+`supabase/config.toml`: `[auth.email] enable_confirmations = true`. Redirect allow-list includes `/login`, `/reset-password`, `/verify-email` for both `127.0.0.1` and `localhost`. Local mail is Mailpit/Inbucket on `:54324`.
 
 Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`.
 
@@ -143,7 +154,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 ### 10. Public surface (files)
 
-Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.ts`, `src/components/{Login,Layout,Profile,UploadZone,DocumentList}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
+Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
 
 Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/config.toml`.
 
@@ -181,8 +192,8 @@ Call only with the user’s JWT so RLS still applies if rewritten without `filte
 
 ## References
 
-- `documents/PRODUCT_REQUIREMENTS.md`
-- `documents/GAP_ANALYSIS.md`
+- `.docs/PRODUCT_REQUIREMENTS.md`
+- `.docs/GAP_ANALYSIS.md`
 - `src/supabaseClient.ts`, `src/pages/DashboardPage.tsx`, `src/components/UploadZone.tsx`
 - `supabase/functions/upload_processor/index.ts`
 - `supabase/migrations/20260906133100_init.sql`

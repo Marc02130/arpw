@@ -2,21 +2,21 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-06 (`feat/get-running`) against `documents/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-06 (`main`, after `feat/fix-login`) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
-This is the document to use for planning work. The old `.docs/*.markdown` files describe a finished RAG product that does not exist.
+This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
 ## Content
 
 ### 1. One-line verdict
 
-You can sign in locally, upload files to Storage, and click around a dashboard. You cannot retrieve, generate, check, or export a paper. The ingest function as written will not index PDFs on Supabase Edge.
+You can sign up, confirm email, reset a password, upload files to Storage, and click around a dashboard. You cannot retrieve, generate, check, or export a paper. The ingest function as written will not index PDFs on Supabase Edge.
 
 ### 2. Summary
 
 | Area | Status | User-visible effect |
 |---|---|---|
-| Auth email/password | PARTIAL | Sign up/in works if profile row exists; stuck if it does not |
+| Auth email/password | DONE | Open signup, confirm-before-access, password reset; profile row is not a login gate |
 | Profile name | DONE | Saves full name |
 | Grok key storage | BROKEN | Saved plaintext; UI says encrypted |
 | Reference upload UI | PARTIAL | Upload + list + delete; caps not real; processing likely fails |
@@ -37,12 +37,14 @@ You can sign in locally, upload files to Storage, and click around a dashboard. 
 
 | ID | Status | Evidence |
 |---|---|---|
-| AUTH-1 | DONE | `Login.tsx` + `useAuth.ts` `signUp` / `signInWithPassword` |
+| AUTH-1 | DONE | `Login.tsx` + `useAuth.tsx` `signUp` / `signInWithPassword` |
 | AUTH-2 | DONE | persistSession, signOut, `Layout.tsx` |
-| AUTH-3 | PARTIAL | DB trigger `handle_new_user` **and** client insert; race / duplicate. `App.tsx` requires `userProfile` |
+| AUTH-3 | DONE | DB trigger `handle_new_user`; `ensureUserProfile` only after a confirmed session |
 | AUTH-4 | DONE | `Profile.tsx` full name |
 | AUTH-5 | BROKEN | `user_profile.grok_api_key` TEXT; SPA can select it; copy claims encryption (`Profile.tsx`) |
 | AUTH-6 | DONE | Error banner on login |
+| AUTH-7 | DONE | `enable_confirmations = true`; gate is `email_confirmed_at`; `/verify-email` + resend |
+| AUTH-8 | DONE | `/forgot-password`, `/reset-password`, `PASSWORD_RECOVERY` |
 
 #### Documents
 
@@ -86,7 +88,7 @@ You can sign in locally, upload files to Storage, and click around a dashboard. 
 | QUAL-2 | MISSING | No `run_checks` |
 | QUAL-3 | MISSING | |
 | QUAL-4 | MISSING | Preview placeholder only |
-| QUAL-5 | WRONG-BY-DESIGN in old spec | `.docs` tech doc still says cosine > 0.7 = accuracy. Do not implement that |
+| QUAL-5 | WRONG-BY-DESIGN in old spec | `.docs/legacy` tech doc still says cosine > 0.7 = accuracy. Do not implement that |
 
 #### Library
 
@@ -137,7 +139,6 @@ These are not “missing files.” They are product defects if you implement the
 - `src/pages/LoginPage.tsx` vs `src/components/Login.tsx` (router uses the latter)
 - `src/pages/ProfilePage.tsx` vs `src/components/Profile.tsx`
 - `src/edge-functions/` empty; real function is `supabase/functions/upload_processor`
-- `useAuth` insert vs SQL trigger both create `user_profile`
 
 ### 7. Recommended build order
 
@@ -145,7 +146,7 @@ Matches engineering, not README order.
 
 | Phase | Work | Unlocks |
 |---|---|---|
-| 0 | Keep PII out of git; README that matches reality | Trust |
+| 0 | Keep PII out of git; README that matches reality. Auth (confirm + reset) is shipped. | Trust |
 | 1 | Fix ingest: server-derived storage path; real PDF/DOCX extract; embed off-Edge; fixture test | Corpus |
 | 2 | `match_reference_chunks` + dashboard “passages for this prompt” | Retrieval you can debug |
 | 3 | Section-wise `generate_paper` with citation allow-list | Drafts that are not fiction |
@@ -156,22 +157,23 @@ Do not start Word export or cosine “accuracy” before phase 3.
 
 ### 8. Local running snapshot (not a PRD gap)
 
-Works today if Docker + `supabase start` + `.env` + Vite `:5173`:
+Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vite `:5173`:
 
-- Sign up / sign in (confirmations off locally)
+- Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
+- Password reset via the same inbox
 - Dashboard form
 - Upload to Storage (processing step likely errors)
 - Library empty state
 
-Does not work: generate, outline, export, ingest-to-vectors, retrieval.
+Does not work: generate, outline, export, ingest-to-vectors, retrieval. Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 
-- `documents/PRODUCT_REQUIREMENTS.md` — requirement IDs
-- `documents/TECHNICAL_SPECIFICATION.md` — architecture
+- `.docs/PRODUCT_REQUIREMENTS.md` — requirement IDs
+- `.docs/TECHNICAL_SPECIFICATION.md` — architecture
 - `src/pages/DashboardPage.tsx`
 - `src/components/UploadZone.tsx`
+- `src/hooks/useAuth.tsx`, `src/App.tsx`
 - `supabase/functions/upload_processor/index.ts`
 - `supabase/migrations/20260906133100_init.sql`
-- `.docs/AI_Research_Paper_Writer_PRD.markdown` — superseded
-- `.docs/AI_Research_Paper_Writer_Technical_Doc.markdown` — superseded (truncated, wrong frontend)
+- `.docs/legacy/` — superseded drafts

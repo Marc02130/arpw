@@ -4,7 +4,7 @@ A web-based AI-powered application designed to assist academic users in generati
 
 ## Features
 
-- **User Authentication**: Secure login/signup with Supabase Auth
+- **User Authentication**: Open email/password signup, confirmation before access, password reset (Supabase Auth)
 - **Document Management**: Upload up to 500 reference documents and 10 example papers
 - **Paper Generation**: AI-powered research paper generation with customizable sections
 - **Quality Checks**: Automated citation, accuracy, and format validation
@@ -21,9 +21,9 @@ A web-based AI-powered application designed to assist academic users in generati
 
 ## Setup Instructions
 
-Local stack: Vite on port 3000 + Supabase CLI (Postgres, Auth, Storage).
+Local stack: Vite on port 5173 + Supabase CLI (Postgres, Auth, Storage, mail on 54324).
 
-Paper generation, quality checks, and export are not implemented yet. Auth, document upload UI, and the library shell are.
+Paper generation, quality checks, and export are not implemented yet. Auth (including email confirmation and password reset), document upload UI, and the library shell are.
 
 ### 1. Install dependencies
 
@@ -38,6 +38,8 @@ You also need Docker Desktop (for `supabase start`) and the [Supabase CLI](https
 ```bash
 supabase start
 ```
+
+Use the installed CLI (`which supabase`, currently Homebrew 2.39.x). Do not use `npx supabase`; a newer CLI pulls different images and can leave Storage unhealthy.
 
 Copy the printed `API URL` and `anon key` into `.env`:
 
@@ -58,7 +60,7 @@ Schema, RLS, and storage buckets (`references`, `examples`, `papers`) come from 
 npm run dev
 ```
 
-Open `http://localhost:5173`. Anyone can sign up. Email confirmation is required before the app opens; locally the message lands in Inbucket at `http://127.0.0.1:54324`. Password reset uses the same inbox. Port 3000 is left free for other apps.
+Open `http://127.0.0.1:5173` (or `http://localhost:5173`). Anyone can sign up. Email confirmation is required before the app opens; locally the message lands in Mailpit/Inbucket at `http://127.0.0.1:54324`. Click the link, then you can use the dashboard. Forgot password uses the same inbox and lands on `/reset-password`. Port 3000 is left free for other apps.
 
 ### 4. Build
 
@@ -76,19 +78,28 @@ npm run build
 
 ```
 src/
-├── components/          # Reusable UI components
-│   └── Layout.tsx      # Main layout with navigation
-├── pages/              # Page components
-│   ├── LoginPage.tsx   # Authentication page
-│   ├── DashboardPage.tsx # Paper generation interface
-│   ├── ProfilePage.tsx # User profile management
-│   └── LibraryPage.tsx # Paper library and version history
-├── types.ts            # TypeScript interfaces and enums
-├── supabaseClient.ts   # Supabase client configuration
-├── App.tsx            # Main app component with routing
-├── main.tsx           # Application entry point
-└── index.css          # Global styles with Tailwind
+├── components/            # UI actually mounted by the router
+│   ├── Login.tsx
+│   ├── VerifyEmail.tsx
+│   ├── ForgotPassword.tsx
+│   ├── ResetPassword.tsx
+│   ├── Layout.tsx
+│   ├── Profile.tsx
+│   ├── UploadZone.tsx
+│   └── DocumentList.tsx
+├── hooks/
+│   └── useAuth.tsx        # AuthProvider
+├── pages/
+│   ├── DashboardPage.tsx
+│   └── LibraryPage.tsx
+├── types.ts
+├── supabaseClient.ts
+├── App.tsx
+├── main.tsx
+└── index.css
 ```
+
+`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused.
 
 ## Documentation
 
