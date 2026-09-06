@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
-import { PaperGenerationConfig, PaperType, CitationStyle, OutputFormat } from '../types'
+import { PaperGenerationConfig, PaperType, CitationStyle, OutputFormat, DocumentType } from '../types'
+import UploadZone from '../components/UploadZone'
+import DocumentList from '../components/DocumentList'
 
 const DashboardPage: React.FC = () => {
   const [config, setConfig] = useState<PaperGenerationConfig>({
@@ -10,6 +12,8 @@ const DashboardPage: React.FC = () => {
     output_format: OutputFormat.MARKDOWN,
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
 
   const availableSections = [
     'Abstract',
@@ -29,6 +33,24 @@ const DashboardPage: React.FC = () => {
         ? prev.sections.filter(s => s !== section)
         : [...prev.sections, section]
     }))
+  }
+
+  const handleUploadComplete = () => {
+    setUploadSuccess('Files uploaded and processed successfully!')
+    setUploadError(null)
+    // Clear success message after 5 seconds
+    setTimeout(() => setUploadSuccess(null), 5000)
+  }
+
+  const handleUploadError = (error: string) => {
+    setUploadError(error)
+    setUploadSuccess(null)
+    // Clear error message after 10 seconds
+    setTimeout(() => setUploadError(null), 10000)
+  }
+
+  const handleDocumentDeleted = () => {
+    // Documents will be refreshed automatically by the DocumentList component
   }
 
   const handleGenerate = async () => {
@@ -151,26 +173,80 @@ const DashboardPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Preview Panel */}
+        {/* Document Management Panel */}
         <div className="space-y-6">
+          {/* Upload Messages */}
+          {uploadError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" role="alert">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium">{uploadError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {uploadSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg" role="alert">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium">{uploadSuccess}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reference Documents */}
           <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Document Library</h2>
-            <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <p className="text-gray-500 mb-2">Upload your reference documents</p>
-                <p className="text-sm text-gray-400">PDF, DOC, TXT files (max 10MB each)</p>
-                <button className="btn-secondary mt-2">
-                  Upload References
-                </button>
-              </div>
-              
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <p className="text-gray-500 mb-2">Upload example papers</p>
-                <p className="text-sm text-gray-400">For style emulation (max 10 files)</p>
-                <button className="btn-secondary mt-2">
-                  Upload Examples
-                </button>
-              </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Reference Documents</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload up to 500 reference documents (PDF, DOC, DOCX, TXT) for citations and research context.
+            </p>
+            
+            <UploadZone
+              documentType={DocumentType.REFERENCE}
+              maxFiles={500}
+              onUploadComplete={handleUploadComplete}
+              onUploadError={handleUploadError}
+            />
+            
+            <div className="mt-6">
+              <DocumentList
+                documentType={DocumentType.REFERENCE}
+                onDocumentDeleted={handleDocumentDeleted}
+              />
+            </div>
+          </div>
+
+          {/* Example Papers */}
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Example Papers</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload up to 10 example papers for style emulation and formatting reference.
+            </p>
+            
+            <UploadZone
+              documentType={DocumentType.EXAMPLE}
+              maxFiles={10}
+              onUploadComplete={handleUploadComplete}
+              onUploadError={handleUploadError}
+            />
+            
+            <div className="mt-6">
+              <DocumentList
+                documentType={DocumentType.EXAMPLE}
+                onDocumentDeleted={handleDocumentDeleted}
+              />
             </div>
           </div>
 

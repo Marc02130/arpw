@@ -32,3 +32,6 @@ dist-ssr
 
 # Supabase
 .supabase
+
+# Local/PII fixtures — never commit
+.docs/*.pdf

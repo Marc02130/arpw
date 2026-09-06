@@ -47,7 +47,7 @@ Create a new React TypeScript project structure for the AI Research Paper Writer
 #### 3. Document Management
 **Prompt**:
 ```
-Implement document upload and management for ARPW. Create:
+ Implement document upload and management for ARPW. Create:
 - File: `src/components/UploadZone.tsx`: Drag-and-drop UI for references (up to 500) and examples (up to 10), max 10MB, PDF/DOC/TXT. Use Supabase Storage (`references`, `examples` buckets).
 - File: `src/edge-functions/upload_processor.ts`: Supabase Edge Function to:
   - Validate file type/size.
