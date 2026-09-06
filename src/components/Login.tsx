@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 interface LoginFormData {
@@ -100,10 +100,14 @@ const Login: React.FC = () => {
       }
 
       if (result.success) {
-        // Redirect to dashboard on success
-        navigate('/dashboard')
+        if (result.needsEmailConfirmation) {
+          navigate('/verify-email', { state: { email: formData.email } })
+        } else {
+          navigate('/dashboard')
+        }
+      } else if (result.needsEmailConfirmation) {
+        navigate('/verify-email', { state: { email: formData.email } })
       }
-      // Error handling is done in the hook
     } catch (error) {
       console.error('Authentication error:', error)
     } finally {
@@ -282,6 +286,17 @@ const Login: React.FC = () => {
               {isSubmitting ? 'Processing your request...' : 'Ready to submit'}
             </div>
           </div>
+
+          {!isSignUp && (
+            <div className="text-center">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary-600 hover:text-primary-500"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+          )}
 
           {/* Toggle Mode */}
           <div className="text-center">

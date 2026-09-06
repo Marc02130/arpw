@@ -58,7 +58,7 @@ Schema, RLS, and storage buckets (`references`, `examples`, `papers`) come from 
 npm run dev
 ```
 
-Open `http://localhost:5173`. Sign up with any email/password (confirmations are off locally). Port 3000 is left free for other apps.
+Open `http://localhost:5173`. Anyone can sign up. Email confirmation is required before the app opens; locally the message lands in Inbucket at `http://127.0.0.1:54324`. Password reset uses the same inbox. Port 3000 is left free for other apps.
 
 ### 4. Build
 

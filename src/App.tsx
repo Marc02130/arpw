@@ -1,13 +1,31 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { User } from '@supabase/supabase-js'
 import { useAuth } from './hooks/useAuth'
 import Login from './components/Login'
+import ForgotPassword from './components/ForgotPassword'
+import ResetPassword from './components/ResetPassword'
+import VerifyEmail from './components/VerifyEmail'
 import DashboardPage from './pages/DashboardPage'
 import Profile from './components/Profile'
 import LibraryPage from './pages/LibraryPage'
 import Layout from './components/Layout'
+import { UserProfile } from './types'
+
+function displayProfile(user: User, userProfile: UserProfile | null): UserProfile {
+  if (userProfile) return userProfile
+  const fullName =
+    typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : null
+  return {
+    user_id: user.id,
+    email: user.email ?? '',
+    full_name: fullName,
+    created_at: user.created_at,
+    updated_at: user.updated_at ?? user.created_at,
+  }
+}
 
 function App() {
-  const { user, userProfile, loading } = useAuth()
+  const { user, userProfile, loading, isRecovery, isEmailConfirmed } = useAuth()
 
   if (loading) {
     return (
@@ -17,23 +35,38 @@ function App() {
     )
   }
 
+  const canUseApp = Boolean(user && isEmailConfirmed && !isRecovery)
+
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
         <Routes>
-          {/* Public routes */}
-          <Route 
-            path="/login" 
-            element={
-              user && userProfile ? <Navigate to="/dashboard" replace /> : <Login />
-            } 
+          <Route
+            path="/login"
+            element={canUseApp ? <Navigate to="/dashboard" replace /> : <Login />}
           />
-          
-          {/* Protected routes */}
-          <Route 
-            path="/" 
+          <Route
+            path="/forgot-password"
+            element={canUseApp ? <Navigate to="/dashboard" replace /> : <ForgotPassword />}
+          />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route
+            path="/verify-email"
+            element={canUseApp ? <Navigate to="/dashboard" replace /> : <VerifyEmail />}
+          />
+
+          <Route
+            path="/"
             element={
-              user && userProfile ? <Layout user={userProfile} /> : <Navigate to="/login" replace />
+              isRecovery ? (
+                <Navigate to="/reset-password" replace />
+              ) : user && !isEmailConfirmed ? (
+                <Navigate to="/verify-email" replace />
+              ) : canUseApp && user ? (
+                <Layout user={displayProfile(user, userProfile)} />
+              ) : (
+                <Navigate to="/login" replace />
+              )
             }
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
@@ -41,13 +74,12 @@ function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="library" element={<LibraryPage />} />
           </Route>
-          
-          {/* Catch all route */}
-          <Route 
-            path="*" 
+
+          <Route
+            path="*"
             element={
-              user && userProfile ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
-            } 
+              canUseApp ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+            }
           />
         </Routes>
       </div>
