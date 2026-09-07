@@ -59,11 +59,20 @@ Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `u
 
 ### 4. Data model (as-built)
 
-Source of truth: `supabase/migrations/20260906133100_init.sql`. Table `"references"` is quoted because `references` is reserved.
+Source of truth: `supabase/migrations/20260906133100_init.sql` plus `20260907000000_grok_key_storage.sql`. Table `"references"` is quoted because `references` is reserved.
 
 **user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, timestamps. Grok keys are **not** on this table.
 
-**user_grok_keys:** `user_id` PK, `ciphertext` (pgcrypto), `last4`. No table grants for `anon`/`authenticated`. Clients call `set_grok_api_key`, `clear_grok_api_key`, `grok_api_key_status`. `read_grok_api_key(for_user)` is `service_role` only (generation worker).
+**user_grok_keys:** `user_id` PK → `auth.users`, `ciphertext bytea` (`pgp_sym_encrypt`), `last4 text`, `updated_at`. RLS on; **no** `GRANT` to `anon` or `authenticated`. Wrapping secret: `private.secrets` where `id = 'grok_key_enc'` (not in the API schema).
+
+| RPC | Role | Args | Returns |
+|---|---|---|---|
+| `set_grok_api_key(api_key text)` | authenticated | trimmed, length ≥ 10 | `{ set: true, last4 }` |
+| `clear_grok_api_key()` | authenticated | | `{ set: false, last4: null }` |
+| `grok_api_key_status()` | authenticated | | `{ set, last4 }` |
+| `read_grok_api_key(for_user uuid)` | service_role | owner uuid | plaintext or null |
+
+SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx` never `select`s ciphertext. How-to: `../README.md#how-to-save-a-grok-api-key`.
 
 **"references" / examples:** `file_id`, `user_id`, `document_type`, `file_name`, `file_size` (1..10 MiB), `uploaded_at`.
 
@@ -81,7 +90,7 @@ Triggers: `handle_new_user` inserts profile (`ON CONFLICT DO NOTHING`). After a 
 
 ### 5. Auth (as-built)
 
-`src/hooks/useAuth.tsx` is an `AuthProvider` (wrapped in `src/main.tsx`). One shared state: session, profile, `isRecovery`, `isEmailConfirmed`.
+`src/hooks/useAuth.tsx` is an `AuthProvider` (wrapped in `src/main.tsx`). One shared state: session, profile, `isRecovery`, `isEmailConfirmed`, `grokKey` (`{ set, last4 }`).
 
 - `signUp`: `emailRedirectTo` → `{origin}/login`. Success with no session means confirmation is required.
 - `signInWithPassword`: unconfirmed accounts are rejected (`email_not_confirmed` or missing `email_confirmed_at`); UI sends them to `/verify-email`.
@@ -158,7 +167,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
 
-Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/config.toml`.
 
 Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
 
@@ -199,4 +208,5 @@ Call only with the user’s JWT so RLS still applies if rewritten without `filte
 - `src/supabaseClient.ts`, `src/pages/DashboardPage.tsx`, `src/components/UploadZone.tsx`
 - `supabase/functions/upload_processor/index.ts`
 - `supabase/migrations/20260906133100_init.sql`
-- `README.md` (local setup)
+- `supabase/migrations/20260907000000_grok_key_storage.sql`
+- `README.md` (local setup, Grok key how-to and RPCs)

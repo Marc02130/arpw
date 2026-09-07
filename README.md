@@ -63,7 +63,7 @@ If the link is expired, stay on `/verify-email` and click **Resend confirmation 
 
 ### What you built
 
-A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [How to reset your password](#how-to-reset-your-password), [How to upload files](#how-to-upload-files), or the [reference](#reference).
+A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), [How to upload files](#how-to-upload-files), or the [reference](#reference).
 
 ## How to confirm your email
 
@@ -163,11 +163,42 @@ After about 2 seconds you get: `Paper generation feature will be implemented in 
 
 When that changes, the intended pipeline is in [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
+## How to save a Grok API key
+
+You will store a key on the server so a future generation worker can call xAI. The browser will not be able to read the secret back.
+
+### Prerequisites
+
+A confirmed session. Open [http://127.0.0.1:5173/profile](http://127.0.0.1:5173/profile).
+
+### Steps
+
+1. Under **Grok API Key**, paste a key at least 10 characters. The field is empty even if a key is already saved.
+2. Click **Save Changes**.
+3. The page should say `A key is saved on the server (ends in …)`. The input clears.
+4. To replace, paste a new key and save again. To delete, click **Remove saved key**.
+
+Full name still saves through `user_profile`. The key does not. Leave the key field blank to keep the stored secret.
+
+### Verification
+
+The status line shows last4. `GET /rest/v1/user_profile?select=*` for your user has no `grok_api_key` column. `GET /rest/v1/user_grok_keys` returns permission denied. `POST /rest/v1/rpc/grok_api_key_status` returns `{"set": true, "last4": "…"}`.
+
+### Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| “API key appears to be too short” | Client and RPC both require length ≥ 10 after trim. |
+| “No key saved” after save | You are not confirmed, or the migration `20260907000000_grok_key_storage.sql` is not applied. |
+| REST still returns `grok_api_key` on the profile | Old schema. Run the migration and `NOTIFY pgrst, 'reload schema';`. |
+
+RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the profile: [Why the Grok key is not on the profile](#why-the-grok-key-is-not-on-the-profile).
+
 ## How to use the library and profile
 
 **Library (`/library`):** lists `user_papers` for the current user, grouped by title. Empty until generation saves rows. View works if content exists. Delete hits the table after a confirm dialog. Regenerate and Export are no-ops. `referenceCount` is hardcoded `0`.
 
-**Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. **Grok API Key** is written through `set_grok_api_key` and stored encrypted. The profile page only sees whether a key exists and its last four characters. Generation (when it ships) will read the key with `service_role`.
+**Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
 ## Reference
 
@@ -213,7 +244,10 @@ Wrapped by `AuthProvider` in `src/main.tsx`. One client: `src/supabaseClient.ts`
 | Reset request | `resetPasswordForEmail` | `redirectTo` = `{origin}/reset-password`. |
 | Set password | `updateUser({ password })` | Clears `isRecovery`, then UI goes to `/dashboard`. |
 | Resend | `resend({ type: 'signup' })` | Same `emailRedirectTo` as sign up. |
-| Profile | `user_profile` update | After a confirmed session, `ensureUserProfile` inserts if the trigger missed (`23505` ignored). |
+| Profile name | `user_profile` update | After a confirmed session, `ensureUserProfile` inserts if the trigger missed (`23505` ignored). Never writes a Grok key. |
+| Save Grok key | `rpc set_grok_api_key` | Encrypted row; returns `{ set, last4 }`. |
+| Grok key status | `rpc grok_api_key_status` | `{ set, last4 }` only. |
+| Remove Grok key | `rpc clear_grok_api_key` | Deletes the row. |
 
 Client validation (`Login.tsx` / `ResetPassword.tsx`): email required and `^[^\s@]+@[^\s@]+\.[^\s@]+$`; password min 6; sign up requires full name and matching confirm password.
 
@@ -224,6 +258,32 @@ Client validation (`Login.tsx` / `ResetPassword.tsx`): email required and `^[^\s
 - `[auth] enable_signup = true`, `minimum_password_length = 6`
 - `[auth.email] enable_confirmations = true`, `max_frequency = "1s"`, `otp_length = 6`, `otp_expiry = 3600`
 - `[auth.rate_limit] email_sent = 30`
+
+### Grok key RPCs
+
+Source: `supabase/migrations/20260907000000_grok_key_storage.sql`. Client wrappers: `setGrokApiKey` / `clearGrokApiKey` in `src/hooks/useAuth.tsx`. UI: `src/components/Profile.tsx`.
+
+| RPC | Who | Args | Returns |
+|---|---|---|---|
+| `set_grok_api_key` | `authenticated` | `api_key text` (trimmed, min length 10) | `{ set: true, last4: text }` |
+| `clear_grok_api_key` | `authenticated` | none | `{ set: false, last4: null }` |
+| `grok_api_key_status` | `authenticated` | none | `{ set: boolean, last4: text \| null }` |
+| `read_grok_api_key` | `service_role` only | `for_user uuid` | plaintext `text` or null |
+
+`auth.uid()` is required for the first three. `read_grok_api_key` raises `forbidden` unless `auth.role() = 'service_role'`.
+
+Table `public.user_grok_keys`: `user_id` PK, `ciphertext bytea`, `last4 text`, `updated_at`. No grants to `anon` or `authenticated`. Encryption: `pgp_sym_encrypt` with a secret in `private.secrets` (`id = 'grok_key_enc'`). The SPA never `select`s this table.
+
+Example (user JWT, not a real key):
+
+```bash
+curl -sS http://127.0.0.1:54321/rest/v1/rpc/set_grok_api_key \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ACCESS" \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"xai-your-key-here"}'
+```
+
+Generation workers should call `read_grok_api_key` with the service role key and the paper owner's `user_id`. Do not put the service role key in the SPA.
 
 ### Upload constraints (`src/components/UploadZone.tsx`)
 
@@ -252,6 +312,16 @@ Recovery sessions (`PASSWORD_RECOVERY`) are kept on `/reset-password` so a reset
 **Trade-off:** local development needs the mailbox at `:54324`. Confirmations are on in `config.toml`, so turning them off for convenience would ship a different security model than production.
 
 **Not chosen:** keeping confirmations off locally (faster demos, unverified users in the app). **Not chosen:** blocking on `user_profile` existence (that was the signup bug).
+
+## Why the Grok key is not on the profile
+
+`select * from user_profile` is what the SPA already does. A `grok_api_key` column on that row meant every profile load returned the secret, and the UI claiming encryption was false.
+
+The key is now a separate table with no client grants, written only through `set_grok_api_key`, and decrypted only by `read_grok_api_key` for `service_role`. The profile shows last4 so you can tell a key is present.
+
+**Trade-off:** last4 is a small leak if someone else sees the profile screen. The full key never crosses the wire after save. Encryption uses a DB-side secret in `private.secrets`; if that row is lost, stored keys cannot be decrypted (re-paste the key).
+
+**Not chosen:** leaving the column and “not showing it in the form” (REST still returned it). **Not chosen:** client-side encryption (the SPA would still hold the wrapping key).
 
 ## Project structure
 
