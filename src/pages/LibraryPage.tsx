@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { loadPaperCitedFiles, referenceCountFromEmbed, type CitedFile } from '../lib/papers'
 import { uncitedSentences } from '../lib/attribution'
-import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
-import { formatCheckLabel, runFormatCheck } from '../lib/formatCheck'
+import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
+import { runFormatCheck } from '../lib/formatCheck'
+import DraftPreview from '../components/DraftPreview'
 import { Paper, LibraryPaper, VersionHistory } from '../types'
 
 const LibraryPage: React.FC = () => {
@@ -328,22 +329,12 @@ const LibraryPage: React.FC = () => {
                 ✕
               </button>
             </div>
-            <div className="max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
-              <pre className="whitespace-pre-wrap text-sm text-gray-700">
-                {selectedPaper.content || 'No draft yet.'}
-              </pre>
-              <p className={`mt-3 text-sm ${citationCheck.ok ? 'text-gray-700' : 'text-red-700'}`} role="status">
-                {citationCheckLabel(citationCheck)}
-              </p>
-              <p className={`mt-3 text-sm ${formatCheck.ok ? 'text-gray-700' : 'text-red-700'}`} role="status">
-                {formatCheckLabel(formatCheck)}
-              </p>
-              {uncited.length > 0 && (
-                <p className="mt-3 text-sm text-amber-800">
-                  {uncited.length} uncited sentence{uncited.length === 1 ? '' : 's'}.
-                </p>
-              )}
-            </div>
+            <DraftPreview
+              content={selectedPaper.content || 'No draft yet.'}
+              uncited={uncited}
+              citationCheck={citationCheck}
+              formatCheck={formatCheck}
+            />
             <div className="mt-4 flex justify-end space-x-2">
               <button
                 onClick={closePreview}

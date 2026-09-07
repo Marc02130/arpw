@@ -21,7 +21,8 @@ Index of product and engineering specs for ARPW. These files are the source of i
 - First run, confirm email, upload, Grok key, tests: `../README.md`
 - About to write code: [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)
 - About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
-- About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md)
+- About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–5 shipped)
+- Remaining MVP: export (LIB-4), outline (GEN-8); QUAL-1–5 shipped
 - Schema, RPCs, embeddings, test commands: [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)
 - What “MVP” still means: [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)
 

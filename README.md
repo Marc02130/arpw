@@ -1,6 +1,6 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Quality-check polish and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Preview flags uncited sentences, citation/format issues, and a human-review disclaimer. Markdown/Word export and outline are not built.
 
 ## What works today
 
@@ -9,7 +9,7 @@ A web app for a single researcher: upload your own papers, then draft a literatu
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
 | Open dashboard, paper generation, profile, library after confirmation | Outline or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
-| Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
+| Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, preview warnings, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see twenty-two files pass, currently 99 tests:
+You should see twenty-three files pass, currently 102 tests:
 
 ```
-Test Files  22 passed (22)
-      Tests  99 passed (99)
+Test Files  23 passed (23)
+      Tests  102 passed (102)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -239,9 +239,9 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
 3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
-4. Click **Generate Paper**. The Edge function retrieves pins first, then the same role-filtered search, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, citation check, and uncited sentences show on the right.
+4. Click **Generate Paper**. The Edge function retrieves pins first, then the same role-filtered search, calls Grok, strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
-6. Open `/library`. The paper is listed as completed. View shows the markdown. Continue restores the prompt. Sources is the number of cited files.
+6. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores the prompt. Sources is the number of cited files.
 
 Files live on the **Upload** tab (`/generate/upload`). Interrogate the corpus on **Interrogate** (`/generate/interrogate?paper=…`).
 
@@ -311,7 +311,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown. Continue opens Paper generation with the saved prompt. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Export is not built.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation with the saved prompt. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Export is not built.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -350,7 +350,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  22 passed (22)` and `Tests  99 passed (99)` (run 2026-09-07).
+- Unit: `Test Files  23 passed (23)` and `Tests  102 passed (102)` (run 2026-09-07).
 - Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not.
@@ -536,6 +536,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
 | `citationCheck.test.ts` | QUAL-2: `[S#]` in retrieved set and cited files in `paper_references` |
 | `formatCheck.test.ts` | QUAL-3: required `##` section headings present |
+| `draftPreview.test.ts` | QUAL-4: disclaimer text; inline uncited marks; warning list |
 | `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices plus interrogation slices 1–5: pins, Interrogate tab, pin-from-Q&A, pin-first generate, chat notes) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices, interrogation slices 1–5, QUAL-1–5 preview checks) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -21,7 +21,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
-| Tests | Vitest 2 | `npm test` unit (22 files / 99); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
+| Tests | Vitest 2 | `npm test` unit (23 files / 102); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -185,12 +185,13 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
 8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
 9. QUAL-3 `runFormatCheck`: each section stored on the paper (`user_papers.sections`) must appear as a `##` or `###` heading in `content`.
+10. QUAL-4 preview (`DraftPreview`): uncited sentences marked ⚠ inline; citation/format warnings listed; footer disclaimer. Not a cosine accuracy score.
 
 Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 
 ### 8. Library and export (as-built vs TARGET)
 
-Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. Regenerate and Export buttons are no-ops. Preview modal shows `content` as `<pre>`.
+Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. Regenerate and Export buttons are no-ops. Preview (`DraftPreview`) shows the draft with inline ⚠ on uncited sentences, QUAL-2/3 warnings, and footer: “AI-generated draft. Requires human review… This is not a factual-accuracy score.”
 
 TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation library, correct use); upload to `papers/{user_id}/{paper_id}.ext`; disclaimer footer.
 
@@ -207,7 +208,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 ### 10. Public surface (files)
 
-Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
+Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,DraftPreview,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
 Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through `pinned_passages` and `interrogation_turns`), `supabase/config.toml`.
 

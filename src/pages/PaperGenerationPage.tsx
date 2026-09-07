@@ -12,10 +12,11 @@ import {
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
 import InterrogatePanel, { type InterrogatePinTarget } from '../components/InterrogatePanel'
+import DraftPreview from '../components/DraftPreview'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
-import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
-import { formatCheckLabel, runFormatCheck } from '../lib/formatCheck'
+import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
+import { runFormatCheck } from '../lib/formatCheck'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import {
@@ -654,9 +655,12 @@ const PaperGenerationPage: React.FC = () => {
                   </Link>
                   .
                 </p>
-                <pre className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                  {draft}
-                </pre>
+                <DraftPreview
+                  content={draft}
+                  uncited={uncited}
+                  citationCheck={citationCheck}
+                  formatCheck={formatCheck}
+                />
                 {citedFiles.length > 0 && (
                   <div className="mt-3">
                     <h3 className="text-sm font-semibold text-gray-800 mb-2">Cited files</h3>
@@ -670,41 +674,6 @@ const PaperGenerationPage: React.FC = () => {
                     </ul>
                   </div>
                 )}
-                {citationCheck && (
-                  <p
-                    className={`mt-3 text-sm ${citationCheck.ok ? 'text-gray-700' : 'text-red-700'}`}
-                    role="status"
-                  >
-                    {citationCheckLabel(citationCheck)}
-                  </p>
-                )}
-                {formatCheck && (
-                  <p
-                    className={`mt-3 text-sm ${formatCheck.ok ? 'text-gray-700' : 'text-red-700'}`}
-                    role="status"
-                  >
-                    {formatCheckLabel(formatCheck)}
-                  </p>
-                )}
-                {uncited.length > 0 && (
-                  <div className="mt-3" role="status">
-                    <p className="text-sm font-medium text-amber-800">
-                      {uncited.length} sentence
-                      {uncited.length === 1 ? '' : 's'} with no retrieved source
-                    </p>
-                    <ul className="mt-2 space-y-1 text-sm text-amber-900">
-                      {uncited.map((row, index) => (
-                        <li key={`${row.section}-${index}`} className="bg-amber-50 border border-amber-200 rounded p-2">
-                          <span className="text-xs text-amber-700">{row.section}: </span>
-                          {row.sentence}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <p className="mt-2 text-xs text-gray-500">
-                  Citations not in the retrieved set are dropped. Uncited sentences are flagged; this is not a cosine “accuracy” score. This draft is saved to the library.
-                </p>
               </div>
             )}
           </div>
