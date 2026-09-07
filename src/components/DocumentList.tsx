@@ -8,6 +8,12 @@ import {
   vectorCountFromEmbed,
 } from '../lib/documentStore'
 import { fileTypeIcon, formatFileSize, formatUploadedAt } from '../lib/formatFile'
+import {
+  type SourceRole,
+  isSourceRole,
+  parseSourceRole,
+  sourceRoleLabel,
+} from '../lib/sourceRole'
 
 type ListedDocument = {
   file_id: string
@@ -17,6 +23,7 @@ type ListedDocument = {
   file_size: number
   uploaded_at: string
   chunkCount: number
+  source_role: SourceRole
 }
 
 interface DocumentListProps {
@@ -32,6 +39,8 @@ const DocumentList: React.FC<DocumentListProps> = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+  const [savingRoleIds, setSavingRoleIds] = useState<Set<string>>(new Set())
+  const showRole = documentType === DocumentType.REFERENCE
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -66,6 +75,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
           file_size: Number(row.file_size),
           uploaded_at: String(row.uploaded_at),
           chunkCount,
+          source_role: parseSourceRole(row.source_role),
         }
       })
       setDocuments(rows)
@@ -80,6 +90,36 @@ const DocumentList: React.FC<DocumentListProps> = ({
   useEffect(() => {
     fetchDocuments()
   }, [fetchDocuments])
+
+  const handleRoleChange = async (fileId: string, next: string) => {
+    if (!showRole || !isSourceRole(next)) return
+
+    setSavingRoleIds((prev) => new Set(prev).add(fileId))
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+
+      const { error: updateError } = await supabase
+        .from('references')
+        .update({ source_role: next })
+        .eq('file_id', fileId)
+        .eq('user_id', user.id)
+      if (updateError) throw new Error(updateError.message)
+
+      setDocuments((prev) =>
+        prev.map((doc) => (doc.file_id === fileId ? { ...doc, source_role: next } : doc))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update role')
+    } finally {
+      setSavingRoleIds((prev) => {
+        const nextIds = new Set(prev)
+        nextIds.delete(fileId)
+        return nextIds
+      })
+    }
+  }
 
   const handleDelete = async (fileId: string, fileName: string) => {
     if (!confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
@@ -220,6 +260,11 @@ const DocumentList: React.FC<DocumentListProps> = ({
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Index
                 </th>
+                {showRole && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -252,6 +297,20 @@ const DocumentList: React.FC<DocumentListProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {indexStatusLabel(doc.chunkCount)}
                   </td>
+                  {showRole && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <select
+                        value={doc.source_role}
+                        onChange={(event) => void handleRoleChange(doc.file_id, event.target.value)}
+                        disabled={savingRoleIds.has(doc.file_id)}
+                        className="rounded border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500 disabled:opacity-50"
+                        aria-label={`Role for ${doc.file_name}`}
+                      >
+                        <option value="literature">{sourceRoleLabel('literature')}</option>
+                        <option value="primary">{sourceRoleLabel('primary')}</option>
+                      </select>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => handleDelete(doc.file_id, doc.file_name)}

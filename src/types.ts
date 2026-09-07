@@ -1,3 +1,7 @@
+import type { SourceRole } from './lib/sourceRole'
+
+export type { SourceRole }
+
 // Enums
 export enum PaperType {
   EMPIRICAL_STUDY = 'Empirical Study',
@@ -48,6 +52,7 @@ export interface Reference {
   file_name: string
   file_size: number
   uploaded_at: string
+  source_role: SourceRole
 }
 
 export interface Example {

@@ -17,8 +17,8 @@ Locked product calls (2026-09-07):
 
 | Slice | Name | Status | Unlocks |
 |---|---|---|---|
-| 1 | `source_role` on references | **NEXT** | Role-filtered retrieval |
-| 2 | Frozen type × section templates | NOT STARTED | Generate without a user system prompt |
+| 1 | `source_role` on references | **DONE** | Role-filtered retrieval |
+| 2 | Frozen type × section templates | **NEXT** | Generate without a user system prompt |
 | 3 | Per-section retrieval + passages | NOT STARTED | GEN-4; NFR-7 retrieval hit |
 | 4 | Grok section loop + citation allow-list | NOT STARTED | GEN-5/6; NFR-7 refuse unknown ids |
 | 5 | Save `user_papers` + `paper_references` | NOT STARTED | GEN-9/10; library has rows |
@@ -28,6 +28,8 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 ### Slice 1 — `source_role` on references
 
 **Done when:** every `"references"` row has `source_role` `literature` or `primary` (default `literature`); the dashboard list shows it and the user can change it; unit + REST tests cover the CHECK and RLS update of own rows only.
+
+**Shipped:** `supabase/migrations/20260907160000_reference_source_role.sql`, `src/lib/sourceRole.ts`, `DocumentList.tsx` Role select (references only).
 
 **Not in this slice:** retrieval, Grok, a third drop zone, tagging example papers.
 

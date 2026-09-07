@@ -78,7 +78,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
 
-TARGET (slice 1): `source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))`. `literature` = other people’s work (citable evidence). `primary` = this study (protocols, results, own manuscript). Example papers do **not** get this column.
+`source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))` (`20260907160000_reference_source_role.sql`). `literature` = other people’s work. `primary` = this study. Example papers do **not** have this column. Dashboard: `DocumentList` select for references only.
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 

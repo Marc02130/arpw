@@ -152,4 +152,33 @@ describe('RLS integration', () => {
       await deleteUser(other.id)
     }
   })
+
+  it('should not let another user change source_role', async () => {
+    const owner = await createConfirmedUser('rls-role-a')
+    const other = await createConfirmedUser('rls-role-b')
+    const fileId = randomUUID()
+    try {
+      const { error } = await owner.client.from('references').insert({
+        file_id: fileId,
+        user_id: owner.id,
+        document_type: 'reference',
+        file_name: 'owned.txt',
+        file_size: 20,
+      })
+      expect(error).toBeNull()
+
+      await other.client.from('references').update({ source_role: 'primary' }).eq('file_id', fileId)
+
+      const { data } = await owner.client
+        .from('references')
+        .select('source_role')
+        .eq('file_id', fileId)
+        .single()
+      expect(data?.source_role).toBe('literature')
+    } finally {
+      await owner.client.from('references').delete().eq('user_id', owner.id)
+      await deleteUser(owner.id)
+      await deleteUser(other.id)
+    }
+  })
 })

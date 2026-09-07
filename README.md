@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see eight files pass, currently 53 tests:
+You should see nine files pass, currently 55 tests:
 
 ```
 Test Files  7 passed (7)
-      Tests  53 passed (53)
+      Tests  55 passed (55)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -213,13 +213,14 @@ Constraints and object key: [Reference: uploads](#upload-constraints-srccomponen
 
 ## How to list and delete a file
 
-The dashboard table shows each stored file’s name, size, upload time, and whether vectors exist.
+The dashboard table shows each stored file’s name, size, upload time, and whether vectors exist. Reference rows also have **Role**: Literature (default) or This study (`primary`).
 
 ### Steps
 
 1. Open `/dashboard`. Under **Reference Documents** or **Example Papers**, read the table (name, size, date, Index).
 2. Index is `Indexed (N chunks)` after ingest, or `Stored (not indexed)` if Edge did not write vectors.
-3. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{user_id}/{file_id}`.
+3. For a reference, set **Role** to Literature or This study. Example papers have no role.
+4. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{user_id}/{file_id}`.
 
 ### Verification
 
@@ -313,7 +314,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  8 passed (8)` and `Tests  53 passed (53)` (counts as of 2026-09-07).
+- Unit: `Test Files  9 passed (9)` and `Tests  55 passed (55)` (counts as of 2026-09-07).
 - Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
@@ -484,6 +485,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
 | `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, chunking, hash-384 |
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
+| `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
@@ -493,8 +495,8 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `c
 |---|---|
 | `auth.integration.test.ts` | Unconfirmed sign-in fails; confirm + profile (no `grok_api_key` column); wrong password; full-name update; reset-email request; user cannot call `read_grok_api_key` |
 | `grokKey.integration.test.ts` | set/status/last4; table 403; admin decrypt; clear; key &lt; 10 chars; unauthenticated RPCs |
-| `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500 |
-| `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others |
+| `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500; `source_role` default/update/CHECK |
+| `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
 

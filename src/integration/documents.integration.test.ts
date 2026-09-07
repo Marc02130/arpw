@@ -36,13 +36,14 @@ describe('document metadata integration', () => {
 
       const { data: list, error: listError } = await user.client
         .from('references')
-        .select('file_id, file_name, file_size, uploaded_at')
+        .select('file_id, file_name, file_size, uploaded_at, source_role')
         .eq('file_id', fileId)
         .single()
       expect(listError).toBeNull()
       expect(list?.file_name).toBe('paper.txt')
       expect(list?.file_size).toBe(32)
       expect(list?.uploaded_at).toBeTruthy()
+      expect(list?.source_role).toBe('literature')
 
       const { error: vecDel } = await user.client.from('reference_vectors').delete().eq('file_id', fileId)
       expect(vecDel).toBeNull()
@@ -84,6 +85,51 @@ describe('document metadata integration', () => {
       })
       expect(exError?.message).toMatch(/examples_file_name_ext|check constraint/i)
     } finally {
+      await deleteUser(user.id)
+    }
+  })
+
+  it('should default source_role to literature and reject an invalid role', async () => {
+    const user = await createConfirmedUser('docs-role')
+    const fileId = randomUUID()
+    try {
+      const { error: insertError } = await user.client.from('references').insert({
+        file_id: fileId,
+        user_id: user.id,
+        document_type: 'reference',
+        file_name: 'study.txt',
+        file_size: 20,
+      })
+      expect(insertError).toBeNull()
+
+      const { data: created } = await user.client
+        .from('references')
+        .select('source_role')
+        .eq('file_id', fileId)
+        .single()
+      expect(created?.source_role).toBe('literature')
+
+      const { error: setPrimary } = await user.client
+        .from('references')
+        .update({ source_role: 'primary' })
+        .eq('file_id', fileId)
+        .eq('user_id', user.id)
+      expect(setPrimary).toBeNull()
+
+      const { data: updated } = await user.client
+        .from('references')
+        .select('source_role')
+        .eq('file_id', fileId)
+        .single()
+      expect(updated?.source_role).toBe('primary')
+
+      const { error: invalid } = await user.client
+        .from('references')
+        .update({ source_role: 'evidence' })
+        .eq('file_id', fileId)
+      expect(invalid?.message).toMatch(/source_role|check constraint/i)
+    } finally {
+      await adminClient().from('references').delete().eq('user_id', user.id)
       await deleteUser(user.id)
     }
   })

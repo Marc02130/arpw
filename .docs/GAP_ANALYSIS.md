@@ -57,7 +57,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | DOCS-5 | DONE | Bucket from `documentType`; TXT/DOCX/PDF parse; chunk+section; `hash-384` vectors. MiniLM still TARGET |
 | DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
-| DOCS-8 | MISSING | No `source_role` on `"references"` |
+| DOCS-8 | DONE | `source_role` literature/primary on `"references"`; list select in `DocumentList.tsx` |
 
 #### Generation
 
@@ -162,7 +162,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- `npm test` (53 unit tests, no Docker)
+- `npm test` (55 unit tests, no Docker)
 - `npm run test:integration` (live Storage/ingest cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Library empty state
