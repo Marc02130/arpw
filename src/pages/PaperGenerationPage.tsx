@@ -54,6 +54,7 @@ const PaperGenerationPage: React.FC = () => {
     if (!paperId) {
       setPaper(null)
       setPaperError(null)
+      setDraft('')
       return
     }
     void (async () => {
@@ -61,6 +62,7 @@ const PaperGenerationPage: React.FC = () => {
         const loaded = await loadPaper(supabase, paperId)
         setPaper(loaded)
         setPaperError(null)
+        setDraft(loaded.content?.trim() ? loaded.content : '')
         setConfig((prev) => ({
           ...prev,
           sections: paperSectionsOrDefault(loaded.sections),
@@ -159,11 +161,16 @@ const PaperGenerationPage: React.FC = () => {
     setGenerateError(null)
     try {
       const result = await invokeGeneratePaper(supabase, {
+        paperId,
         paperType: config.paper_type,
         sections: config.sections,
         researchPrompt: config.prompt,
+        citationStyle: config.citation_style,
+        outputFormat: config.output_format,
       })
       setDraft(result.content)
+      const loaded = await loadPaper(supabase, paperId)
+      setPaper(loaded)
     } catch (error) {
       setDraft('')
       setGenerateError(error instanceof Error ? error.message : 'Paper generation failed')
@@ -401,7 +408,7 @@ const PaperGenerationPage: React.FC = () => {
                   {draft}
                 </pre>
                 <p className="mt-2 text-xs text-gray-500">
-                  Citations not in the retrieved set are dropped. Saving to the library is the next slice.
+                  Citations not in the retrieved set are dropped. This draft is saved to the library.
                 </p>
               </div>
             )}

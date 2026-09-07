@@ -21,7 +21,7 @@ Locked product calls (2026-09-07):
 | 2 | Frozen type × section templates | **DONE** | Generate without a user system prompt |
 | 3 | Per-section retrieval + passages | **DONE** | GEN-4; NFR-7 retrieval hit |
 | 4 | Grok section loop + citation allow-list | **DONE** | GEN-5/6; NFR-7 refuse unknown ids |
-| 5 | Save `user_papers` + `paper_references` | **NEXT** | GEN-9/10; library has rows |
+| 5 | Save `user_papers` + `paper_references` | **DONE** | GEN-9/10; library has rows |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
 
@@ -78,6 +78,8 @@ Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the 
 ### Slice 5 — Save draft
 
 **Done when:** a successful generate inserts `user_papers` (title, content, sections, type, citation style, format, version, status) and `paper_references` for cited `file_id`s; library lists the row; GEN-9/10.
+
+**Shipped:** `saveGeneratedDraft` updates the dashboard draft (`content`, sections, type, style, format, `status=completed`) and replaces `paper_references` with cited `file_id`s the user owns. `generate_paper` saves after Grok; it does not trust SPA-supplied source ids. Library lists the row and shows the source count. Unit + `papers.integration.test.ts`.
 
 **Not in this slice:** export, regenerate, QUAL preview polish.
 

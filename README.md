@@ -1,17 +1,16 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages and generate a section-by-section draft (Grok key required). Saving to the library, quality checks, and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, generate a section-by-section draft (Grok key required), and save it to the library. Quality checks and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Save a generated draft to the library (slice 5) |
+| Open dashboard, paper generation, profile, library after confirmation | Outline mode, quality checks, or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
-| Retrieve passages and generate a draft when a Grok key is saved | Outline mode, quality checks, or Word export |
-| Edit your display name; save a Grok key the SPA cannot read back | Live Grok E2E in `npm test` (unit suite has no network) |
-| Run unit tests and Auth/REST/RLS/retrieval integration tests | Storage upload, ingest Edge E2E, or live Grok if those services are down |
+| Retrieve passages, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
+| Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
 
@@ -229,7 +228,7 @@ The row disappears. REST `GET /rest/v1/references?file_id=eq.<id>` is empty. Vec
 
 ## How to generate a paper
 
-Section-by-section draft from your research prompt, frozen type×section templates, and retrieved chunks. Citations must use retrieved `[S#]` ids; unknown ids are dropped. The draft is shown on the Prompt tab. It is not saved to the library yet.
+Section-by-section draft from your research prompt, frozen type×section templates, and retrieved chunks. Citations must use retrieved `[S#]` ids; unknown ids are dropped. A successful generate saves the draft to the library.
 
 ### Prerequisites
 
@@ -240,14 +239,15 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required). Toggle sections. Pick paper type, citation style, output format.
 3. Click **Show passages**. Matching chunks list per section (literature vs original research).
-4. Click **Generate Paper**. The Edge function retrieves again (it does not trust ids from the page), calls Grok, and strips unknown `[S#]` citations.
+4. Click **Generate Paper**. The Edge function retrieves again (it does not trust ids from the page), calls Grok, strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
+6. Open `/library`. The paper is listed as completed. View shows the markdown. Sources is the number of cited files.
 
 Files live on the **Upload** tab (`/generate/upload`).
 
 ### Verification
 
-Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper and View shows the content. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
 ### Troubleshooting
 
@@ -290,7 +290,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. Empty until generation saves rows. View works if content exists. Delete hits the table after a confirm dialog. Regenerate and Export are no-ops. `referenceCount` is hardcoded `0`.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Regenerate and Export are no-ops.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -505,7 +505,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
 | `retrievePassages.test.ts` | Primary-then-literature attempts; References retrieves nothing |
-| `papers.test.ts` | Draft title and default sections |
+| `papers.test.ts` | Draft title, default sections, paper id parse, source count |
 | `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
 | `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
@@ -524,7 +524,7 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
 | `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary |
-| `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title |
+| `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
 
 **Not in either suite:** live Grok completion (needs a real xAI key and `generate_paper` up).

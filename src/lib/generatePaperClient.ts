@@ -2,9 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GeneratedSection } from './generatePaper'
 
 export type GeneratePaperInput = {
+  paperId: string
   paperType: string
   sections: string[]
   researchPrompt: string
+  citationStyle?: string
+  outputFormat?: string
 }
 
 export type GeneratePaperResult = {
@@ -12,6 +15,9 @@ export type GeneratePaperResult = {
   sections: GeneratedSection[]
   citedFileIds: string[]
   model: string
+  paperId: string
+  status: string
+  saved: boolean
 }
 
 const messageFromBody = (body: unknown): string | null => {
@@ -49,9 +55,12 @@ export const invokeGeneratePaper = async (
 ): Promise<GeneratePaperResult> => {
   const { data, error } = await client.functions.invoke('generate_paper', {
     body: {
+      paperId: input.paperId,
       paperType: input.paperType,
       sections: input.sections,
       researchPrompt: input.researchPrompt,
+      citationStyle: input.citationStyle,
+      outputFormat: input.outputFormat,
     },
   })
   if (error || !data || data.success === false) {
@@ -65,5 +74,8 @@ export const invokeGeneratePaper = async (
     sections: Array.isArray(data.sections) ? data.sections : [],
     citedFileIds: Array.isArray(data.citedFileIds) ? data.citedFileIds : [],
     model: typeof data.model === 'string' ? data.model : '',
+    paperId: typeof data.paperId === 'string' ? data.paperId : input.paperId,
+    status: typeof data.status === 'string' ? data.status : 'completed',
+    saved: data.saved === true,
   }
 }

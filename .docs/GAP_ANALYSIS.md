@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, and generate a section-by-section draft (if a Grok key is saved). You cannot save that draft to the library, check, or export a paper. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, generate a section-by-section draft (if a Grok key is saved), and save it to the library. You cannot check or export a paper. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -22,10 +22,10 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
-| Paper generation | PARTIAL | Section loop + Grok + allow-list. Draft shown in UI; not saved to `user_papers` |
+| Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Outline mode | MISSING | No control |
 | Quality checks | MISSING | Spec’d checks would not measure grounding anyway |
-| Library | PARTIAL | Lists papers if any exist; regenerate/export no-ops; count is 0 |
+| Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
 | Export | MISSING | Button does nothing |
 | Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS/retrieval/generate-missing-key integration. Fixture PDF parse/chunk/embed covered. Live Storage/ingest/Grok E2E skip if those services are down |
 | Docs vs product | DONE | README states generation/retrieval/export are unbuilt; `.docs/` holds PRD/spec/gap |
@@ -71,10 +71,10 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | MISSING | Examples stored, never used for style-only prompting |
 | GEN-8 | MISSING | No outline button |
-| GEN-9 | PARTIAL | Dashboard creates draft `user_papers` rows; generate still does not write content |
-| GEN-10 | MISSING | `paper_references` unused by app code |
+| GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
+| GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
 
-Draft markdown is shown on the Prompt tab. Slice 5 writes `user_papers.content` and `paper_references`.
+Draft markdown is shown on the Prompt tab and stored on `user_papers`.
 
 #### Quality
 
@@ -90,11 +90,11 @@ Draft markdown is shown on the Prompt tab. Slice 5 writes `user_papers.content` 
 
 | ID | Status | Evidence |
 |---|---|---|
-| LIB-1 | PARTIAL | Table UI; empty unless rows exist |
-| LIB-2 | PARTIAL | Groups by title in memory |
-| LIB-3 | PARTIAL | View works if content exists; regenerate alerts; delete hits DB |
+| LIB-1 | DONE | Table UI lists `user_papers` |
+| LIB-2 | DONE | Groups by title in memory |
+| LIB-3 | PARTIAL | View shows saved content; regenerate alerts; delete hits DB |
 | LIB-4 | MISSING | Export button no handler |
-| LIB-5 | MISSING | `referenceCount: 0` comment TODO |
+| LIB-5 | DONE | `referenceCountFromEmbed` on `paper_references(count)` |
 
 #### NFR
 
@@ -160,10 +160,9 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - `npm test` (unit, no Docker)
 - `npm run test:integration` (live Storage/ingest/generate-Grok cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
-- Generate if `generate_paper` is up and a Grok key is saved
-- Library empty state until slice 5 saves drafts
+- Generate if `generate_paper` is up and a Grok key is saved; successful generate saves to the library
 
-Does not work: outline, export, saving generated content. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
+Does not work: outline, export, quality checks. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 

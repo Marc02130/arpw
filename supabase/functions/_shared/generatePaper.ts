@@ -12,6 +12,7 @@ import {
   isKnownPaperType,
 } from './generationTemplates.ts'
 import type { RetrievedPassage } from './retrievePassages.ts'
+import { parsePaperId } from './saveGeneratedDraft.ts'
 
 export type GenerateComplete = (prompt: string) => Promise<string>
 
@@ -41,13 +42,27 @@ ${sourceBlock}
 
 If you cite a source, use the [S#] id exactly. Do not invent ids.`
 
-export const parseGenerateRequest = (
-  body: unknown
-): { paperType: string; sections: string[]; researchPrompt: string } => {
+const CITATION_STYLES = new Set(['APA', 'MLA', 'Chicago'])
+const OUTPUT_FORMATS = new Set(['word', 'markdown'])
+
+export type GenerateRequest = {
+  paperId: string
+  paperType: string
+  sections: string[]
+  researchPrompt: string
+  citationStyle?: string
+  outputFormat?: string
+}
+
+export const parseGenerateRequest = (body: unknown): GenerateRequest => {
   if (!body || typeof body !== 'object') {
     throw new Error('Invalid generate request')
   }
   const rec = body as Record<string, unknown>
+  const paperId = parsePaperId(rec.paperId)
+  if (!paperId) {
+    throw new Error('Start or continue a paper from the Dashboard first')
+  }
   if (typeof rec.paperType !== 'string' || !isKnownPaperType(rec.paperType)) {
     throw new Error('Unknown paper type')
   }
@@ -66,7 +81,21 @@ export const parseGenerateRequest = (
   if (!researchPrompt) {
     throw new Error('Enter a research prompt')
   }
-  return { paperType: rec.paperType, sections, researchPrompt }
+  let citationStyle: string | undefined
+  if (rec.citationStyle !== undefined) {
+    if (typeof rec.citationStyle !== 'string' || !CITATION_STYLES.has(rec.citationStyle)) {
+      throw new Error('Unknown citation style')
+    }
+    citationStyle = rec.citationStyle
+  }
+  let outputFormat: string | undefined
+  if (rec.outputFormat !== undefined) {
+    if (typeof rec.outputFormat !== 'string' || !OUTPUT_FORMATS.has(rec.outputFormat)) {
+      throw new Error('Unknown output format')
+    }
+    outputFormat = rec.outputFormat
+  }
+  return { paperId, paperType: rec.paperType, sections, researchPrompt, citationStyle, outputFormat }
 }
 
 export const generatePaperDraft = async (opts: {

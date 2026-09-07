@@ -7,6 +7,7 @@ import {
   completeWithGrok,
 } from '../_shared/grokComplete.ts'
 import { retrieveForSection } from '../_shared/retrievePassages.ts'
+import { saveGeneratedDraft } from '../_shared/saveGeneratedDraft.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -53,7 +54,7 @@ serve(async (req: Request) => {
       return json({ success: false, error: 'Invalid authentication' }, 401)
     }
 
-    let parsed: { paperType: string; sections: string[]; researchPrompt: string }
+    let parsed: ReturnType<typeof parseGenerateRequest>
     try {
       parsed = parseGenerateRequest(await req.json())
     } catch (parseError) {
@@ -81,6 +82,18 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${token}` } },
     })
 
+    const { data: paper, error: paperError } = await userClient
+      .from('user_papers')
+      .select('paper_id')
+      .eq('paper_id', parsed.paperId)
+      .maybeSingle()
+    if (paperError) {
+      throw new Error(paperError.message)
+    }
+    if (!paper) {
+      return json({ success: false, error: 'Paper not found' }, 404)
+    }
+
     const result = await generatePaperDraft({
       paperType: parsed.paperType,
       sections: parsed.sections,
@@ -90,12 +103,25 @@ serve(async (req: Request) => {
       complete: (prompt) => completeWithGrok(apiKey, prompt),
     })
 
+    const saved = await saveGeneratedDraft(userClient, {
+      paperId: parsed.paperId,
+      content: result.content,
+      sections: parsed.sections,
+      paperType: parsed.paperType,
+      citationStyle: parsed.citationStyle,
+      outputFormat: parsed.outputFormat,
+      citedFileIds: result.citedFileIds,
+    })
+
     return json({
       success: true,
       content: result.content,
       sections: result.sections,
-      citedFileIds: result.citedFileIds,
+      citedFileIds: saved.citedFileIds,
       model: GROK_MODEL,
+      paperId: saved.paperId,
+      status: saved.status,
+      saved: true,
     })
   } catch (error) {
     console.error('generate_paper error:', error)

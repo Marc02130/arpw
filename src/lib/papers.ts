@@ -1,6 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CitationStyle, OutputFormat, PaperType, Status, type Paper } from '../types'
 
+export {
+  parsePaperId,
+  referenceCountFromEmbed,
+  saveGeneratedDraft,
+  uniqueFileIds,
+} from '../../supabase/functions/_shared/saveGeneratedDraft'
+
 
 export const DEFAULT_PAPER_SECTIONS: string[] = [
   'Abstract',

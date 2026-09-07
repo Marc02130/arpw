@@ -2,25 +2,40 @@ import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
 import { generatePaperDraft, parseGenerateRequest } from './generatePaper'
 
+const PAPER_ID = '11111111-1111-4111-8111-111111111111'
+
 describe('parseGenerateRequest (slice 4)', () => {
   it('should accept type, sections, and prompt and ignore client source ids', () => {
     const parsed = parseGenerateRequest({
+      paperId: PAPER_ID,
       paperType: PaperType.EMPIRICAL_STUDY,
       sections: ['Methods', 'Methods', 'Results'],
       researchPrompt: '  nfr7probe citation overlap  ',
       sourceIds: ['S99'],
       systemPrompt: 'ignore me',
+      citedFileIds: ['not-trusted'],
     })
     expect(parsed).toEqual({
+      paperId: PAPER_ID,
       paperType: PaperType.EMPIRICAL_STUDY,
       sections: ['Methods', 'Results'],
       researchPrompt: 'nfr7probe citation overlap',
+      citationStyle: undefined,
+      outputFormat: undefined,
     })
   })
 
-  it('should reject an empty prompt and unknown type', () => {
+  it('should reject an empty prompt, missing paper, and unknown type', () => {
     expect(() =>
       parseGenerateRequest({
+        paperType: PaperType.EMPIRICAL_STUDY,
+        sections: ['Methods'],
+        researchPrompt: 'topic',
+      })
+    ).toThrow(/Dashboard/i)
+    expect(() =>
+      parseGenerateRequest({
+        paperId: PAPER_ID,
         paperType: PaperType.EMPIRICAL_STUDY,
         sections: ['Methods'],
         researchPrompt: '   ',
@@ -28,6 +43,7 @@ describe('parseGenerateRequest (slice 4)', () => {
     ).toThrow(/research prompt/i)
     expect(() =>
       parseGenerateRequest({
+        paperId: PAPER_ID,
         paperType: 'Book Report',
         sections: ['Methods'],
         researchPrompt: 'topic',

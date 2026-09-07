@@ -135,7 +135,7 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 
 `supabase/functions/generate_paper/index.ts`. Shared loop/templates/allow-list: `supabase/functions/_shared/` (re-exported from `src/lib`). UI: `PaperGenerationPage` Prompt tab.
 
-Build order: `.docs/GENERATION_SLICES.md`. Slice 4 shipped; slice 5 (save) is next.
+Build order: `.docs/GENERATION_SLICES.md`. Slices 1–5 shipped.
 
 **Who writes which prompt**
 
@@ -171,13 +171,13 @@ Example-paper vectors: style prefix only, never mixed into evidence (GEN-7).
 4. Optional rerank later.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
-7. Concatenate sections. TARGET (slice 5): insert `user_papers` content; insert `paper_references` for cited `file_id`s. As-built: return markdown to the SPA; do not persist content.
+7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
 
 Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 
 ### 8. Library and export (as-built vs TARGET)
 
-Library reads `user_papers`, groups by title, shows latest version. `referenceCount` hardcoded `0`. Regenerate and Export buttons are no-ops. Preview modal shows `content` as `<pre>`.
+Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. Regenerate and Export buttons are no-ops. Preview modal shows `content` as `<pre>`.
 
 TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation library, correct use); upload to `papers/{user_id}/{paper_id}.ext`; disclaimer footer.
 

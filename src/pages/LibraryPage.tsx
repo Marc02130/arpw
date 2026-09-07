@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { referenceCountFromEmbed } from '../lib/papers'
 import { Paper, LibraryPaper, VersionHistory } from '../types'
 
 const LibraryPage: React.FC = () => {
@@ -54,7 +55,9 @@ const LibraryPage: React.FC = () => {
         const latestVersion = versions[0]
         return {
           paper: latestVersion,
-          referenceCount: 0, // TODO: Get actual reference count
+          referenceCount: referenceCountFromEmbed(
+            (latestVersion as Paper & { paper_references?: Array<{ count?: number }> }).paper_references
+          ),
           lastModified: latestVersion.created_at
         }
       })
@@ -163,6 +166,9 @@ const LibraryPage: React.FC = () => {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Sources
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -171,7 +177,7 @@ const LibraryPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {papers.map(({ paper }) => (
+                  {papers.map(({ paper, referenceCount }) => (
                     <tr key={paper.paper_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -192,6 +198,9 @@ const LibraryPage: React.FC = () => {
                         }`}>
                           {paper.status}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {referenceCount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(paper.created_at)}
