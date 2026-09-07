@@ -45,6 +45,32 @@ export async function assertSupabaseUp(): Promise<void> {
   }
 }
 
+export async function storageIsUp(): Promise<boolean> {
+  try {
+    const response = await fetch(`${supabaseUrl()}/storage/v1/bucket`, {
+      headers: {
+        apikey: serviceRoleKey(),
+        Authorization: `Bearer ${serviceRoleKey()}`,
+      },
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+export async function ingestFunctionIsUp(): Promise<boolean> {
+  try {
+    const response = await fetch(`${supabaseUrl()}/functions/v1/upload_processor`, {
+      method: 'OPTIONS',
+      headers: { apikey: anonKey() },
+    })
+    return response.ok || response.status === 204
+  } catch {
+    return false
+  }
+}
+
 export async function createConfirmedUser(
   label: string
 ): Promise<{ id: string; email: string; accessToken: string; client: SupabaseClient }> {

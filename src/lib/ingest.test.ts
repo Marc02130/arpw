@@ -6,6 +6,7 @@ import {
   storageObjectKey,
   storageTarget,
   textFromDocxXml,
+  userOwnsStorageKey,
   validateIngestFile,
 } from '../../supabase/functions/upload_processor/ingest'
 
@@ -39,6 +40,20 @@ describe('storageTarget (NFR-2)', () => {
     expect(() => storageTarget('reference', 'not-a-user', fileId)).toThrow(
       'Storage path requires user id and file id'
     )
+  })
+})
+
+describe('userOwnsStorageKey (NFR-1)', () => {
+  const userId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const otherId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const fileId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+  it('should allow only keys under the user prefix', () => {
+    expect(userOwnsStorageKey(userId, `${userId}/${fileId}`)).toBe(true)
+    expect(userOwnsStorageKey(userId, `${otherId}/${fileId}`)).toBe(false)
+    expect(userOwnsStorageKey(userId, `${fileId}_paper.pdf`)).toBe(false)
+    expect(userOwnsStorageKey(userId, userId)).toBe(false)
+    expect(userOwnsStorageKey(userId, `${userId}/`)).toBe(false)
   })
 })
 

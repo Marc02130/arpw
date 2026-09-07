@@ -61,6 +61,14 @@ export const storageTarget = (
   key: storageObjectKey(userId, fileId),
 })
 
+/** Same rule as storage.objects RLS: first path segment is auth.uid(), then `/`. */
+export const userOwnsStorageKey = (userId: string, key: string): boolean => {
+  const user = userId.trim()
+  const object = key.replace(/^\/+/, '').trim()
+  if (!STORAGE_ID_PATTERN.test(user)) return false
+  return object.startsWith(`${user}/`) && object.length > user.length + 1
+}
+
 export const textFromDocxXml = (xml: string): string =>
   xml
     .replace(/<w:tab\/>/g, '\t')
