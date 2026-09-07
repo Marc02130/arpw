@@ -38,8 +38,9 @@ Browser (Vite SPA)
   +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
 
 TARGET:
+  +--> interrogate_corpus (same retrieve + Grok allow-list)
+  +--> pinned_passages (pins first, then vector search)
   +--> retrieve RPC (hybrid search / MiniLM)
-  +--> persist user_papers + paper_references
   +--> run_checks / export_paper
 ```
 
@@ -56,6 +57,7 @@ The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_ap
 | `/dashboard` | `src/pages/HomePage.tsx` | counts; start or continue a paper |
 | `/generate` | `src/pages/PaperGenerationPage.tsx` | Prompt tab |
 | `/generate/upload` | same | Upload tab: literature, original research, examples |
+| `/generate/interrogate` | TARGET same page | Interrogate tab: Q&A + pins |
 | `/profile` | `src/components/Profile.tsx` | `ProfilePage.tsx` is unused |
 | `/library` | `src/pages/LibraryPage.tsx` | list/view stubs |
 | `*` | redirect | |
@@ -163,6 +165,10 @@ Paper type **Literature Review**: `literature` only; ignore `primary`.
 
 Example-paper vectors: `match_example_chunks` + style prefix on the section prompt. Never numbered as `[S#]`, never mixed into the citation allow-list (GEN-7).
 
+**Pins and interrogation (TARGET)**
+
+See `.docs/INTERROGATION_SLICES.md`. Pins are rows (`user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks`. Interrogation Q&A uses the same retrieve + `[S#]` strip as generate. Chat turns are notes only. Do not ingest Ragged transcripts as `"references"`.
+
 **Pipeline**
 
 1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
@@ -258,4 +264,5 @@ How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. W
 - `supabase/migrations/20260907010000_reference_upload_cap.sql`
 - `README.md` (local setup, Grok key how-to and RPCs, tests)
 - `.docs/GENERATION_SLICES.md`
+- `.docs/INTERROGATION_SLICES.md`
 - `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`

@@ -10,6 +10,7 @@ Locked product calls (2026-09-07):
 - The dashboard **Research prompt** is the only user-written generation text (topic, question, constraints).
 - Each **reference** has `source_role`: `literature` (published work you cite) or `primary` (the author’s original research on this paper’s topic). Upload tab shows two sections writing the same `"references"` table and cap. Example papers stay style-only (GEN-7).
 - QUAL, outline (GEN-8), Word export, MiniLM, and a per-section prompt editor are **out of these slices**.
+- Interrogation and pins are a **follow-on cut**: `.docs/INTERROGATION_SLICES.md`. Do not import Ragged chats as references.
 
 ## Content
 

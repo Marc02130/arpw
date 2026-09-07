@@ -1,13 +1,13 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, generate a section-by-section draft (Grok key required), and save it to the library. Quality checks and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, generate a section-by-section draft (Grok key required), and save it to the library. Interrogation, pins, quality-check polish, and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Outline mode, quality checks, or Word export |
+| Open dashboard, paper generation, profile, library after confirmation | Interrogate tab, pins, outline, or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
 | Retrieve passages, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |

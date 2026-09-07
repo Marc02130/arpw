@@ -23,6 +23,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
+| Interrogation / pins | MISSING | No interrogate tab; no `pinned_passages`; generate does not prefer pins |
 | Outline mode | MISSING | No control |
 | Quality checks | PARTIAL | QUAL-1 flags uncited sentences. Citation/format checks and preview polish still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
@@ -73,8 +74,19 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-8 | MISSING | No outline button |
 | GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
 | GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
+| GEN-4 pins | MISSING | Retrieval is role-filtered vectors only; pins not in the allow-list yet |
 
-Draft markdown is shown on the Prompt tab and stored on `user_papers`.
+#### Interrogation and pins
+
+| ID | Status | Evidence |
+|---|---|---|
+| INT-1 | MISSING | No Interrogate tab |
+| INT-2 | MISSING | No interrogate worker |
+| INT-3 | MISSING | No chat-as-notes table |
+| PIN-1 | MISSING | No pin rows |
+| PIN-2 | MISSING | Generate does not read pins |
+
+Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interrogation slices: `.docs/INTERROGATION_SLICES.md`.
 
 #### Quality
 
@@ -145,8 +157,9 @@ Matches engineering, not README order.
 | 0 | Keep PII out of git; README that matches reality. Auth (confirm + reset) is shipped. | Trust |
 | 1 | Storage path `{user_id}/{file_id}` shipped. Fixture PDF unit ingest shipped. Remaining: Storage up + live ingest E2E | Corpus |
 | 2–5 | Generate slices in `.docs/GENERATION_SLICES.md` (`source_role`, templates, retrieval, Grok allow-list, save) | Grounded drafts |
-| 4 | Attribution flags + library save/export | MVP cut line |
-| 5 | Outline, extra styles, eval harness | After MVP |
+| 6 | Interrogation slices in `.docs/INTERROGATION_SLICES.md` (pins, interrogate, generate uses pins) | Researcher-directed grounding |
+| 7 | Attribution polish, library export | MVP cut line |
+| 8 | Outline, MiniLM, eval harness | After MVP |
 
 Do not start Word export or cosine “accuracy” before phase 3.
 
@@ -162,12 +175,13 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Generate if `generate_paper` is up and a Grok key is saved; successful generate saves to the library
 
-Does not work: outline, export, quality checks. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
+Does not work: interrogate tab, pins, outline, export. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 
 - `.docs/PRODUCT_REQUIREMENTS.md` — requirement IDs
 - `.docs/TECHNICAL_SPECIFICATION.md` — architecture
+- `.docs/INTERROGATION_SLICES.md` — pin + interrogate cut
 - `src/pages/DashboardPage.tsx`
 - `src/components/UploadZone.tsx`
 - `src/hooks/useAuth.tsx`, `src/App.tsx`

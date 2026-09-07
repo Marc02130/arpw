@@ -7,11 +7,11 @@ Product requirements for AI Research Paper Writer (ARPW), a web app that helps a
 - Product: ARPW
 - Audience: individual academic users (researchers, PIs, graduate students)
 - Platform: web (desktop first)
-- Version of this PRD: 1.3
+- Version of this PRD: 1.4
 - Date: 2026-09-07
 - Status: current product intent on `main`
 
-ARPW is a **grounded drafting assistant**. It retrieves passages from the user’s corpus, generates section drafts with citations that map to those passages, and requires human review before anything looks like a submission. It is not a paper mill and it must not emit citations that are not in the retrieved set.
+ARPW is a **grounded drafting assistant**. The researcher interrogates their own corpus, pins passages to include, then generates section drafts with citations that map to those passages (pins first, then retrieval). It requires human review before anything looks like a submission. It is not a paper mill and it must not emit citations that are not in the retrieved-or-pinned set.
 
 ## Content
 
@@ -24,7 +24,8 @@ Writing a literature-backed draft from a personal PDF pile is slow. Generic chat
 **User goals**
 
 - Upload their own PDFs and mark each as literature or this-study (primary). Optional style examples.
-- Ask for a paper on a topic, pick sections and paper type, get a draft grounded in those files.
+- Interrogate that corpus (ask questions, see passages) and **pin** chunks to include in the draft.
+- Ask for a paper on a topic, pick sections and paper type, get a draft grounded in pins plus retrieved files.
 - See which source passage supports each claim.
 - Keep versions, export Markdown or Word, review before use.
 
@@ -42,6 +43,8 @@ Writing a literature-backed draft from a personal PDF pile is slow. Generic chat
 - Generating a full paper from 10–20 random chunks with no section-wise retrieval.
 - User-editable system prompts or per-section prompt templates (server owns type × section templates).
 - A separate Storage bucket for original research (same `"references"` table and cap; two upload sections).
+- Merging Ragged (or any second RAG chat app) into this repo.
+- Importing a chat transcript as literature or as a citable primary file. Interrogation chat is notes, never `[S#]` evidence.
 
 ### 3. Users
 
@@ -83,16 +86,31 @@ Each item has an ID for the gap analysis.
 
 | ID | Requirement | Priority |
 |---|---|---|
-| GEN-1 | Research prompt textarea (topic, question, constraints). This is the only user-written generation text in MVP. Section checkboxes (Abstract through References). | P0 |
+| GEN-1 | Research prompt textarea (topic, question, constraints). Pins are structured includes, not free-text prompts. Interrogation chat is not generation text. Section checkboxes (Abstract through References). | P0 |
 | GEN-2 | Paper type: Empirical Study, Literature Review, Theoretical Paper, Case Study. Type selects the server template pack. | P0 |
 | GEN-3 | Citation style: APA for MVP (MLA/Chicago later). | P1 |
-| GEN-4 | Retrieve relevant reference chunks per section (hybrid search + rerank later); filter by `source_role` (see generation slices); show sources in the UI. | P0 |
+| GEN-4 | Retrieve relevant reference chunks per section (hybrid search + rerank later); filter by `source_role` (see generation slices); **pins first**, then vector search; show sources in the UI. | P0 |
 | GEN-5 | Generate **section by section**. Each section uses a frozen server template for that paper type × section, its own retrieval, and the research prompt. | P0 |
 | GEN-6 | Citations only from retrieved `source_id`s; drop invented citations. | P0 |
 | GEN-7 | Example papers constrain tone/structure only; they are not evidence. | P1 |
 | GEN-8 | Outline mode: generate an editable outline, then full draft. | P2 |
 | GEN-9 | Save draft to `user_papers` with config, version, status. | P0 |
 | GEN-10 | Link cited files in `paper_references`. | P0 |
+
+#### INT (interrogation)
+
+| ID | Requirement | Priority |
+|---|---|---|
+| INT-1 | Interrogate tab on the current paper: ask a question of literature and/or original research; show retrieved passages; Grok answers using only those `[S#]` ids. | P0 |
+| INT-2 | Interrogation uses the same corpus, embeddings, and Grok key path as generate. SPA never sees the key. | P0 |
+| INT-3 | Saved interrogation turns are notes. They must not be retrieved as evidence or numbered as `[S#]`. | P0 |
+
+#### PIN
+
+| ID | Requirement | Priority |
+|---|---|---|
+| PIN-1 | User can pin a retrieved chunk (`vector_id`, `file_id`) to the current paper, optionally with a target section. List and unpin. Own rows only. | P0 |
+| PIN-2 | Generate’s allow-list is pinned chunks (for that section or unscoped) plus role-filtered retrieval. Example-paper pins are rejected. | P0 |
 
 #### QUAL
 
