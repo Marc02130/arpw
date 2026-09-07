@@ -18,8 +18,8 @@ Locked product calls (2026-09-07):
 | Slice | Name | Status | Unlocks |
 |---|---|---|---|
 | 1 | `source_role` on references | **DONE** | Role-filtered retrieval |
-| 2 | Frozen type × section templates | **NEXT** | Generate without a user system prompt |
-| 3 | Per-section retrieval + passages | NOT STARTED | GEN-4; NFR-7 retrieval hit |
+| 2 | Frozen type × section templates | **DONE** | Generate without a user system prompt |
+| 3 | Per-section retrieval + passages | **NEXT** | GEN-4; NFR-7 retrieval hit |
 | 4 | Grok section loop + citation allow-list | NOT STARTED | GEN-5/6; NFR-7 refuse unknown ids |
 | 5 | Save `user_papers` + `paper_references` | NOT STARTED | GEN-9/10; library has rows |
 
@@ -42,6 +42,8 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 **Not in this slice:** calling Grok; user-editable templates.
 
 **Likely files:** `src/lib/generationTemplates.ts` (name can change) + `*.test.ts`. Edge/worker imports the same module or a copy under `supabase/functions/` if the generate function cannot import `src/`.
+
+**Shipped:** `src/lib/generationTemplates.ts` — `getSectionTemplate` / `buildRetrievalQuery` / `buildGenerationPrompt` (research prompt only; no system-prompt argument). Dashboard section checkboxes use `PAPER_SECTIONS`.
 
 ### Slice 3 — Per-section retrieval + passages
 

@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see nine files pass, currently 55 tests:
+You should see ten files pass, currently 60 tests:
 
 ```
 Test Files  7 passed (7)
-      Tests  55 passed (55)
+      Tests  60 passed (60)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -314,7 +314,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  9 passed (9)` and `Tests  55 passed (55)` (counts as of 2026-09-07).
+- Unit: `Test Files  10 passed (10)` and `Tests  60 passed (60)` (counts as of 2026-09-07).
 - Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
@@ -486,6 +486,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, chunking, hash-384 |
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
+| `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 

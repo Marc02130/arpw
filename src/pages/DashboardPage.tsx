@@ -3,6 +3,7 @@ import { PaperGenerationConfig, PaperType, CitationStyle, OutputFormat, Document
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
+import { PAPER_SECTIONS } from '../lib/generationTemplates'
 
 const DashboardPage: React.FC = () => {
   const [config, setConfig] = useState<PaperGenerationConfig>({
@@ -16,16 +17,7 @@ const DashboardPage: React.FC = () => {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
 
-  const availableSections = [
-    'Abstract',
-    'Introduction', 
-    'Literature Review',
-    'Methods',
-    'Results',
-    'Discussion',
-    'Conclusion',
-    'References'
-  ]
+  const availableSections = PAPER_SECTIONS
 
   const handleSectionToggle = (section: string) => {
     setConfig(prev => ({

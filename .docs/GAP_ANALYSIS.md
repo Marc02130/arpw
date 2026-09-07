@@ -64,7 +64,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | ID | Status | Evidence |
 |---|---|---|
 | GEN-1 | DONE (UI only) | Checkboxes in `DashboardPage.tsx` |
-| GEN-2 | DONE (UI only) | `PaperType` select |
+| GEN-2 | PARTIAL | `PaperType` select; frozen templates in `generationTemplates.ts`; generate still stub |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
 | GEN-4 | MISSING | No RPC, no passage panel |
 | GEN-5 | MISSING | Single fake 2s timeout |
@@ -162,7 +162,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- `npm test` (55 unit tests, no Docker)
+- `npm test` (60 unit tests, no Docker)
 - `npm run test:integration` (live Storage/ingest cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Library empty state

@@ -148,7 +148,7 @@ Build order: `.docs/GENERATION_SLICES.md`.
 | System prompt / per-section template editor | User | No |
 | Extra notes appended to every section | User | Deferred |
 
-The SPA must not send a system prompt to Grok. The worker loads templates from code.
+The SPA must not send a system prompt to Grok. Templates live in `src/lib/generationTemplates.ts` (`getSectionTemplate`, `buildRetrievalQuery`, `buildGenerationPrompt`). The worker loads that module or a copy; there is no system-prompt argument.
 
 **`source_role` and retrieval**
 
