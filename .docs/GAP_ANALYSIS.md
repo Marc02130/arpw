@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-06 (`main`, after `feat/fix-login`) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-07 (`feat/integration-tests`, after ingest hash-384 and Auth/REST integration tests) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
 This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
@@ -19,16 +19,16 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | Auth email/password | DONE | Open signup, confirm-before-access, password reset; profile row is not a login gate |
 | Profile name | DONE | Saves full name |
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
-| Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete; ingest still fails |
-| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store. MiniLM still TARGET |
+| Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
+| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | MISSING | No match RPC, no UI of passages |
 | Paper generation | MISSING | Alert: “next phase” |
 | Outline mode | MISSING | No control |
 | Quality checks | MISSING | Spec’d checks would not measure grounding anyway |
 | Library | PARTIAL | Lists papers if any exist; regenerate/export no-ops; count is 0 |
 | Export | MISSING | Button does nothing |
-| Tests | MISSING | No test script |
-| Docs vs product | WRONG-BY-DESIGN | README still lists generation as a feature |
+| Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS integration (`npm run test:integration`). No Storage/ingest E2E |
+| Docs vs product | DONE | README states generation/retrieval/export are unbuilt; `.docs/` holds PRD/spec/gap |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
 ### 3. Requirement trace
@@ -107,10 +107,10 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | NFR-1 | PARTIAL | Table RLS yes; storage policies are bucket-wide for any authenticated user |
 | NFR-2 | PARTIAL | Ingest bucket comes from `documentType`; object key is still the client filename. TARGET: `{user_id}/{file_id}` |
 | NFR-3 | DONE here | gitignore `.docs/*.pdf`; current history has no PDF blobs |
-| NFR-4 | UNKNOWN | Ingest not working, so unmeasured |
+| NFR-4 | UNKNOWN | Live ingest E2E unmeasured while Storage is down |
 | NFR-5 | MISSING | |
 | NFR-6 | PARTIAL | Login has labels/aria; upload zone is keyboard-activatable |
-| NFR-7 | PARTIAL | Vitest covers upload/auth validators (`src/lib/*.test.ts`). No ingest/retrieval/generate fixture tests |
+| NFR-7 | PARTIAL | Unit tests in `src/lib/*.test.ts`. Integration (`npm run test:integration`) covers auth confirm/reset, Grok RPCs, metadata CHECKs and caps, RLS on references/examples/vectors/profile/papers. No Storage/ingest E2E or generate fixture |
 
 ### 4. Code vs old documentation
 
@@ -119,7 +119,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | React via cdn.jsdelivr.net | Vite SPA |
 | Generation &lt; 5 min | No generation |
 | Vectors deleted after 24h | Would destroy the corpus; not implemented (good) |
-| Encrypted Grok key | Plaintext |
+| Grok key on `user_profile` (plaintext) | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Storage `references/{user_id}/{file_id}` | `{uuid}_{filename}` at bucket root |
 | Quality checks, Word export, outline | Unbuilt |
 | 90%+ check pass rate | Not a metric |
@@ -162,10 +162,12 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- Upload to Storage (processing step likely errors)
+- `npm test` (47 unit tests, no Docker)
+- `npm run test:integration` (19 Auth/REST/RLS tests; Storage may be down)
+- Upload to Storage only if `supabase_storage_arpw` is up
 - Library empty state
 
-Does not work: generate, outline, export, ingest-to-vectors, retrieval. Unconfirmed users cannot reach `/dashboard`.
+Does not work: generate, outline, export, retrieval. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 
@@ -176,4 +178,6 @@ Does not work: generate, outline, export, ingest-to-vectors, retrieval. Unconfir
 - `src/hooks/useAuth.tsx`, `src/App.tsx`
 - `supabase/functions/upload_processor/index.ts`
 - `supabase/migrations/20260906133100_init.sql`
+- `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`
+- `../README.md` — tests how-to and reference
 - `.docs/legacy/` — superseded drafts

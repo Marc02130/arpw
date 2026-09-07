@@ -8,10 +8,21 @@ A web app for a single researcher: upload your own papers, then (when generation
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Generate a paper (the button waits 2s then alerts “next phase”) |
 | Open dashboard, profile, library after confirmation | Retrieve passages or cite uploaded files |
-| Upload PDF/DOCX/TXT to Storage from the dashboard | Index those files into vectors (ingest Edge function is broken) |
+| Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
 | Edit your display name; save a Grok key the SPA cannot read back | Decrypt the Grok key in the browser |
+| Run unit tests and Auth/REST/RLS integration tests | Storage upload, ingest Edge E2E, retrieval/generation fixtures |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
+
+### In this README
+
+| Kind | Where |
+|---|---|
+| Tutorial | [Get to the dashboard](#tutorial-get-to-the-dashboard), [Run the unit tests](#tutorial-run-the-unit-tests) |
+| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test) |
+| Reference | [Ports and env](#ports-and-env), [Routes](#routes-srcapptsx), [Auth](#auth-behavior-srchooksuseauthts), [Grok RPCs](#grok-key-rpcs), [Uploads](#upload-constraints-srccomponentsuploadzonetsx), [Tests](#tests), [npm scripts](#npm-scripts) |
+| Explanation | [Why email confirmation](#why-email-confirmation), [Why the Grok key is not on the profile](#why-the-grok-key-is-not-on-the-profile), [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table), [Why two test suites](#why-two-test-suites) |
+| Specs | [`.docs/`](.docs/README.md) |
 
 ## Tutorial: get to the dashboard
 
@@ -63,7 +74,50 @@ If the link is expired, stay on `/verify-email` and click **Resend confirmation 
 
 ### What you built
 
-A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [How to upload a reference](#how-to-upload-a-reference), [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), or the [reference](#reference).
+A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [Run the unit tests](#tutorial-run-the-unit-tests), [How to upload a reference](#how-to-upload-a-reference), [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), or the [reference](#reference).
+
+## Tutorial: run the unit tests
+
+You will run the fast helper tests and see them pass. No Docker. This is the suite `npm test` always runs.
+
+### What you'll need
+
+- Node.js and `npm install` already done (same as [Step 1](#step-1-install-and-start-the-database) of the dashboard tutorial). You do **not** need `supabase start` for this tutorial.
+
+### Step 1: Run the unit suite
+
+From the repo root:
+
+```bash
+npm test
+```
+
+That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.integration.test.ts`.
+
+### Step 2: Read the result
+
+You should see seven files pass, currently 47 tests:
+
+```
+Test Files  7 passed (7)
+      Tests  47 passed (47)
+```
+
+If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
+
+### Step 3 (optional): Run integration against local Auth
+
+If Docker and `supabase start` are already up from the dashboard tutorial:
+
+```bash
+npm run test:integration
+```
+
+You should see four files pass, currently 19 tests. Storage can be down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
+
+### What you built
+
+Proof that the upload validators, caps, progress helpers, and hash-384 ingest functions behave as the unit tests describe. Next: [How to run tests](#how-to-run-tests) or [How to add a test](#how-to-add-a-test).
 
 ## How to confirm your email
 
@@ -224,6 +278,79 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
+## How to run tests
+
+You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS integration suite.
+
+### Prerequisites
+
+- Unit: `npm install`. No Docker.
+- Integration: local Supabase running (`supabase start` with the installed CLI, not `npx`). Storage may be down. `.env` may copy `.env.example`; integration falls back to the local demo keys when the URL is `127.0.0.1` / `localhost`.
+
+### Steps
+
+1. Run the unit suite:
+
+   ```bash
+   npm test
+   ```
+
+   Watch mode: `npm run test:watch`.
+
+2. Confirm local API health (integration only):
+
+   ```bash
+   supabase status
+   ```
+
+   You need API `:54321`. `supabase_storage_arpw` may be `Exited`; that is OK for this suite.
+
+3. Run integration:
+
+   ```bash
+   npm run test:integration
+   ```
+
+### Verification
+
+- Unit: `Test Files  7 passed (7)` and `Tests  47 passed (47)` (counts as of 2026-09-07).
+- Integration: `Test Files  4 passed (4)` and `Tests  19 passed (19)`, in a few seconds.
+- `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
+
+### Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| `Local Supabase is not running at http://127.0.0.1:54321` | Start with the installed `supabase` binary. Do not use `npx supabase`. |
+| Sign-in errors about email not confirmed | Expected in the app; the suite confirms users with the service role. Do not set `enable_confirmations = false` to make tests pass. |
+| `SUPABASE_SERVICE_ROLE_KEY is required` | You pointed `VITE_SUPABASE_URL` at a non-local project. Set the service role in `.env` or use the local URL. |
+| Integration tries to upload to Storage | Do not add Storage calls while `supabase_storage_arpw` is down. The current suite is Auth/REST/Postgres only. |
+| `npm test` picks up `*.integration.test.ts` | Check `vite.config.ts` `test.exclude`. |
+
+File lists, env, and helpers: [Reference: tests](#tests). Why the split: [Why two test suites](#why-two-test-suites).
+
+## How to add a test
+
+You will add either a fast unit test (no Docker) or a live Auth/REST test.
+
+### Prerequisites
+
+The same as [How to run tests](#how-to-run-tests). Name tests `it('should …')`.
+
+### Steps
+
+1. **Unit** (pure helpers): create or edit `src/lib/<name>.test.ts`. Import from the helper next to it (or from `supabase/functions/upload_processor/ingest.ts` for ingest). Run `npm test`.
+
+2. **Integration** (live API): create `src/integration/<name>.integration.test.ts`. Call `assertSupabaseUp` in `beforeAll`. Create users with `createConfirmedUser` from `src/integration/supabaseTest.ts`, and `deleteUser` in `finally`. Run `npm run test:integration`.
+
+3. Do not put live `fetch` / Supabase calls in `*.test.ts`. `vite.config.ts` treats those as unit tests. Do not add Storage upload or `upload_processor` invokes until Storage is healthy; a green ingest E2E while Storage is down would be a lie.
+
+### Verification
+
+- New unit file appears in `npm test`.
+- New `*.integration.test.ts` appears only in `npm run test:integration`.
+- Failed cases assert on the real error text (`Email not confirmed`, `Reference cap of 500`, `Example cap of 10`, `too short`, check constraint names).
+
 ## Reference
 
 ### Ports and env
@@ -237,8 +364,9 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 | Postgres | Port `54322`; URL is printed by `supabase status` (local default user `postgres`) |
 | `VITE_SUPABASE_URL` | API URL from `supabase status` |
 | `VITE_SUPABASE_ANON_KEY` | anon key from `supabase status` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Local demo service_role (`.env.example`). SPA must not use this. Integration tests use it to confirm users. |
 
-Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (Vitest: upload/auth validators in `src/lib/`).
+Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (unit), `npm run test:integration` (local Auth/REST/Postgres; Storage/ingest not included while Storage is down).
 
 ### Routes (`src/App.tsx`)
 
@@ -333,13 +461,54 @@ Database (`supabase/migrations/20260907010000_reference_upload_cap.sql`):
 
 Examples (`maxFiles={EXAMPLE_FILE_CAP}` = 10): same client rules; DB `examples_file_name_ext` and `examples_file_cap` (10). Bucket `papers` exists and is unused by the SPA.
 
+### Tests
+
+Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
+
+| Command | Config | Include | Environment |
+|---|---|---|---|
+| `npm test` / `npm run test:watch` | `vite.config.ts` `test` | `src/**/*.test.ts` | node, no Docker |
+| `npm run test:integration` | `vitest.integration.config.ts` | `src/**/*.integration.test.ts` | node, live `VITE_SUPABASE_URL` (default `http://127.0.0.1:54321`), timeout 30s, `fileParallelism: false` |
+
+`vitest.integration.config.ts` loads `.env` via Vite `loadEnv('test', …, '')`.
+
+#### Unit files (`src/lib/*.test.ts`)
+
+| File | What it locks |
+|---|---|
+| `validateFile.test.ts` | PDF/DOCX/TXT, empty, >10 MB, `.doc`, no extension |
+| `fileCap.test.ts` | `remainingSlots` / `uploadCapError`; example cap 10 |
+| `uploadProgress.test.ts` | Per-file progress rows and status labels (DOCS-3) |
+| `documentStore.test.ts` | Table/bucket/vector table map, `{fileId}_{name}` key, index labels |
+| `formatFile.test.ts` | Size, date, icon |
+| `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
+| `ingest.test.ts` | `storageTarget`, `validateIngestFile`, DOCX XML text, chunking, 384-d unit `hashEmbedding` |
+
+#### Integration files (`src/integration/*.integration.test.ts`)
+
+Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
+
+| File | What it locks |
+|---|---|
+| `auth.integration.test.ts` | Unconfirmed sign-in fails; confirm + profile (no `grok_api_key` column); wrong password; full-name update; reset-email request; user cannot call `read_grok_api_key` |
+| `grokKey.integration.test.ts` | set/status/last4; table 403; admin decrypt; clear; key &lt; 10 chars; unauthenticated RPCs |
+| `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500 |
+| `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others |
+
+**Not in either suite:** Storage object upload, `upload_processor` HTTP, fixture PDF ingest, retrieval hit, generation refuse-unknown-id (NFR-7 remainder).
+
+How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
+
 ### npm scripts
 
 ```bash
 npm run dev      # Vite
 npm run build    # tsc && vite build
 npm run preview  # vite preview
-npm run lint     # eslint . --ext ts,tsx
+npm run lint              # eslint . --ext ts,tsx
+npm test                  # unit (src/lib/*.test.ts)
+npm run test:watch        # unit, watch mode
+npm run test:integration  # local Supabase Auth/REST (needs supabase start)
 ```
 
 ## Why email confirmation
@@ -374,6 +543,20 @@ So upload writes the Storage object, then a metadata row. The picker counts exis
 
 **Not chosen:** counting only the current `FileList` (the old bug). **Not chosen:** waiting for ingest before insert (the list and cap would stay empty while Edge is broken).
 
+## Why two test suites
+
+`npm test` has to stay a few hundred milliseconds with no Docker. Upload validators, caps, and `hashEmbedding` are pure functions; they belong there.
+
+RLS (row-level security: Postgres only returns that user's rows), email confirmation, Grok RPCs, and table CHECKs are Postgres + GoTrue behavior. Mocking them would not catch a missing `GRANT` or a trigger that never fired. Those tests hit the local API.
+
+Confirmations are on (`enable_confirmations = true`). A real user confirms via Mailpit. Tests cannot click the mailbox, so `createConfirmedUser` signs up, then `auth.admin.updateUserById({ email_confirm: true })` with the service role, then signs in. That is the same gate as the app, without a human inbox.
+
+Storage is a third system. `supabase_storage_arpw` is often `Exited` if image tags mixed (`npx` vs Homebrew CLI). An ingest E2E that skipped Storage or stubbed the object would report green while the dashboard still shows `name resolution failed`. Those tests wait until Storage stays up.
+
+**Trade-off:** integration needs Docker and writes throwaway `it-*@example.com` users (deleted in `finally`). The 500-file cap test inserts 499 rows as admin, then the 500th and 501st as the user.
+
+**Not chosen:** one Vitest include of `src/**/*.test.ts` (integration would run on every `npm test` and fail without Docker). **Not chosen:** turning confirmations off in `config.toml` for faster tests (local would not match production AUTH-7). **Not chosen:** treating Storage/ingest as passing while the container is down.
+
 ## Project structure
 
 ```
@@ -389,6 +572,8 @@ src/
 │   └── DocumentList.tsx
 ├── hooks/
 │   └── useAuth.tsx        # AuthProvider
+├── lib/                   # Pure helpers + *.test.ts (npm test)
+├── integration/           # *.integration.test.ts (npm run test:integration)
 ├── pages/
 │   ├── DashboardPage.tsx
 │   └── LibraryPage.tsx
@@ -397,9 +582,10 @@ src/
 ├── App.tsx
 ├── main.tsx
 └── index.css
+vitest.integration.config.ts
 ```
 
-`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/20260906133100_init.sql`.
+`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata).
 
 ## Specs
 
@@ -407,8 +593,8 @@ Intent and remaining work (not this walkthrough):
 
 - **Index**: [`.docs/README.md`](.docs/README.md)
 - **PRD**: [`.docs/PRODUCT_REQUIREMENTS.md`](.docs/PRODUCT_REQUIREMENTS.md)
-- **Tech spec**: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md)
-- **Gap analysis**: [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md)
+- **Tech spec**: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) (as-built tests: §12)
+- **Gap analysis**: [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md) (NFR-7)
 
 Superseded drafts: [`.docs/legacy/`](.docs/legacy/).
 

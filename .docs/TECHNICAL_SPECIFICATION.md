@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system on `main` (2026-09-06, after `feat/fix-login`) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (`feat/integration-tests`: hash-384 ingest plus Auth/REST integration tests) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -15,12 +15,14 @@ Technical specification for ARPW. It describes the **as-built** system on `main`
 | Routing | react-router-dom 6 | `src/App.tsx` |
 | Auth / DB / Storage | Supabase (local CLI or hosted) | `@supabase/supabase-js` |
 | Vectors | Postgres `vector` extension, 384 dims | `supabase/migrations/20260906133100_init.sql` |
-| Ingest (written, not proven on Edge) | Deno Edge Function `upload_processor` | `supabase/functions/upload_processor/index.ts` |
+| Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, chunk, `hash-384`. Live E2E needs Storage |
 | Generation | Not implemented | `DashboardPage.tsx` TODO / alert |
-| Embeddings (intended) | Hugging Face `all-MiniLM-L6-v2` via Langchain | Edge function; wrong runtime for Transformers.js |
-| LLM (intended) | xAI Grok, user-supplied key | Profile field `grok_api_key` plaintext |
+| Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
+| Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
+| LLM (intended) | xAI Grok, user-supplied key | Encrypted `user_grok_keys`; SPA sees last4 |
+| Tests | Vitest 2 | `npm test` unit; `npm run test:integration` live Auth/REST/RLS |
 
-Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
+Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
 ### 2. Runtime topology
 
@@ -160,13 +162,15 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 | Grok key | Encrypted `user_grok_keys`; SPA cannot SELECT ciphertext |
 | Edge service role | Bypasses RLS; trusts client path |
 | PII in git | Blocked by `.docs/*.pdf` gitignore; history of old public repo deleted |
-| Tests | None (`package.json` has no test script) |
+| Tests | Unit + Auth/REST/RLS integration. No Storage/ingest E2E |
 
 ### 10. Public surface (files)
 
-Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
+Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
 Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata), `supabase/config.toml`.
+
+Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 
 Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
 
@@ -200,6 +204,21 @@ $$;
 
 Call only with the user’s JWT so RLS still applies if rewritten without `filter_user`. Prefer `auth.uid()` inside the function instead of a client-supplied uuid.
 
+### 12. Tests (as-built)
+
+Two Vitest suites. `npm test` is the default and must not require Docker.
+
+| Suite | Command | Config | What it is |
+|---|---|---|---|
+| Unit | `npm test` | `vite.config.ts`: include `src/**/*.test.ts`, exclude `*.integration.test.ts` | Pure helpers: validate file/auth, caps, progress, document store, ingest parse/chunk/hash |
+| Integration | `npm run test:integration` | `vitest.integration.config.ts`: include `src/**/*.integration.test.ts`, 30s timeout, no file parallelism | Live local Auth, PostgREST, Postgres: confirmations, Grok RPCs, CHECKs, caps, RLS |
+
+Integration helper `src/integration/supabaseTest.ts`: health-check `/auth/v1/health`; `signUp` then `admin.updateUserById({ email_confirm: true })` because `enable_confirmations = true`; local demo JWT fallback; `deleteUser` cleanup. Service role is for confirm/admin seed only; user JWTs exercise RLS.
+
+Not as-built: Storage upload tests, `upload_processor` HTTP, NFR-7 fixture PDF / retrieval hit / refuse unknown citation ids.
+
+How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. Why the split: `../README.md#why-two-test-suites`.
+
 ## References
 
 - `.docs/PRODUCT_REQUIREMENTS.md`
@@ -209,4 +228,5 @@ Call only with the user’s JWT so RLS still applies if rewritten without `filte
 - `supabase/migrations/20260906133100_init.sql`
 - `supabase/migrations/20260907000000_grok_key_storage.sql`
 - `supabase/migrations/20260907010000_reference_upload_cap.sql`
-- `README.md` (local setup, Grok key how-to and RPCs)
+- `README.md` (local setup, Grok key how-to and RPCs, tests)
+- `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`
