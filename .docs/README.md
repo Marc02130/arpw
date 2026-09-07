@@ -13,7 +13,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | PRD vs code; build order |
 | [legacy/](./legacy/) | Superseded drafts; do not treat as status |
 
-Start with the gap analysis if you are about to write code.
+Start with the gap analysis if you are about to write code. For a first-run walkthrough (install, confirm email, reset password, upload), use `../README.md`.
 
 ## References
 
