@@ -1,80 +1,73 @@
 import { serve } from 'std/http/server.ts'
 import { createClient } from '@supabase/supabase-js'
-import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/hf_transformers.js'
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter.js'
+import { unzipSync, strFromU8 } from 'fflate'
+import {
+  EMBEDDING_MODEL,
+  chunkText,
+  hashEmbedding,
+  storageTarget,
+  textFromDocxXml,
+  validateIngestFile,
+  type IngestDocumentType,
+  type TextChunk,
+} from './ingest.ts'
 
-// Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-// Initialize embeddings model
-const embeddings = new HuggingFaceTransformersEmbeddings({
-  modelName: 'sentence-transformers/all-MiniLM-L6-v2',
-  maxConcurrency: 5,
-})
-
-// Text splitter configuration
-const textSplitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000,
-  chunkOverlap: 200,
-  separators: ['\n\n', '\n', ' ', ''],
-})
 
 interface UploadRequest {
   fileId: string
   fileName: string
   fileSize: number
-  documentType: 'reference' | 'example'
+  documentType: IngestDocumentType
   storagePath: string
-  userId: string
+  userId?: string
 }
 
-interface ProcessedChunk {
-  text: string
-  vector: number[]
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const validateFile = (fileName: string, fileSize: number): string | null => {
-  // Check file size (10MB limit)
-  const maxSize = 10 * 1024 * 1024
-  if (fileSize > maxSize) {
-    return `File size ${(fileSize / 1024 / 1024).toFixed(2)}MB exceeds 10MB limit`
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...cors },
+  })
+
+const downloadObject = async (bucket: string, key: string): Promise<Uint8Array> => {
+  const { data, error } = await supabase.storage.from(bucket).download(key)
+  if (error || !data) {
+    throw new Error(`Failed to download file: ${error?.message ?? 'missing object'}`)
   }
-
-  // Check file extension
-  const extension = fileName.split('.').pop()?.toLowerCase()
-  const allowedExtensions = ['pdf', 'docx', 'txt']
-  
-  if (!extension || !allowedExtensions.includes(extension)) {
-    return `Unsupported file type: ${extension}. Allowed: ${allowedExtensions.join(', ')}`
-  }
-
-  return null
-}
-
-const downloadFile = async (storagePath: string): Promise<Uint8Array> => {
-  const { data, error } = await supabase.storage
-    .from(storagePath.split('/')[0])
-    .download(storagePath.split('/').slice(1).join('/'))
-
-  if (error) {
-    throw new Error(`Failed to download file: ${error.message}`)
-  }
-
   return new Uint8Array(await data.arrayBuffer())
+}
+
+const parsePdf = async (fileData: Uint8Array): Promise<string> => {
+  const { extractText } = await import('unpdf')
+  const result = await extractText(fileData)
+  const text = Array.isArray(result.text) ? result.text.join('\n') : String(result.text ?? '')
+  return text.trim()
+}
+
+const parseDocx = (fileData: Uint8Array): string => {
+  const files = unzipSync(fileData)
+  const xmlBytes = files['word/document.xml']
+  if (!xmlBytes) {
+    throw new Error('DOCX missing word/document.xml')
+  }
+  return textFromDocxXml(strFromU8(xmlBytes))
 }
 
 const parseFile = async (fileData: Uint8Array, fileName: string): Promise<string> => {
   const extension = fileName.split('.').pop()?.toLowerCase()
-
   switch (extension) {
     case 'pdf':
-      return await parsePDF(fileData)
+      return await parsePdf(fileData)
     case 'docx':
-      return await parseDOCX(fileData)
-    case 'doc':
-      return await parseDOC(fileData)
+      return parseDocx(fileData)
     case 'txt':
       return new TextDecoder().decode(fileData)
     default:
@@ -82,283 +75,122 @@ const parseFile = async (fileData: Uint8Array, fileName: string): Promise<string
   }
 }
 
-const parsePDF = async (fileData: Uint8Array): Promise<string> => {
-  try {
-    // Import pdf-parse dynamically
-    const pdfParse = await import('pdf-parse/lib/pdf-parse.js')
-    const data = await pdfParse.default(Buffer.from(fileData))
-    return data.text
-  } catch (error) {
-    throw new Error(`PDF parsing failed: ${(error as Error).message}`)
-  }
-}
-
-const parseDOCX = async (fileData: Uint8Array): Promise<string> => {
-  try {
-    // Import docx dynamically
-    const { Document } = await import('docx')
-    const doc = Document.load(Buffer.from(fileData))
-    return doc.getText()
-  } catch (error) {
-    throw new Error(`DOCX parsing failed: ${(error as Error).message}`)
-  }
-}
-
-const parseDOC = async (fileData: Uint8Array): Promise<string> => {
-  // For .doc files, we'll need a more complex parser
-  // For now, we'll throw an error and suggest converting to .docx
-  throw new Error('DOC files are not supported. Please convert to DOCX format.')
-}
-
-const chunkText = async (text: string): Promise<string[]> => {
-  try {
-    const chunks = await textSplitter.splitText(text)
-    return chunks.filter((chunk: string) => chunk.trim().length > 50) // Filter out very short chunks
-  } catch (error) {
-    throw new Error(`Text chunking failed: ${(error as Error).message}`)
-  }
-}
-
-const generateEmbeddings = async (chunks: string[]): Promise<ProcessedChunk[]> => {
-  try {
-    const vectors = await embeddings.embedDocuments(chunks)
-    
-    return chunks.map((chunk, index) => ({
-      text: chunk,
-      vector: vectors[index],
-    }))
-  } catch (error) {
-    throw new Error(`Embedding generation failed: ${(error as Error).message}`)
-  }
-}
-
-const storeDocumentMetadata = async (request: UploadRequest): Promise<void> => {
-  const tableName = request.documentType === 'reference' ? 'references' : 'examples'
-  
-  const { error } = await supabase
-    .from(tableName)
-    .insert({
-      file_id: request.fileId,
-      user_id: request.userId,
-      document_type: request.documentType,
-      file_name: request.fileName,
-      file_size: request.fileSize,
-      uploaded_at: new Date().toISOString(),
-    })
-    .select('file_id')
-    .maybeSingle()
-
-  if (error && error.code === '23505') {
-    return
-  }
-
-  if (error) {
+const storeDocumentMetadata = async (
+  fileId: string,
+  userId: string,
+  documentType: IngestDocumentType,
+  fileName: string,
+  fileSize: number
+): Promise<void> => {
+  const tableName = documentType === 'reference' ? 'references' : 'examples'
+  const { error } = await supabase.from(tableName).insert({
+    file_id: fileId,
+    user_id: userId,
+    document_type: documentType,
+    file_name: fileName,
+    file_size: fileSize,
+  })
+  if (error && error.code !== '23505') {
     throw new Error(`Failed to store document metadata: ${error.message}`)
   }
 }
 
 const storeVectors = async (
   fileId: string,
-  chunks: ProcessedChunk[],
-  documentType: 'reference' | 'example'
-): Promise<void> => {
+  chunks: TextChunk[],
+  documentType: IngestDocumentType
+): Promise<number> => {
   const tableName = documentType === 'reference' ? 'reference_vectors' : 'example_vectors'
-  
-  const vectorData = chunks.map(chunk => ({
+  await supabase.from(tableName).delete().eq('file_id', fileId)
+
+  const rows = chunks.map((chunk) => ({
     file_id: fileId,
-    vector: chunk.vector,
+    vector: hashEmbedding(chunk.text),
     chunk_text: chunk.text,
-    created_at: new Date().toISOString(),
+    chunk_index: chunk.chunkIndex,
+    section: chunk.section,
+    embedding_model: EMBEDDING_MODEL,
   }))
 
-  // Insert vectors in batches to avoid payload size limits
   const batchSize = 100
-  for (let i = 0; i < vectorData.length; i += batchSize) {
-    const batch = vectorData.slice(i, i + batchSize)
-    
-    const { error } = await supabase
-      .from(tableName)
-      .insert(batch)
-
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const { error } = await supabase.from(tableName).insert(rows.slice(i, i + batchSize))
     if (error) {
-      throw new Error(`Failed to store vectors batch ${i / batchSize + 1}: ${error.message}`)
+      throw new Error(`Failed to store vectors: ${error.message}`)
     }
   }
-}
-
-const processFile = async (request: UploadRequest): Promise<void> => {
-  try {
-    // Validate file
-    const validationError = validateFile(request.fileName, request.fileSize)
-    if (validationError) {
-      throw new Error(validationError)
-    }
-
-    // Download file from storage
-    const fileData = await downloadFile(request.storagePath)
-
-    // Parse file content
-    const text = await parseFile(fileData, request.fileName)
-    
-    if (!text || text.trim().length === 0) {
-      throw new Error('File appears to be empty or could not be parsed')
-    }
-
-    // Chunk text
-    const chunks = await chunkText(text)
-    
-    if (chunks.length === 0) {
-      throw new Error('No valid text chunks could be extracted from the file')
-    }
-
-    // Generate embeddings
-    const processedChunks = await generateEmbeddings(chunks)
-
-    // Store document metadata
-    await storeDocumentMetadata(request)
-
-    // Store vectors
-    await storeVectors(request.fileId, processedChunks, request.documentType)
-
-  } catch (error) {
-    // Clean up storage file if processing failed
-    try {
-      await supabase.storage
-        .from(request.storagePath.split('/')[0])
-        .remove([request.storagePath.split('/').slice(1).join('/')])
-    } catch (cleanupError) {
-      console.error('Failed to cleanup storage file:', cleanupError)
-    }
-    
-    throw error
-  }
+  return rows.length
 }
 
 serve(async (req: Request) => {
   try {
-    // Handle CORS
     if (req.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        },
-      })
+      return new Response(null, { status: 200, headers: cors })
     }
-
     if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Method not allowed' }),
-        {
-          status: 405,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
+      return json({ success: false, error: 'Method not allowed' }, 405)
     }
 
-    // Get authorization header
     const authHeader = req.headers.get('authorization')
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Authorization header required' }),
-        {
-          status: 401,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
+      return json({ success: false, error: 'Authorization header required' }, 401)
     }
 
-    // Verify user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
-
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid authentication' }),
-        {
-          status: 401,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
+      return json({ success: false, error: 'Invalid authentication' }, 401)
     }
 
-    // Parse request body
-    const request: UploadRequest = await req.json()
-
-    // Validate request
+    const request = (await req.json()) as UploadRequest
     if (!request.fileId || !request.fileName || !request.documentType || !request.storagePath) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields' }),
-        {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
+      return json({ success: false, error: 'Missing required fields' }, 400)
+    }
+    if (request.documentType !== 'reference' && request.documentType !== 'example') {
+      return json({ success: false, error: 'Invalid documentType' }, 400)
     }
 
-    // Ensure user can only process their own files
-    if (request.userId !== user.id) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
-        {
-          status: 403,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
+    const validationError = validateIngestFile(request.fileName, request.fileSize)
+    if (validationError) {
+      return json({ success: false, error: validationError }, 400)
     }
 
-    // Process the file
-    await processFile(request)
+    const { bucket, key } = storageTarget(request.documentType, request.storagePath)
+    const bytes = await downloadObject(bucket, key)
+    const text = await parseFile(bytes, request.fileName)
+    if (!text) {
+      throw new Error('File appears to be empty or could not be parsed')
+    }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'File processed successfully',
-        fileId: request.fileId,
-        fileName: request.fileName,
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
+    const chunks = chunkText(text)
+    if (chunks.length === 0) {
+      throw new Error('No valid text chunks could be extracted from the file')
+    }
+
+    await storeDocumentMetadata(
+      request.fileId,
+      user.id,
+      request.documentType,
+      request.fileName,
+      request.fileSize
     )
+    const stored = await storeVectors(request.fileId, chunks, request.documentType)
 
+    return json({
+      success: true,
+      message: 'File processed successfully',
+      fileId: request.fileId,
+      fileName: request.fileName,
+      chunks: stored,
+      embeddingModel: EMBEDDING_MODEL,
+    })
   } catch (error) {
     console.error('Upload processor error:', error)
-    
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: (error as Error).message || 'Internal server error' 
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
+    return json(
+      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
+      500
     )
   }
 })

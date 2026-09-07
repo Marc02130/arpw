@@ -78,7 +78,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
-**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`. No page, section, doi, authors, chunk_index, embedding_model. TARGET: add those columns.
+**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section`, `embedding_model` (`hash-384`). TARGET: page/doi/authors; MiniLM or hosted embeddings in the same 384-d column.
 
 **user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
 
@@ -114,20 +114,15 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 4. Insert the metadata row. If insert fails, delete the Storage object.
 5. Invoke `upload_processor`. Failure is logged; the file stays stored.
 
-`upload_processor` still cannot index (path split, PDF/DOCX, Transformers on Edge). Duplicate metadata insert uses unique-violation `23505` as success.
+`upload_processor` (`ingest.ts` + `index.ts`):
+
+- Bucket from `documentType` (`storageTarget`); object key is the last path segment. JWT `user.id` owns the row, not `request.userId`.
+- TXT: `TextDecoder`. DOCX: unzip `word/document.xml` (`fflate`) then `textFromDocxXml`. PDF: `unpdf`.
+- Chunks: 1000/200, min 50 chars, `chunk_index` + `section` (first line).
+- Embeddings: hashing trick, 384-d L2-normalized, `embedding_model = hash-384`. TARGET: MiniLM or hosted embed API (same dimension).
+- Duplicate metadata insert: ignore unique violation `23505`. Failed ingest does **not** delete Storage.
 
 `DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(fileId, originalName)` (same helper as upload).
-
-**upload_processor (TARGET fixes required):**
-
-- Uses service role; checks JWT then `request.userId === user.id`.
-- Downloads via `storagePath.split('/')` as bucket + key. Client sends a bare object key, so bucket becomes the filename. Ingest cannot work until the function uses the known bucket and key.
-- Client-supplied `storagePath` is an IDOR risk with service role.
-- PDF: `pdf-parse` + Node `Buffer` on Deno.
-- DOCX: `docx` package **writes** Word files; it does not extract text. TARGET: mammoth or unzip + document.xml.
-- `.doc` rejected at runtime after the UI accepted it.
-- Chunking: `RecursiveCharacterTextSplitter` 1000 / 200 overlap; drop chunks &lt; 50 chars.
-- Embeddings: `HuggingFaceTransformersEmbeddings` (`all-MiniLM-L6-v2`) inside Edge. TARGET: hosted embedding API or a Node/Python worker.
 
 ### 7. Generation (TARGET)
 
@@ -171,7 +166,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
 
-Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/migrations/20260907010000_reference_upload_cap.sql`, `supabase/migrations/20260907120000_example_upload_cap.sql`, `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata), `supabase/config.toml`.
 
 Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
 

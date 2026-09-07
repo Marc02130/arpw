@@ -2,13 +2,10 @@
   "imports": {
     "std/": "https://deno.land/std@0.168.0/",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "@langchain/community": "https://esm.sh/@langchain/community@0.0.20",
-    "langchain": "https://esm.sh/langchain@0.0.200",
-    "pdf-parse": "https://esm.sh/pdf-parse@1.1.1",
-    "docx": "https://esm.sh/docx@9.5.1"
+    "fflate": "https://esm.sh/fflate@0.8.2",
+    "unpdf": "https://esm.sh/unpdf@1.4.0"
   },
   "compilerOptions": {
-    "allowJs": true,
     "lib": ["deno.window"],
     "strict": true
   }

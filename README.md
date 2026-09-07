@@ -123,7 +123,7 @@ The app goes to `/dashboard`. Sign out, sign in with the new password. The old p
 
 ## How to upload a reference
 
-You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file cap for your account. Indexing into vectors is still broken (DOCS-5); the file can still sit in Storage and in the `references` table.
+You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file cap for your account. After upload, `upload_processor` chunks the text and stores 384-d hash embeddings (`hash-384`). MiniLM is still TARGET.
 
 ### Prerequisites
 
@@ -155,7 +155,7 @@ Constraints and object key: [Reference: uploads](#upload-constraints-srccomponen
 | Unsupported format / empty / too large | Use PDF, DOCX, or TXT; 1 byte through 10 MB. |
 | File cap reached / “can add N more” | Delete a listed reference, then retry. The cap includes rows already stored, not only this drop. |
 | `name resolution failed` | Storage container is down. Start the local stack with the installed `supabase` CLI, not `npx supabase`. |
-| Banner “Indexing may still fail” | Expected. The file is stored; `upload_processor` is still DOCS-5. |
+| Banner “Indexing may still fail” | Storage/ingest error. TXT/DOCX/PDF should index as `hash-384` chunks; check Edge logs. |
 
 ## How to list and delete a file
 
@@ -164,7 +164,7 @@ The dashboard table shows each stored file’s name, size, upload time, and whet
 ### Steps
 
 1. Open `/dashboard`. Under **Reference Documents** or **Example Papers**, read the table (name, size, date, Index).
-2. Index is `Stored (not indexed)` until DOCS-5 writes chunks. After ingest works it will show `Indexed (N chunks)`.
+2. Index is `Indexed (N chunks)` after ingest, or `Stored (not indexed)` if Edge did not write vectors.
 3. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{fileId}_{originalName}`.
 
 ### Verification

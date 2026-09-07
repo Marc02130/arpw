@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files to Storage, and click around a dashboard. You cannot retrieve, generate, check, or export a paper. The ingest function as written will not index PDFs on Supabase Edge.
+You can sign up, confirm email, reset a password, upload files, and ingest them into 384-d hash vectors. You cannot retrieve, generate, check, or export a paper. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -20,7 +20,7 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 | Profile name | DONE | Saves full name |
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete; ingest still fails |
-| Vector ingest | BROKEN | Path parse, Deno/PDF, DOCX writer-as-parser, Transformers on Edge |
+| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store. MiniLM still TARGET |
 | Retrieval | MISSING | No match RPC, no UI of passages |
 | Paper generation | MISSING | Alert: “next phase” |
 | Outline mode | MISSING | No control |
@@ -54,8 +54,8 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 | DOCS-2 | DONE | Same types as references; cap 10 vs stored rows + `examples_file_cap` trigger |
 | DOCS-3 | DONE | Drag/drop, picker, per-file progress (`uploadProgress.ts` + tests) |
 | DOCS-4 | DONE | List name/size/date/index status. Delete vectors, metadata row, then Storage key (`documentStore.ts`) |
-| DOCS-5 | BROKEN | `upload_processor/index.ts`: `downloadFile` splits `storagePath` so bucket = filename; `pdf-parse`/`Buffer` on Deno; `docx` is a writer; MiniLM in Edge |
-| DOCS-6 | PARTIAL | Client size/type checks; server re-validates size/extension |
+| DOCS-5 | DONE | Bucket from `documentType`; TXT/DOCX/PDF parse; chunk+section; `hash-384` vectors. MiniLM still TARGET |
+| DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
 
 #### Generation
@@ -105,7 +105,7 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 | ID | Status | Evidence |
 |---|---|---|
 | NFR-1 | PARTIAL | Table RLS yes; storage policies are bucket-wide for any authenticated user |
-| NFR-2 | BROKEN | Client path trusted in Edge Function |
+| NFR-2 | PARTIAL | Ingest bucket comes from `documentType`; object key is still the client filename. TARGET: `{user_id}/{file_id}` |
 | NFR-3 | DONE here | gitignore `.docs/*.pdf`; current history has no PDF blobs |
 | NFR-4 | UNKNOWN | Ingest not working, so unmeasured |
 | NFR-5 | MISSING | |
