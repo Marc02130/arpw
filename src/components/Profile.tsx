@@ -7,7 +7,17 @@ interface ProfileFormData {
 }
 
 const Profile: React.FC = () => {
-  const { user, userProfile, updateProfile, loading, error, clearError } = useAuth()
+  const {
+    user,
+    userProfile,
+    updateProfile,
+    setGrokApiKey,
+    clearGrokApiKey,
+    grokKey,
+    loading,
+    error,
+    clearError,
+  } = useAuth()
   
   const [formData, setFormData] = useState<ProfileFormData>({
     full_name: '',
@@ -85,26 +95,30 @@ const Profile: React.FC = () => {
       if (formData.full_name !== (userProfile?.full_name || '')) {
         updateData.full_name = formData.full_name.trim()
       }
-      
-      // Only update API key if provided
-      if (formData.grok_api_key.trim()) {
-        updateData.grok_api_key = formData.grok_api_key.trim()
-      }
 
-      // If no changes, show message
-      if (Object.keys(updateData).length === 0) {
+      const newKey = formData.grok_api_key.trim()
+      if (Object.keys(updateData).length === 0 && !newKey) {
         setSuccessMessage('No changes to save')
         setIsSubmitting(false)
         return
       }
 
-      const result = await updateProfile(updateData)
-
-      if (result.success) {
-        setSuccessMessage('Profile updated successfully')
-        // Clear the API key field after successful save for security
-        setFormData(prev => ({ ...prev, grok_api_key: '' }))
+      if (Object.keys(updateData).length > 0) {
+        const result = await updateProfile(updateData)
+        if (!result.success) {
+          return
+        }
       }
+
+      if (newKey) {
+        const keyResult = await setGrokApiKey(newKey)
+        if (!keyResult.success) {
+          return
+        }
+      }
+
+      setSuccessMessage('Profile updated successfully')
+      setFormData((prev) => ({ ...prev, grok_api_key: '' }))
       // Error handling is done in the hook
     } catch (error) {
       console.error('Profile update error:', error)
@@ -238,6 +252,11 @@ const Profile: React.FC = () => {
               <label htmlFor="grok_api_key" className="block text-sm font-medium text-gray-700 mb-2">
                 Grok API Key
               </label>
+              <p className="mb-2 text-sm text-gray-600">
+                {grokKey.set
+                  ? `A key is saved on the server${grokKey.last4 ? ` (ends in ${grokKey.last4})` : ''}. This page cannot read it back.`
+                  : 'No key saved. Generation will need one later.'}
+              </p>
               <div className="relative">
                 <input
                   id="grok_api_key"
@@ -247,7 +266,7 @@ const Profile: React.FC = () => {
                   value={formData.grok_api_key}
                   onChange={handleInputChange}
                   className={`input-field pr-10 ${validationErrors.grok_api_key ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder="Enter your Grok API key (optional)"
+                  placeholder={grokKey.set ? 'Paste a new key to replace' : 'Paste your Grok API key'}
                   aria-describedby={validationErrors.grok_api_key ? 'grok_api_key-error' : 'grok_api_key-help'}
                   aria-invalid={!!validationErrors.grok_api_key}
                 />
@@ -275,8 +294,28 @@ const Profile: React.FC = () => {
                 </p>
               )}
               <p id="grok_api_key-help" className="mt-1 text-sm text-gray-500">
-                Your API key is encrypted and stored securely. Leave blank to keep your current key unchanged.
+                The key is encrypted in the database. The browser never reads it after you save.
+                Leave this field blank to keep the current key.
               </p>
+              {grokKey.set && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    clearError()
+                    setIsSubmitting(true)
+                    const result = await clearGrokApiKey()
+                    setIsSubmitting(false)
+                    if (result.success) {
+                      setFormData((prev) => ({ ...prev, grok_api_key: '' }))
+                      setSuccessMessage('API key removed')
+                    }
+                  }}
+                  className="mt-2 text-sm text-red-600 hover:text-red-500"
+                  disabled={isSubmitting}
+                >
+                  Remove saved key
+                </button>
+              )}
             </div>
           </div>
 

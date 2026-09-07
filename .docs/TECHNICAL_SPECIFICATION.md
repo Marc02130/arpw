@@ -61,7 +61,9 @@ Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `u
 
 Source of truth: `supabase/migrations/20260906133100_init.sql`. Table `"references"` is quoted because `references` is reserved.
 
-**user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, `grok_api_key` TEXT (plaintext; TARGET: not selectable by anon client), timestamps.
+**user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, timestamps. Grok keys are **not** on this table.
+
+**user_grok_keys:** `user_id` PK, `ciphertext` (pgcrypto), `last4`. No table grants for `anon`/`authenticated`. Clients call `set_grok_api_key`, `clear_grok_api_key`, `grok_api_key_status`. `read_grok_api_key(for_user)` is `service_role` only (generation worker).
 
 **"references" / examples:** `file_id`, `user_id`, `document_type`, `file_name`, `file_size` (1..10 MiB), `uploaded_at`.
 
@@ -147,7 +149,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 |---|---|
 | Table RLS | Present |
 | Storage RLS | Authenticated access to whole buckets |
-| Grok key | Plaintext column; profile UI claims encryption |
+| Grok key | Encrypted `user_grok_keys`; SPA cannot SELECT ciphertext |
 | Edge service role | Bypasses RLS; trusts client path |
 | PII in git | Blocked by `.docs/*.pdf` gitignore; history of old public repo deleted |
 | Tests | None (`package.json` has no test script) |

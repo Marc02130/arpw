@@ -41,7 +41,7 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 | AUTH-2 | DONE | persistSession, signOut, `Layout.tsx` |
 | AUTH-3 | DONE | DB trigger `handle_new_user`; `ensureUserProfile` only after a confirmed session |
 | AUTH-4 | DONE | `Profile.tsx` full name |
-| AUTH-5 | BROKEN | `user_profile.grok_api_key` TEXT; SPA can select it; copy claims encryption (`Profile.tsx`) |
+| AUTH-5 | DONE | Keys live in `user_grok_keys` (encrypted). SPA uses `set_grok_api_key` / `grok_api_key_status` (last4 only). `read_grok_api_key` is service_role |
 | AUTH-6 | DONE | Error banner on login |
 | AUTH-7 | DONE | `enable_confirmations = true`; gate is `email_confirmed_at`; `/verify-email` + resend |
 | AUTH-8 | DONE | `/forgot-password`, `/reset-password`, `PASSWORD_RECOVERY` |

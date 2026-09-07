@@ -9,7 +9,7 @@ A web app for a single researcher: upload your own papers, then (when generation
 | Sign up, confirm email, sign in, sign out, reset password | Generate a paper (the button waits 2s then alerts “next phase”) |
 | Open dashboard, profile, library after confirmation | Retrieve passages or cite uploaded files |
 | Upload PDF/DOCX/TXT to Storage from the dashboard | Index those files into vectors (ingest Edge function is broken) |
-| Edit your display name | Store a Grok key privately (the column is plaintext) |
+| Edit your display name; save a Grok key the SPA cannot read back | Decrypt the Grok key in the browser |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
 
@@ -167,7 +167,7 @@ When that changes, the intended pipeline is in [`.docs/TECHNICAL_SPECIFICATION.m
 
 **Library (`/library`):** lists `user_papers` for the current user, grouped by title. Empty until generation saves rows. View works if content exists. Delete hits the table after a confirm dialog. Regenerate and Export are no-ops. `referenceCount` is hardcoded `0`.
 
-**Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. **Grok API Key** is stored in `user_profile.grok_api_key` as plain text; the UI copy that says it is encrypted is wrong. Do not put a production key here.
+**Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. **Grok API Key** is written through `set_grok_api_key` and stored encrypted. The profile page only sees whether a key exists and its last four characters. Generation (when it ships) will read the key with `service_role`.
 
 ## Reference
 

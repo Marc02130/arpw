@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
-import { UserProfile } from '../types'
+import { GrokKeyStatus, UserProfile } from '../types'
 
 export type AuthResult = {
   success: boolean
   error?: string
   needsEmailConfirmation?: boolean
 }
+
+const emptyGrokKey: GrokKeyStatus = { set: false, last4: null }
 
 interface AuthState {
   user: User | null
@@ -16,6 +18,7 @@ interface AuthState {
   loading: boolean
   error: string | null
   isRecovery: boolean
+  grokKey: GrokKeyStatus
 }
 
 interface AuthActions {
@@ -23,6 +26,8 @@ interface AuthActions {
   signIn: (email: string, password: string) => Promise<AuthResult>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<AuthResult>
+  setGrokApiKey: (apiKey: string) => Promise<AuthResult>
+  clearGrokApiKey: () => Promise<AuthResult>
   resetPassword: (email: string) => Promise<AuthResult>
   updatePassword: (password: string) => Promise<AuthResult>
   resendConfirmation: (email: string) => Promise<AuthResult>
@@ -46,6 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading: true,
     error: null,
     isRecovery: false,
+    grokKey: emptyGrokKey,
   })
 
   const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
@@ -65,6 +71,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error fetching user profile:', error)
       return null
+    }
+  }, [])
+
+  const fetchGrokKeyStatus = useCallback(async (): Promise<GrokKeyStatus> => {
+    try {
+      const { data, error } = await supabase.rpc('grok_api_key_status')
+      if (error || !data) {
+        return emptyGrokKey
+      }
+      const status = data as GrokKeyStatus
+      return { set: Boolean(status.set), last4: status.last4 ?? null }
+    } catch {
+      return emptyGrokKey
     }
   }, [])
 
@@ -105,6 +124,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             loading: false,
             error: null,
             isRecovery: false,
+            grokKey: emptyGrokKey,
           })
         }
         return
@@ -113,6 +133,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userProfile = session.user.email_confirmed_at
         ? await ensureUserProfile(session.user)
         : await fetchUserProfile(session.user.id)
+      const grokKey = session.user.email_confirmed_at
+        ? await fetchGrokKeyStatus()
+        : emptyGrokKey
 
       if (mounted) {
         setState((prev) => ({
@@ -123,6 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           loading: false,
           error: null,
           isRecovery: prev.isRecovery || window.location.pathname === '/reset-password',
+          grokKey,
         }))
       }
     }
@@ -176,7 +200,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [ensureUserProfile, fetchUserProfile])
+  }, [ensureUserProfile, fetchUserProfile, fetchGrokKeyStatus])
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string): Promise<AuthResult> => {
     try {
@@ -244,11 +268,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             loading: false,
             error: message,
             isRecovery: false,
+            grokKey: emptyGrokKey,
           })
           return { success: false, error: message, needsEmailConfirmation: true }
         }
 
         const userProfile = await ensureUserProfile(data.user)
+        const grokKey = await fetchGrokKeyStatus()
         setState({
           user: data.user,
           userProfile,
@@ -256,6 +282,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           loading: false,
           error: null,
           isRecovery: false,
+          grokKey,
         })
         return { success: true }
       } catch (error) {
@@ -264,7 +291,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return { success: false, error: errorMessage }
       }
     },
-    [ensureUserProfile]
+    [ensureUserProfile, fetchGrokKeyStatus]
   )
 
   const signOut = useCallback(async () => {
@@ -285,6 +312,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading: false,
         error: null,
         isRecovery: false,
+        grokKey: emptyGrokKey,
       })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Sign out failed'
@@ -301,12 +329,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setState((prev) => ({ ...prev, error: null }))
 
+        const payload: { full_name?: string | null; email?: string; updated_at: string } = {
+          updated_at: new Date().toISOString(),
+        }
+        if (updates.full_name !== undefined) payload.full_name = updates.full_name
+        if (updates.email !== undefined) payload.email = updates.email
+
         const { error } = await supabase
           .from('user_profile')
-          .update({
-            ...updates,
-            updated_at: new Date().toISOString(),
-          })
+          .update(payload)
           .eq('user_id', state.user.id)
 
         if (error) {
@@ -331,6 +362,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     [state.user, fetchUserProfile]
   )
+
+  const setGrokApiKey = useCallback(async (apiKey: string): Promise<AuthResult> => {
+    try {
+      setState((prev) => ({ ...prev, error: null }))
+      const { data, error } = await supabase.rpc('set_grok_api_key', { api_key: apiKey })
+      if (error) {
+        setState((prev) => ({ ...prev, error: error.message }))
+        return { success: false, error: error.message }
+      }
+      const status = (data as GrokKeyStatus) ?? emptyGrokKey
+      setState((prev) => ({
+        ...prev,
+        grokKey: { set: Boolean(status.set), last4: status.last4 ?? null },
+      }))
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not save API key'
+      setState((prev) => ({ ...prev, error: errorMessage }))
+      return { success: false, error: errorMessage }
+    }
+  }, [])
+
+  const clearGrokApiKey = useCallback(async (): Promise<AuthResult> => {
+    try {
+      setState((prev) => ({ ...prev, error: null }))
+      const { error } = await supabase.rpc('clear_grok_api_key')
+      if (error) {
+        setState((prev) => ({ ...prev, error: error.message }))
+        return { success: false, error: error.message }
+      }
+      setState((prev) => ({ ...prev, grokKey: emptyGrokKey }))
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Could not remove API key'
+      setState((prev) => ({ ...prev, error: errorMessage }))
+      return { success: false, error: errorMessage }
+    }
+  }, [])
 
   const resetPassword = useCallback(async (email: string): Promise<AuthResult> => {
     try {
@@ -411,6 +480,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signOut,
     updateProfile,
+    setGrokApiKey,
+    clearGrokApiKey,
     resetPassword,
     updatePassword,
     resendConfirmation,
