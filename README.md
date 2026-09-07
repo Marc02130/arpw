@@ -1,13 +1,13 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus, generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Saved interrogation threads, quality-check polish, and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Quality-check polish and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Saved interrogation threads, outline, or Word export |
+| Open dashboard, paper generation, profile, library after confirmation | Outline or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
 | Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see nineteen files pass, currently 90 tests:
+You should see twenty files pass, currently 92 tests:
 
 ```
-Test Files  19 passed (19)
-      Tests  90 passed (90)
+Test Files  20 passed (20)
+      Tests  92 passed (92)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -113,11 +113,11 @@ If Docker and `supabase start` are already up from the dashboard tutorial:
 npm run test:integration
 ```
 
-You should see six files pass. Live Storage and ingest cases skip if those services are down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
+You should see twelve files pass, currently 36 tests, when local API, Storage, and Edge functions are up. Live Storage object isolation and fixture-PDF ingest skip if those services are down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
 
 ### What you built
 
-Proof that the upload validators, caps, progress helpers, and hash-384 ingest functions behave as the unit tests describe. Next: [How to run tests](#how-to-run-tests) or [How to add a test](#how-to-add-a-test).
+Proof that the unit helpers for upload, ingest, pins, interrogation, retrieval, and generate allow-list behave as `src/lib/*.test.ts` describe. Next: [How to run tests](#how-to-run-tests) or [How to add a test](#how-to-add-a-test).
 
 ## How to confirm your email
 
@@ -261,7 +261,7 @@ Indexed references + a prompt that overlaps their text should list passages with
 
 ## How to interrogate the corpus
 
-Ask a question of your literature and/or original research. The worker retrieves chunks, Grok answers using only those `[S#]` ids, and unknown ids are dropped. The turn is not saved.
+Ask a question of your literature and/or original research. The worker retrieves chunks, Grok answers using only those `[S#]` ids, and unknown ids are dropped. Turns are saved as notes on the paper. They are not evidence.
 
 ### Prerequisites
 
@@ -272,11 +272,11 @@ A confirmed session, a paper from `/dashboard`, indexed literature or original r
 1. Open the Interrogate tab (`/generate/interrogate?paper=…`).
 2. Choose sources: both, literature only, or original research only. Example papers are never searched.
 3. Enter a question and click **Ask**.
-4. Read the answer and the passages used. Pin a passage (optional target section, or any section). Unpin from this list or from the Prompt tab.
+4. Read the thread. Pin a passage (optional target section, or any section). Unpin from this list or from the Prompt tab. Reload the tab: the thread is still there.
 
 ### Verification
 
-A question that overlaps indexed text should list passages with `[S#]` labels. Pin, then open Prompt: the pin is listed. A missing key shows the same Profile error as generate. Example-paper-only corpora should match nothing.
+A question that overlaps indexed text should list passages with `[S#]` labels. Pin, then open Prompt: the pin is listed. Reload Interrogate: the Q&A remains. A missing key shows the same Profile error as generate. Example-paper-only corpora should match nothing. Chat notes must not appear in Query sources.
 
 ## How to save a Grok API key
 
@@ -340,7 +340,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
    supabase status
    ```
 
-   You need API `:54321`. `supabase_storage_arpw` may be `Exited`; that is OK for this suite.
+   You need API `:54321`. Storage and Edge functions should be up for the live upload/ingest/generate/interrogate cases; those tests skip if they are down.
 
 3. Run integration:
 
@@ -350,9 +350,10 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  19 passed (19)` and `Tests  90 passed (90)` (counts as of 2026-09-07).
-- Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
+- Unit: `Test Files  20 passed (20)` and `Tests  92 passed (92)` (run 2026-09-07).
+- Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
+- Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not.
 
 ### Troubleshooting
 
@@ -361,7 +362,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 | `Local Supabase is not running at http://127.0.0.1:54321` | Start with the installed `supabase` binary. Do not use `npx supabase`. |
 | Sign-in errors about email not confirmed | Expected in the app; the suite confirms users with the service role. Do not set `enable_confirmations = false` to make tests pass. |
 | `SUPABASE_SERVICE_ROLE_KEY is required` | You pointed `VITE_SUPABASE_URL` at a non-local project. Set the service role in `.env` or use the local URL. |
-| Integration tries to upload to Storage | Do not add Storage calls while `supabase_storage_arpw` is down. The current suite is Auth/REST/Postgres only. |
+| Integration tries to upload to Storage | Live object RLS and ingest skip if Storage or `upload_processor` is down. Auth/REST/pins/notes still run. |
 | `npm test` picks up `*.integration.test.ts` | Check `vite.config.ts` `test.exclude`. |
 
 File lists, env, and helpers: [Reference: tests](#tests). Why the split: [Why two test suites](#why-two-test-suites).
@@ -526,7 +527,10 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
-| `retrievePassages.test.ts` | Primary-then-literature attempts; References retrieves nothing |
+| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary |
+| `pins.test.ts` | Target section parse; `Interrogate` rejected; attach file/chunk; lookup by `vector_id` |
+| `interrogateCorpus.test.ts` | Paper + question required; unknown `[S#]` stripped; no Grok call when nothing matched |
+| `interrogationNotes.test.ts` | user/assistant roles; stored passages are notes, not `reference_vectors` |
 | `papers.test.ts` | Draft title, default sections, paper id parse, source count |
 | `attribution.test.ts` | Sentence → chunk via `[S#]` or quote span; uncited flag (QUAL-1) |
 | `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
@@ -536,7 +540,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
-Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `ingestFunctionIsUp`, `generateFunctionIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
+Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `ingestFunctionIsUp`, `generateFunctionIsUp`, `interrogateFunctionIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
 
 | File | What it locks |
 |---|---|
@@ -546,11 +550,14 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
-| `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary |
+| `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval |
 | `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
+| `pins.integration.test.ts` | Pin/list/unpin own chunk; unscoped target; cannot see or pin another user’s chunk; example vectors and `Appendix` rejected |
+| `interrogate.integration.test.ts` | `interrogate_corpus` 401 without JWT; missing Grok key. Skips if the function is down |
+| `interrogationNotes.integration.test.ts` | Save/reload thread; other user cannot see turns; chat text is not returned by `match_reference_chunks` |
 
-**Not in either suite:** live Grok completion (needs a real xAI key and `generate_paper` up).
+**Not in either suite:** live Grok completion (needs a real xAI key). Missing-key paths for generate and interrogate are covered when those Edge functions are up.
 
 How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
 

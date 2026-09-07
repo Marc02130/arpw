@@ -74,10 +74,12 @@ describe('storage RLS integration (NFR-1)', () => {
       expect(asOther).toBeNull()
       expect(otherRead).toBeTruthy()
 
-      const { error: otherDelete } = await other.client.storage.from('references').remove([key])
-      expect(otherDelete).toBeTruthy()
-
-      const { data: stillThere } = await owner.client.storage.from('references').download(key)
+      // remove() often returns no error when RLS hides the row (0 objects deleted).
+      await other.client.storage.from('references').remove([key])
+      const { data: stillThere, error: stillThereError } = await owner.client.storage
+        .from('references')
+        .download(key)
+      expect(stillThereError).toBeNull()
       expect(stillThere).toBeTruthy()
     } finally {
       await owner.client.storage.from('references').remove([key])

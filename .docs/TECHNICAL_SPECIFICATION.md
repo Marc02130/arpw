@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (`feat/integration-tests`: hash-384 ingest plus Auth/REST integration tests) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices plus interrogation slices 1–5: pins, Interrogate tab, pin-from-Q&A, pin-first generate, chat notes) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -16,11 +16,12 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Auth / DB / Storage | Supabase (local CLI or hosted) | `@supabase/supabase-js` |
 | Vectors | Postgres `vector` extension, 384 dims | `supabase/migrations/20260906133100_init.sql` |
 | Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, chunk, `hash-384`. Live E2E needs Storage |
-| Generation | Deno Edge Function `generate_paper` | Section loop, Grok, citation allow-list. Save is slice 5 |
+| Generation | Deno Edge Function `generate_paper` | Section loop, pins first, Grok, citation allow-list, save draft |
+| Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
-| Tests | Vitest 2 | `npm test` unit; `npm run test:integration` live Auth/REST/RLS |
+| Tests | Vitest 2 | `npm test` unit (20 files / 92); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -32,7 +33,7 @@ Browser (Vite SPA)
   +--> Supabase Auth
   +--> Postgres (RLS)  tables: user_profile, "references", examples,
   |                    reference_vectors, example_vectors, user_papers,
-  |                    paper_references, pinned_passages
+  |                    paper_references, pinned_passages, interrogation_turns
   +--> Storage buckets: references, examples, papers
   +--> Edge Function upload_processor  (service role)
   +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
@@ -92,7 +93,9 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **paper_references:** (`paper_id`, `file_id`).
 
-**pinned_passages:** `pin_id`, `user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section` (PAPER_SECTIONS or null), `created_at`. Unique `(paper_id, vector_id)`. Composite FKs: paper and file must belong to `user_id`; vector must belong to that `file_id` on `reference_vectors` (example-paper chunks cannot be pinned). RLS own rows only. Prompt tab lists/unpins; Query sources can pin. Generate does not read pins yet (PIN-2).
+**pinned_passages:** `pin_id`, `user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section` (PAPER_SECTIONS or null), `created_at`. Unique `(paper_id, vector_id)`. Composite FKs: paper and file must belong to `user_id`; vector must belong to that `file_id` on `reference_vectors` (example-paper chunks cannot be pinned). RLS own rows only. Prompt tab lists/unpins; Query sources and Interrogate can pin.
+
+**interrogation_turns:** `turn_id`, `user_id`, `paper_id`, `role` (`user`|`assistant`), `content`, optional `filter_role`, `passages jsonb` (display/pin metadata only), `created_at`. RLS own insert/select. Not in `reference_vectors` or `match_reference_chunks`. Never numbered as generate `[S#]` evidence.
 
 RLS: row owner = `auth.uid()`; vector tables via EXISTS to parent file. Storage policies: authenticated CRUD only when `split_part(name, '/', 1) = auth.uid()::text` and the key is `{uid}/…` (`20260907150000_storage_object_rls.sql`).
 
@@ -169,7 +172,7 @@ Example-paper vectors: `match_example_chunks` + style prefix on the section prom
 
 **Pins and interrogation**
 
-See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns are not saved. Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks` (PIN-2). Example pins and chat notes are not evidence. Literature Review paper type ignores `primary`. Abstract/Introduction also union primary when this is not a literature-review paper.
+See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns persist on `interrogation_turns` (notes). Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks` (PIN-2). Example pins and chat notes are not evidence. Literature Review paper type ignores `primary`. Abstract/Introduction also union primary when this is not a literature-review paper.
 
 **Pipeline**
 
@@ -198,13 +201,13 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 | Grok key | Encrypted `user_grok_keys`; SPA cannot SELECT ciphertext |
 | Edge service role | Bypasses RLS; downloads `{user.id}/{fileId}` |
 | PII in git | Blocked by `.docs/*.pdf` gitignore; history of old public repo deleted |
-| Tests | Unit + Auth/REST/RLS integration. No Storage/ingest E2E |
+| Tests | Unit + Auth/REST/RLS/pins/notes. Storage object isolation and ingest E2E run when those services are up. No live Grok |
 
 ### 10. Public surface (files)
 
-Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
+Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata, storage object RLS, source_role, match_reference_chunks), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through `pinned_passages` and `interrogation_turns`), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 

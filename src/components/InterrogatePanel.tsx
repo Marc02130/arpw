@@ -1,8 +1,13 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { invokeInterrogateCorpus } from '../lib/interrogateClient'
 import type { InterrogatePassage } from '../lib/interrogateCorpus'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
+import {
+  loadInterrogationTurns,
+  saveInterrogationExchange,
+  type InterrogationTurn,
+} from '../lib/interrogationNotes'
 import { pinForVector, type PinnedPassage } from '../lib/pins'
 import type { InterrogateFilter } from '../lib/retrievePassages'
 import { sourceRoleLabel } from '../lib/sourceRole'
@@ -27,6 +32,78 @@ type InterrogatePanelProps = {
   onUnpin: (pinId: string) => Promise<void>
 }
 
+const PassageList: React.FC<{
+  passages: InterrogatePassage[]
+  pins: PinnedPassage[]
+  paperId: string | null
+  targets: Record<string, string>
+  setTargets: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  onPin: InterrogatePanelProps['onPin']
+  onUnpin: InterrogatePanelProps['onUnpin']
+}> = ({ passages, pins, paperId, targets, setTargets, onPin, onUnpin }) => (
+  <div className="space-y-2">
+    {passages.map((row) => {
+      const existing = pinForVector(pins, row.vector_id)
+      const target = targets[row.vector_id] ?? ''
+      return (
+        <div key={row.vector_id} className="text-sm text-gray-700 bg-white border border-gray-200 rounded p-2">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div className="text-xs text-gray-500">
+              [{row.sid}] {row.source_role === 'primary' ? sourceRoleLabel('primary') : sourceRoleLabel('literature')}
+              {Number.isFinite(row.score) ? ` · score ${row.score.toFixed(3)}` : ''}
+            </div>
+            {existing ? (
+              <button
+                type="button"
+                className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                onClick={() => void onUnpin(existing.pin_id)}
+              >
+                Unpin
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                onClick={() => void onPin(row, target || null)}
+                disabled={!paperId}
+              >
+                Pin
+              </button>
+            )}
+          </div>
+          {!existing && (
+            <label className="block text-xs text-gray-500 mb-2">
+              Target section
+              <select
+                value={target}
+                onChange={(event) =>
+                  setTargets((prev) => ({ ...prev, [row.vector_id]: event.target.value }))
+                }
+                className="mt-1 input-field text-sm py-1"
+                aria-label={`Target section for ${row.sid}`}
+              >
+                <option value="">Any section</option>
+                {PAPER_SECTIONS.filter((section) => section !== 'References').map((section) => (
+                  <option key={section} value={section}>
+                    {section}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {existing && (
+            <p className="text-xs text-gray-500 mb-1">
+              Pinned for {existing.target_section ?? 'any section'}
+            </p>
+          )}
+          {row.chunk_text.slice(0, 400)}
+          {row.chunk_text.length > 400 ? '…' : ''}
+        </div>
+      )
+    })}
+  </div>
+)
+
 const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
   paperId,
   pins,
@@ -38,9 +115,24 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
   const [filterRole, setFilterRole] = useState<InterrogateFilter>('both')
   const [isAsking, setIsAsking] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [answer, setAnswer] = useState('')
-  const [passages, setPassages] = useState<InterrogatePassage[]>([])
+  const [turns, setTurns] = useState<InterrogationTurn[]>([])
   const [targets, setTargets] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!paperId) {
+      setTurns([])
+      return
+    }
+    void (async () => {
+      try {
+        setTurns(await loadInterrogationTurns(supabase, paperId))
+        setError(null)
+      } catch (err) {
+        setTurns([])
+        setError(err instanceof Error ? err.message : 'Could not load interrogation notes')
+      }
+    })()
+  }, [paperId])
 
   const handleAsk = async () => {
     if (!paperId) {
@@ -59,11 +151,17 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
         question,
         filterRole,
       })
-      setAnswer(result.answer)
-      setPassages(result.passages)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not signed in')
+      const saved = await saveInterrogationExchange(supabase, user.id, paperId, {
+        question,
+        answer: result.answer,
+        filterRole: result.filterRole,
+        passages: result.passages,
+      })
+      setTurns((prev) => [...prev, ...saved])
+      setQuestion('')
     } catch (err) {
-      setAnswer('')
-      setPassages([])
       setError(err instanceof Error ? err.message : 'Interrogation failed')
     } finally {
       setIsAsking(false)
@@ -77,7 +175,7 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Ask the corpus</h2>
           <p className="text-sm text-gray-600 mb-4">
             Answers use only retrieved literature and original research. Example papers are not searched.
-            This turn is not saved. Pin a passage to include it when you generate (next slice).
+            Turns are saved as notes on this paper. They are not evidence and are never cited as [S#].
           </p>
           <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="interrogate-filter">
             Sources
@@ -123,82 +221,39 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
       </div>
 
       <div className="card">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Answer</h2>
-        <div className="bg-gray-50 rounded-lg p-4 min-h-32 mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Thread</h2>
+        <div className="bg-gray-50 rounded-lg p-4 min-h-48 max-h-[36rem] overflow-y-auto space-y-4">
           {isAsking && <p className="text-gray-500 text-center">Retrieving passages and asking Grok...</p>}
-          {!isAsking && !answer && (
+          {!isAsking && turns.length === 0 && (
             <p className="text-gray-500 text-center">
-              Ask a question. Retrieved passages for the answer appear below. Pin ones to include.
+              Ask a question. The thread is saved on this paper and reloads here. Pin passages below each answer.
             </p>
           )}
-          {!isAsking && answer && (
-            <pre className="text-sm text-gray-800 whitespace-pre-wrap">{answer}</pre>
-          )}
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Passages for this answer</h2>
-        <div className="bg-gray-50 rounded-lg p-4 min-h-48 space-y-2 max-h-96 overflow-y-auto">
-          {!isAsking && passages.length === 0 && answer && (
-            <p className="text-gray-500 text-center">No retrieved passages.</p>
-          )}
-          {passages.map((row) => {
-            const existing = pinForVector(pins, row.vector_id)
-            const target = targets[row.vector_id] ?? ''
-            return (
-              <div key={row.vector_id} className="text-sm text-gray-700 bg-white border border-gray-200 rounded p-2">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="text-xs text-gray-500">
-                    [{row.sid}] {row.source_role === 'primary' ? sourceRoleLabel('primary') : sourceRoleLabel('literature')}
-                    {Number.isFinite(row.score) ? ` · score ${row.score.toFixed(3)}` : ''}
-                  </div>
-                  {existing ? (
-                    <button
-                      type="button"
-                      className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
-                      onClick={() => void onUnpin(existing.pin_id)}
-                    >
-                      Unpin
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
-                      onClick={() => void onPin(row, target || null)}
-                      disabled={!paperId}
-                    >
-                      Pin
-                    </button>
-                  )}
+          {turns.map((turn) => (
+            <div key={turn.turn_id}>
+              <p className="text-xs font-medium text-gray-500 mb-1">
+                {turn.role === 'user' ? 'You' : 'Answer'}
+                {turn.filter_role && turn.role === 'user' ? ` · ${turn.filter_role}` : ''}
+              </p>
+              <pre className="text-sm text-gray-800 whitespace-pre-wrap bg-white border border-gray-200 rounded p-2">
+                {turn.content}
+              </pre>
+              {turn.role === 'assistant' && turn.passages.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Passages (notes, pin to cite)</p>
+                  <PassageList
+                    passages={turn.passages}
+                    pins={pins}
+                    paperId={paperId}
+                    targets={targets}
+                    setTargets={setTargets}
+                    onPin={onPin}
+                    onUnpin={onUnpin}
+                  />
                 </div>
-                {!existing && (
-                  <label className="block text-xs text-gray-500 mb-2">
-                    Target section
-                    <select
-                      value={target}
-                      onChange={(event) =>
-                        setTargets((prev) => ({ ...prev, [row.vector_id]: event.target.value }))
-                      }
-                      className="mt-1 input-field text-sm py-1"
-                      aria-label={`Target section for ${row.sid}`}
-                    >
-                      <option value="">Any section</option>
-                      {PAPER_SECTIONS.filter((section) => section !== 'References').map((section) => (
-                        <option key={section} value={section}>
-                          {section}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                {existing && (
-                  <p className="text-xs text-gray-500 mb-1">
-                    Pinned for {existing.target_section ?? 'any section'}
-                  </p>
-                )}
-                {row.chunk_text.slice(0, 400)}
-                {row.chunk_text.length > 400 ? '…' : ''}
-              </div>
-            )
-          })}
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

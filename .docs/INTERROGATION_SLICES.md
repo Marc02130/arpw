@@ -25,7 +25,7 @@ Locked product calls (2026-09-07):
 | 2 | Interrogate tab (grounded Q&A) | **DONE** | Researcher inspects the corpus |
 | 3 | Pin from interrogation | **DONE** | Pins from a real question |
 | 4 | Generate uses pins first | **DONE** | Draft follows marked passages |
-| 5 | Persist interrogation chat as notes | **NEXT** | Continue the conversation |
+| 5 | Persist interrogation chat as notes | **DONE** | Continue the conversation |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
 
@@ -41,7 +41,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 **Done when:** Paper generation has an **Interrogate** tab (`/generate/interrogate?paper=…`); the user asks a question; the worker retrieves from `literature` and/or `primary` (user filter); Grok answers using only retrieved `[S#]` ids; unknown ids are stripped; missing Grok key is the same Profile error as generate. Passages for the answer are visible.
 
-**Shipped:** Edge `interrogate_corpus`; `src/lib/interrogateCorpus.ts` + tests; `src/lib/interrogateClient.ts`; `src/components/InterrogatePanel.tsx`; tab on `PaperGenerationPage`; `src/integration/interrogate.integration.test.ts`. Reuses `match_reference_chunks` + `stripUnknownCitations`. No examples, no persisted thread.
+**Shipped:** Edge `interrogate_corpus`; `src/lib/interrogateCorpus.ts` + tests; `src/lib/interrogateClient.ts`; `src/components/InterrogatePanel.tsx`; tab on `PaperGenerationPage`; `src/integration/interrogate.integration.test.ts`. Reuses `match_reference_chunks` + `stripUnknownCitations`. No examples. Thread persist is slice 5.
 
 **Not in this slice:** pins; saving the thread; examples in the interrogate retriever (examples stay style-only on generate).
 
@@ -76,6 +76,8 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 **Done when:** Q&A for the paper is stored (user/assistant turns); reload shows the thread; those rows are **not** in `match_reference_chunks` and **not** numbered as `[S#]`.
 
+**Shipped:** `supabase/migrations/20260907220000_interrogation_turns.sql`; `src/lib/interrogationNotes.ts` + tests; Interrogate tab loads/saves the thread; assistant `passages` jsonb is display/pin metadata only. Integration: own-row RLS; distinctive chat text is not returned by `match_reference_chunks`.
+
 **Not in this slice:** exporting the thread as a PDF; Ragged import.
 
 ### Out of these slices
@@ -86,14 +88,29 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 - Outline (GEN-8), Word export (LIB-4)
 - User-editable system prompts
 
+### Tests (written and run 2026-09-07)
+
+Unit (`npm test`, no network): **20 files, 92 passed**, including `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first), `interrogationNotes.test.ts`.
+
+Integration (`npm run test:integration`, local API): **12 files, 36 passed** with Storage and Edge functions up, including:
+
+| File | Coverage |
+|---|---|
+| `pins.integration.test.ts` | Own pin/list/unpin; RLS; cannot pin another user’s chunk or examples; invalid target CHECK |
+| `interrogate.integration.test.ts` | 401 anonymous; missing Grok key (skips if function down) |
+| `retrieval.integration.test.ts` | Role filter; pinned literature chunk leads Methods retrieval |
+| `interrogationNotes.integration.test.ts` | Save/reload thread; other user hidden; chat text not in `match_reference_chunks` |
+
+**Not covered:** live Grok completion (no xAI call in either suite). Missing-key paths are covered. Generate with a real key against pinned passages is manual.
+
 ### How to use this file
 
-After a slice lands, set its Status to **DONE** and point at the files. Start the next **NEXT** slice from `main`. Do not start slice 4 before 1 (generate needs pins). Slice 2 may land before 3; do not skip 1.
+Slices 1–5 are **DONE**. Remaining product work is outside this tracker (QUAL-2, Markdown export, MiniLM).
 
 ## References
 
 - `.docs/PRODUCT_REQUIREMENTS.md` — INT-1–3, PIN-1–2
-- `.docs/TECHNICAL_SPECIFICATION.md` — interrogation TARGET
-- `.docs/GAP_ANALYSIS.md` — remaining INT/PIN
+- `.docs/TECHNICAL_SPECIFICATION.md` — interrogation as-built
+- `.docs/GAP_ANALYSIS.md` — remaining QUAL/export
 - `.docs/GENERATION_SLICES.md` — generate cut (shipped)
-- `src/pages/PaperGenerationPage.tsx` — Prompt / Upload; Interrogate is TARGET
+- `src/pages/PaperGenerationPage.tsx` — Prompt / Upload / Interrogate

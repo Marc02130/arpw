@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-07 (`feat/integration-tests`, after ingest hash-384 and Auth/REST integration tests) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-07 (interrogation slices 1–5 on local mainline work) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
 This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, generate a section-by-section draft (if a Grok key is saved), and save it to the library. You cannot check or export a paper. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), and save it to the library. You cannot run QUAL-2 checks or export a paper. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -23,13 +23,13 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
-| Interrogation / pins | PARTIAL | Pins + Interrogate + generate prefers pins. Chat not persisted |
+| Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | MISSING | No control |
 | Quality checks | PARTIAL | QUAL-1 flags uncited sentences. Citation/format checks and preview polish still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
 | Export | MISSING | Button does nothing |
-| Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS/retrieval/generate-missing-key integration. Fixture PDF parse/chunk/embed covered. Live Storage/ingest/Grok E2E skip if those services are down |
-| Docs vs product | DONE | README states generation/retrieval/export are unbuilt; `.docs/` holds PRD/spec/gap |
+| Tests | PARTIAL | Unit `npm test` 20 files / 92 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Docs vs product | DONE | README matches generate/interrogate/pins; QUAL-2 and export still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
 ### 3. Requirement trace
@@ -82,7 +82,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 |---|---|---|
 | INT-1 | DONE | `/generate/interrogate` + `InterrogatePanel` |
 | INT-2 | DONE | Edge `interrogate_corpus`; same Grok key path; `match_reference_chunks` + strip unknown `[S#]` |
-| INT-3 | MISSING | No chat-as-notes table |
+| INT-3 | DONE | `interrogation_turns` notes; RLS own rows; not in `match_reference_chunks` |
 | PIN-1 | DONE | `pinned_passages`; Prompt list/unpin; Interrogate Pin with optional target section; cannot pin another user’s chunk or examples |
 | PIN-2 | DONE | `retrieveForSection` / `generate_paper` merge pins first; Query sources matches |
 
