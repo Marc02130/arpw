@@ -116,7 +116,7 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 
 `upload_processor` still cannot index (path split, PDF/DOCX, Transformers on Edge). Duplicate metadata insert uses unique-violation `23505` as success.
 
-`DocumentList.tsx` lists and deletes. Storage delete uses `{fileId}_{fileName}`. DB delete relies on FK cascade for vectors. Storage path on delete matches upload shape.
+`DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(fileId, originalName)` (same helper as upload).
 
 **upload_processor (TARGET fixes required):**
 

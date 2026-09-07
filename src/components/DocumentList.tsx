@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
-import { Reference, Example, DocumentType } from '../types'
+import { DocumentType } from '../types'
+import {
+  documentStore,
+  indexStatusLabel,
+  storageObjectKey,
+  vectorCountFromEmbed,
+} from '../lib/documentStore'
+import { fileTypeIcon, formatFileSize, formatUploadedAt } from '../lib/formatFile'
+
+type ListedDocument = {
+  file_id: string
+  user_id: string
+  document_type: string
+  file_name: string
+  file_size: number
+  uploaded_at: string
+  chunkCount: number
+}
 
 interface DocumentListProps {
   documentType: DocumentType
@@ -11,7 +28,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
   documentType,
   onDocumentDeleted,
 }) => {
-  const [documents, setDocuments] = useState<(Reference | Example)[]>([])
+  const [documents, setDocuments] = useState<ListedDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
@@ -27,11 +44,11 @@ const DocumentList: React.FC<DocumentListProps> = ({
         return
       }
 
-      const tableName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
-      
+      const store = documentStore(documentType)
+
       const { data, error: fetchError } = await supabase
-        .from(tableName)
-        .select('*')
+        .from(store.table)
+        .select(`*, ${store.vectorTable}(count)`)
         .eq('user_id', user.id)
         .order('uploaded_at', { ascending: false })
 
@@ -39,7 +56,19 @@ const DocumentList: React.FC<DocumentListProps> = ({
         throw new Error(fetchError.message)
       }
 
-      setDocuments(data || [])
+      const rows = (data ?? []).map((row: Record<string, unknown>) => {
+        const chunkCount = vectorCountFromEmbed(row[store.vectorTable])
+        return {
+          file_id: String(row.file_id),
+          user_id: String(row.user_id),
+          document_type: String(row.document_type),
+          file_name: String(row.file_name),
+          file_size: Number(row.file_size),
+          uploaded_at: String(row.uploaded_at),
+          chunkCount,
+        }
+      })
+      setDocuments(rows)
     } catch (error) {
       console.error('Error fetching documents:', error)
       setError(error instanceof Error ? error.message : 'Failed to fetch documents')
@@ -66,27 +95,31 @@ const DocumentList: React.FC<DocumentListProps> = ({
         throw new Error('User not authenticated')
       }
 
-      // Delete from storage first
-      const storageBucket = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
-      const { error: storageError } = await supabase.storage
-        .from(storageBucket)
-        .remove([`${fileId}_${fileName}`])
+      const store = documentStore(documentType)
 
-      if (storageError) {
-        console.warn('Storage deletion error:', storageError)
-        // Continue with database deletion even if storage deletion fails
+      const { error: vectorError } = await supabase
+        .from(store.vectorTable)
+        .delete()
+        .eq('file_id', fileId)
+      if (vectorError) {
+        console.warn('Vector deletion error:', vectorError)
       }
 
-      // Delete from database
-      const tableName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
       const { error: dbError } = await supabase
-        .from(tableName)
+        .from(store.table)
         .delete()
         .eq('file_id', fileId)
         .eq('user_id', user.id)
 
       if (dbError) {
         throw new Error(dbError.message)
+      }
+
+      const { error: storageError } = await supabase.storage
+        .from(store.bucket)
+        .remove([storageObjectKey(fileId, fileName)])
+      if (storageError) {
+        console.warn('Storage deletion error:', storageError)
       }
 
       // Remove from local state
@@ -102,42 +135,6 @@ const DocumentList: React.FC<DocumentListProps> = ({
         newSet.delete(fileId)
         return newSet
       })
-    }
-  }
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes'
-    
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const getFileIcon = (fileName: string): string => {
-    const extension = fileName.split('.').pop()?.toLowerCase()
-    
-    switch (extension) {
-      case 'pdf':
-        return '📄'
-      case 'doc':
-      case 'docx':
-        return '📝'
-      case 'txt':
-        return '📃'
-      default:
-        return '📁'
     }
   }
 
@@ -221,6 +218,9 @@ const DocumentList: React.FC<DocumentListProps> = ({
                   Uploaded
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Index
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -231,7 +231,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <span className="text-lg mr-3" role="img" aria-label="File type">
-                        {getFileIcon(doc.file_name)}
+                        {fileTypeIcon(doc.file_name)}
                       </span>
                       <div>
                         <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
@@ -247,7 +247,10 @@ const DocumentList: React.FC<DocumentListProps> = ({
                     {formatFileSize(doc.file_size)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(doc.uploaded_at)}
+                    {formatUploadedAt(doc.uploaded_at)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {indexStatusLabel(doc.chunkCount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button

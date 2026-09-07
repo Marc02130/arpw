@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { UploadProgress, DocumentType } from '../types'
 import { ACCEPTED_UPLOAD_EXTENSIONS, validateUploadFile } from '../lib/validateFile'
 import { uploadCapError } from '../lib/fileCap'
+import { documentStore, storageObjectKey } from '../lib/documentStore'
 import {
   patchFileProgress,
   startUploadProgress,
@@ -29,8 +30,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
 
-  const tableName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
-  const bucketName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
+  const store = documentStore(documentType)
+  const tableName = store.table
+  const bucketName = store.bucket
 
   const countExisting = async (userId: string): Promise<number> => {
     const { count, error } = await supabase
@@ -48,7 +50,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
 
   const uploadFile = async (file: File): Promise<void> => {
     const fileId = crypto.randomUUID()
-    const fileName = `${fileId}_${file.name}`
+    const fileName = storageObjectKey(fileId, file.name)
     
     // Create initial progress entry
     setUploadProgress((prev) => [...prev, startUploadProgress(fileId, file.name)])

@@ -157,6 +157,20 @@ Constraints and object key: [Reference: uploads](#upload-constraints-srccomponen
 | `name resolution failed` | Storage container is down. Start the local stack with the installed `supabase` CLI, not `npx supabase`. |
 | Banner “Indexing may still fail” | Expected. The file is stored; `upload_processor` is still DOCS-5. |
 
+## How to list and delete a file
+
+The dashboard table shows each stored file’s name, size, upload time, and whether vectors exist.
+
+### Steps
+
+1. Open `/dashboard`. Under **Reference Documents** or **Example Papers**, read the table (name, size, date, Index).
+2. Index is `Stored (not indexed)` until DOCS-5 writes chunks. After ingest works it will show `Indexed (N chunks)`.
+3. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{fileId}_{originalName}`.
+
+### Verification
+
+The row disappears. REST `GET /rest/v1/references?file_id=eq.<id>` is empty. Vector rows for that `file_id` are gone. `N stored` on the drop zone drops by one after refresh.
+
 ## How to generate a paper
 
 You cannot yet. The dashboard form is wired; the generate handler is a stub.
