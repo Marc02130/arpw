@@ -2,6 +2,7 @@ import React from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { UserProfile, NavItem } from '../types'
 import { useAuth } from '../hooks/useAuth'
+import { MAIN_CONTENT_ID, SKIP_TO_CONTENT_HREF } from '../lib/keyboardFlows'
 
 interface LayoutProps {
   user: UserProfile
@@ -35,6 +36,12 @@ const Layout: React.FC<LayoutProps> = ({ user }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <a
+        href={SKIP_TO_CONTENT_HREF}
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-md focus:bg-white focus:text-primary-700 focus:ring-2 focus:ring-primary-500"
+      >
+        Skip to main content
+      </a>
       {/* Navigation */}
       <nav className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -67,8 +74,9 @@ const Layout: React.FC<LayoutProps> = ({ user }) => {
                 Welcome, {user.full_name || user.email}
               </span>
               <button
+                type="button"
                 onClick={handleSignOut}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
               >
                 Sign Out
               </button>
@@ -78,7 +86,7 @@ const Layout: React.FC<LayoutProps> = ({ user }) => {
       </nav>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main id={MAIN_CONTENT_ID} className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" tabIndex={-1}>
         <Outlet />
       </main>
     </div>

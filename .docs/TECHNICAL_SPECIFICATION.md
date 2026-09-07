@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices, interrogation slices 1–5, QUAL-1–5 preview checks) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices, interrogation slices 1–5, QUAL-1–5, library export, NFR-4–7) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -20,8 +20,8 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
-| LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
-| Tests | Vitest 2 | `npm test` unit (24 files / 106); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
+| LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
+| Tests | Vitest 2 | `npm test` unit (26 files / 112); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -180,7 +180,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Dedup by `vector_id`.
 3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. k capped at 20. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
 4. Optional rerank later.
-5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
+5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`).
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
 7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
 8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
@@ -202,7 +202,7 @@ Library reads `user_papers`, groups by title, shows latest version. Source count
 | Grok key | Encrypted `user_grok_keys`; SPA cannot SELECT ciphertext |
 | Edge service role | Bypasses RLS; downloads `{user.id}/{fileId}` |
 | PII in git | Blocked by `.docs/*.pdf` gitignore; history of old public repo deleted |
-| Tests | Unit + Auth/REST/RLS/pins/notes. Storage object isolation and ingest E2E run when those services are up. No live Grok |
+| Tests | Unit + Auth/REST/RLS/pins/notes. Storage object isolation and ingest E2E (NFR-4 timing) run when those services are up. Grok section timeout unit-tested. No live Grok completion |
 
 ### 10. Public surface (files)
 
@@ -250,12 +250,12 @@ Two Vitest suites. `npm test` is the default and must not require Docker.
 
 | Suite | Command | Config | What it is |
 |---|---|---|---|
-| Unit | `npm test` | `vite.config.ts`: include `src/**/*.test.ts`, exclude `*.integration.test.ts` | Pure helpers: validate file/auth, caps, progress, document store, ingest parse/chunk/hash, NFR-7 fixture PDF |
-| Integration | `npm run test:integration` | `vitest.integration.config.ts`: include `src/**/*.integration.test.ts`, 30s timeout, no file parallelism | Live local Auth, PostgREST, Postgres: confirmations, Grok RPCs, CHECKs, caps, table RLS, Storage policy names. Live Storage/ingest skip if those services are down |
+| Unit | `npm test` | `vite.config.ts`: include `src/**/*.test.ts`, exclude `*.integration.test.ts` | Pure helpers: validate file/auth, caps, progress, document store, ingest parse/chunk/hash, NFR-7 fixture PDF, Grok 2-minute abort, keyboard-flow control ids |
+| Integration | `npm run test:integration` | `vitest.integration.config.ts`: include `src/**/*.integration.test.ts`, 30s timeout (ingest NFR-4 uses 130s), no file parallelism | Live local Auth, PostgREST, Postgres: confirmations, Grok RPCs, CHECKs, caps, table RLS, Storage policy names. Live Storage/ingest skip if those services are down |
 
 Integration helper `src/integration/supabaseTest.ts`: health-check `/auth/v1/health`; `signUp` then `admin.updateUserById({ email_confirm: true })` because `enable_confirmations = true`; local demo JWT fallback; `deleteUser` cleanup. Service role is for confirm/admin seed only; user JWTs exercise RLS.
 
-Not as-built: live `upload_processor` HTTP while Storage/Edge are down; live Grok while `generate_paper` is down or no key. Unit tests cover refuse-unknown-citation-id.
+Not as-built: live `upload_processor` HTTP while Storage/Edge are down; live Grok completion while `generate_paper` is down or no key. Unit tests cover refuse-unknown-citation-id (NFR-7) and the 2-minute Grok abort (NFR-5).
 
 How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. Why the split: `../README.md#why-two-test-suites`.
 

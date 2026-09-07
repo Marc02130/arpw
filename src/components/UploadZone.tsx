@@ -9,6 +9,7 @@ import {
   startUploadProgress,
   uploadStatusText,
 } from '../lib/uploadProgress'
+import { UPLOAD_ZONE_ROLE, isActivateKey } from '../lib/keyboardFlows'
 
 interface UploadZoneProps {
   documentType: DocumentType
@@ -263,7 +264,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     <div className="space-y-4">
       {/* Upload Zone */}
       <div
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 ${
+        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 ${
           isDragOver
             ? 'border-primary-500 bg-primary-50'
             : 'border-gray-300 hover:border-gray-400'
@@ -272,11 +273,14 @@ const UploadZone: React.FC<UploadZoneProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
-        role="button"
-        tabIndex={0}
+        role={UPLOAD_ZONE_ROLE}
+        tabIndex={isUploading ? -1 : 0}
+        aria-disabled={isUploading}
+        aria-busy={isUploading}
         aria-label={`Upload ${documentType} files`}
+        aria-describedby={`upload-hint-${documentType}-${sourceRole ?? 'all'}`}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+          if (isActivateKey(e.key)) {
             e.preventDefault()
             handleClick()
           }
@@ -289,6 +293,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
           accept={ACCEPTED_UPLOAD_EXTENSIONS.join(',')}
           onChange={handleFileInput}
           className="hidden"
+          tabIndex={-1}
           aria-hidden="true"
         />
         
@@ -315,7 +320,10 @@ const UploadZone: React.FC<UploadZoneProps> = ({
             or drag and drop
           </div>
           
-          <p className="text-xs text-gray-500">
+          <p
+            id={`upload-hint-${documentType}-${sourceRole ?? 'all'}`}
+            className="text-xs text-gray-500"
+          >
             {documentType === DocumentType.REFERENCE
               ? `Up to ${maxFiles} reference documents`
               : `Up to ${maxFiles} example papers`}{' '}
@@ -337,8 +345,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({
               Upload Progress ({uploadProgress.length} files)
             </h3>
             <button
+              type="button"
               onClick={clearProgress}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-gray-500 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
               disabled={isUploading}
             >
               Clear

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-07 (interrogation slices 1–5 and QUAL-1–5) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-07 (interrogation slices 1–5, QUAL-1–5, library export, NFR-4–7) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
 This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. You cannot use outline mode. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors (fixture PDF chunks visible in under 2 minutes when Storage is up), retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved; one Grok section call aborts after 2 minutes), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. Login, upload, and generate are keyboard-reachable. You cannot use outline mode. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -20,7 +20,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Profile name | DONE | Saves full name |
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
-| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
+| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. Live fixture ingest times chunks visible in &lt; 2 min (NFR-4) when Storage is up; skips if Storage/Edge is down. MiniLM still TARGET |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
@@ -28,8 +28,8 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 24 files / 106 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
-| Docs vs product | DONE | README matches generate/interrogate/pins/preview; export and outline still unbuilt |
+| Tests | PARTIAL | Unit `npm test` 26 files / 112 tests (2026-09-07). Integration `npm run test:integration` 12 files / 37 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
 ### 3. Requirement trace
@@ -115,21 +115,21 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 | NFR-1 | DONE | Table RLS plus Storage: objects only under `{auth.uid()}/` (`20260907150000_storage_object_rls.sql`). Live object E2E skips if Storage is down |
 | NFR-2 | DONE | Object key `{user_id}/{file_id}` from JWT + file id on upload, delete, and ingest. Client `storagePath` is not used |
 | NFR-3 | DONE here | gitignore `.docs/*.pdf`; current history has no PDF blobs |
-| NFR-4 | UNKNOWN | Live ingest E2E unmeasured while Storage is down |
-| NFR-5 | MISSING | |
-| NFR-6 | PARTIAL | Login has labels/aria; upload zone is keyboard-activatable |
-| NFR-7 | PARTIAL | Fixture PDF unit + retrieval hit on `nfr7probe`. Unit generate strips unknown `[S#]`. Live ingest E2E and live Grok skip if those services are down |
+| NFR-4 | DONE | Live `ingest.integration.test.ts`: fixture PDF → `upload_processor` → visible `hash-384` chunks containing `nfr7probe` in under `INGEST_VISIBLE_CHUNKS_MS` (120s). Skips if Storage or Edge is down |
+| NFR-5 | DONE | `completeWithGrok` aborts after `GROK_SECTION_TIMEOUT_MS` (120s). Unit: hanging fetch times out; one-section draft after retrieval is under the budget. Live Grok E2E is still not in either suite |
+| NFR-6 | DONE | Labeled login fields + submit; upload zone `role=button`, Enter/Space, focus ring; generate prompt/selects labeled; Query sources / Generate Paper native buttons; skip-to-main |
+| NFR-7 | DONE | Fixture PDF unit + live ingest; retrieval hit on `nfr7probe`; `stripUnknownCitations` / generate drop unknown `[S#]`. Live Grok completion is not required for refuse-unknown-id |
 
 ### 4. Code vs old documentation
 
 | Old claim (`.docs` / README features list) | Reality |
 |---|---|
 | React via cdn.jsdelivr.net | Vite SPA |
-| Generation &lt; 5 min | No generation |
+| Generation &lt; 5 min | One Grok section call aborts after 2 minutes (NFR-5) |
 | Vectors deleted after 24h | Would destroy the corpus; not implemented (good) |
 | Grok key on `user_profile` (plaintext) | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Storage `references/{user_id}/{file_id}` | Object key `{user_id}/{file_id}`; Storage RLS first path segment = `auth.uid()` |
-| Quality checks, Word export, outline | Unbuilt |
+| Quality checks, Word export, outline | QUAL-1–4 and Markdown/Word export shipped; outline (GEN-8) unbuilt |
 | 90%+ check pass rate | Not a metric |
 
 ### 5. RAG design gaps (even after wiring Grok)

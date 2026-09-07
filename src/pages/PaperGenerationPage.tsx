@@ -43,6 +43,14 @@ import {
   type RetrievedPassage,
 } from '../lib/retrievePassages'
 import { supabase } from '../supabaseClient'
+import {
+  GENERATE_BUTTON_ID,
+  GENERATE_CITATION_STYLE_ID,
+  GENERATE_OUTPUT_FORMAT_ID,
+  GENERATE_PAPER_TYPE_ID,
+  GENERATE_PROMPT_ID,
+  QUERY_SOURCES_BUTTON_ID,
+} from '../lib/keyboardFlows'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   `${isActive
@@ -397,8 +405,11 @@ const PaperGenerationPage: React.FC = () => {
             )}
 
             <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Research Prompt</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                <label htmlFor={GENERATE_PROMPT_ID}>Research Prompt</label>
+              </h2>
               <textarea
+                id={GENERATE_PROMPT_ID}
                 value={config.prompt}
                 onChange={(e) => setConfig((prev) => ({ ...prev, prompt: e.target.value }))}
                 onBlur={() => void persistConfig(config, paper?.title)}
@@ -428,8 +439,11 @@ const PaperGenerationPage: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Paper Configuration</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Paper Type</label>
+                  <label htmlFor={GENERATE_PAPER_TYPE_ID} className="block text-sm font-medium text-gray-700 mb-2">
+                    Paper Type
+                  </label>
                   <select
+                    id={GENERATE_PAPER_TYPE_ID}
                     value={config.paper_type}
                     onChange={(e) => {
                       const paper_type = e.target.value as PaperType
@@ -447,8 +461,11 @@ const PaperGenerationPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Citation Style</label>
+                  <label htmlFor={GENERATE_CITATION_STYLE_ID} className="block text-sm font-medium text-gray-700 mb-2">
+                    Citation Style
+                  </label>
                   <select
+                    id={GENERATE_CITATION_STYLE_ID}
                     value={config.citation_style}
                     onChange={(e) => {
                       const citation_style = e.target.value as CitationStyle
@@ -466,8 +483,11 @@ const PaperGenerationPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Output Format</label>
+                  <label htmlFor={GENERATE_OUTPUT_FORMAT_ID} className="block text-sm font-medium text-gray-700 mb-2">
+                    Output Format
+                  </label>
                   <select
+                    id={GENERATE_OUTPUT_FORMAT_ID}
                     value={config.output_format}
                     onChange={(e) => {
                       const output_format = e.target.value as OutputFormat
@@ -491,8 +511,10 @@ const PaperGenerationPage: React.FC = () => {
 
             <button
               type="button"
+              id={QUERY_SOURCES_BUTTON_ID}
               onClick={() => void handleRetrievePassages()}
               disabled={isRetrieving || !config.prompt.trim()}
+              aria-busy={isRetrieving}
               className="btn-secondary w-full py-3 text-lg"
             >
               {isRetrieving ? 'Querying...' : 'Query sources'}
@@ -509,8 +531,10 @@ const PaperGenerationPage: React.FC = () => {
             )}
             <button
               type="button"
+              id={GENERATE_BUTTON_ID}
               onClick={() => void handleGenerate()}
               disabled={isGenerating || !config.prompt.trim() || !paperId}
+              aria-busy={isGenerating}
               className="btn-primary w-full py-3 text-lg"
             >
               {isGenerating ? 'Generating...' : 'Generate Paper'}

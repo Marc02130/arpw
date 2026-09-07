@@ -264,7 +264,7 @@ const Login: React.FC = () => {
             <div className="text-center">
               <Link
                 to="/forgot-password"
-                className="text-sm text-primary-600 hover:text-primary-500"
+                className="text-sm text-primary-600 hover:text-primary-500 focus:outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 rounded"
               >
                 Forgot your password?
               </Link>
@@ -276,7 +276,7 @@ const Login: React.FC = () => {
             <button
               type="button"
               onClick={toggleMode}
-              className="text-sm text-primary-600 hover:text-primary-500 focus:outline-none focus:underline"
+              className="text-sm text-primary-600 hover:text-primary-500 focus:outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 rounded"
               disabled={isSubmitting}
             >
               {isSignUp 

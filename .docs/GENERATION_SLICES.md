@@ -101,6 +101,6 @@ After a slice lands, set its Status to **DONE** and point at the commit or files
 
 - `.docs/PRODUCT_REQUIREMENTS.md` — GEN-1–10, DOCS-8
 - `.docs/TECHNICAL_SPECIFICATION.md` — §4 `source_role`, §7 generate pipeline
-- `.docs/GAP_ANALYSIS.md` — remaining GEN/NFR-7
+- `.docs/GAP_ANALYSIS.md` — remaining GEN-8 (outline); NFR-7 shipped
 - `src/pages/PaperGenerationPage.tsx` — Prompt tab generate handler
 - `src/lib/nfr7Fixture.ts` — probe token `nfr7probe`

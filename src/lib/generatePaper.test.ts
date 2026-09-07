@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
 import { generatePaperDraft, parseGenerateRequest } from './generatePaper'
+import { GROK_SECTION_TIMEOUT_MS } from './grokComplete'
 
 const PAPER_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -77,6 +78,32 @@ describe('generatePaperDraft (slice 4)', () => {
     expect(result.content).toContain('## Methods')
     expect(result.attribution[0].uncited).toBe(false)
     expect(result.attribution[0].vectorIds).toEqual(['vec-1'])
+  })
+
+  it('should finish one section under the 2 minute budget after retrieval (NFR-5)', async () => {
+    let retrievalDoneAt = 0
+    const result = await generatePaperDraft({
+      paperType: PaperType.EMPIRICAL_STUDY,
+      sections: ['Methods'],
+      researchPrompt: 'nfr7probe citation overlap',
+      retrieve: async () => {
+        retrievalDoneAt = Date.now()
+        return [
+          {
+            vector_id: 'vec-1',
+            file_id: 'file-1',
+            chunk_text: 'this study methods used nfr7probe',
+            section: 'methods',
+            source_role: 'primary',
+            score: 0.9,
+            paperSection: 'Methods',
+          },
+        ]
+      },
+      complete: async () => 'We measured overlap [S1].',
+    })
+    expect(result.sections[0].text).toContain('[S1]')
+    expect(Date.now() - retrievalDoneAt).toBeLessThan(GROK_SECTION_TIMEOUT_MS)
   })
 
   it('should skip retrieval for References', async () => {

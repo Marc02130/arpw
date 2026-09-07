@@ -239,7 +239,7 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
 3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
-4. Click **Generate Paper**. The Edge function retrieves pins first, then the same role-filtered search, calls Grok, strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
+4. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 6. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores the prompt. Sources is the number of cited files.
 
@@ -256,6 +256,7 @@ Indexed references + a prompt that overlaps their text should list passages with
 | “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
 | Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
 | Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
+| “Grok request timed out after 2 minutes” | That section’s Grok call exceeded NFR-5. Retrieval already finished; retry, generate fewer sections, or check xAI. |
 | Interrogate 404 / function not found | `interrogate_corpus` is a new Edge function. Run `supabase functions serve` (installed CLI) so it registers next to `generate_paper`. |
 | Upload/index 502, logs say lock file hash mismatch | Delete `supabase/functions/**/deno.lock` (gitignored). `deno.json` sets `"lock": false` so esm.sh republishes do not break ingest. |
 
@@ -524,7 +525,9 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `formatFile.test.ts` | Size, date, icon |
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
 | `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, chunking, hash-384 |
-| `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
+| `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 (NFR-7) |
+| `nfrBudgets.test.ts` | NFR-4 ingest and NFR-5 generate budgets are 120s |
+| `keyboardFlows.test.ts` | NFR-6: Enter/Space activate upload; login/generate control ids wired in UI |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
 | `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary |
@@ -538,8 +541,8 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `formatCheck.test.ts` | QUAL-3: required `##` section headings present |
 | `draftPreview.test.ts` | QUAL-4: disclaimer text; inline uncited marks; warning list |
 | `exportPaper.test.ts` | LIB-4: Markdown/Word blocks include disclaimer; filename stem |
-| `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
-| `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
+| `generatePaper.test.ts` | Section loop strips `[S99]` (NFR-7); ignores client `sourceIds` / `systemPrompt`; one section after retrieval is under 2 minutes (NFR-5) |
+| `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body; hanging request aborts after the section budget (NFR-5) |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
@@ -553,7 +556,7 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500; `source_role` default/update/CHECK |
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
-| `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
+| `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe` in under 2 minutes (NFR-4 / NFR-7). Skips if Storage or the Edge function is down |
 | `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval |
 | `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only; regenerate inserts version 2 |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
@@ -661,7 +664,7 @@ Intent and remaining work (not this walkthrough):
 - **PRD**: [`.docs/PRODUCT_REQUIREMENTS.md`](.docs/PRODUCT_REQUIREMENTS.md)
 - **Tech spec**: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) (as-built tests: §12)
 - **Generate slices**: [`.docs/GENERATION_SLICES.md`](.docs/GENERATION_SLICES.md)
-- **Gap analysis**: [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md) (NFR-7)
+- **Gap analysis**: [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md) (NFR-4–7 shipped; outline remaining)
 
 Superseded drafts: [`.docs/legacy/`](.docs/legacy/).
 

@@ -22,7 +22,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 - About to write code: [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)
 - About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
 - About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–5 shipped)
-- Remaining MVP: outline (GEN-8); QUAL-1–5 and library export shipped
+- Remaining MVP: outline (GEN-8); QUAL-1–5, library export, and NFR-4–7 shipped
 - Schema, RPCs, embeddings, test commands: [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)
 - What “MVP” still means: [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)
 
