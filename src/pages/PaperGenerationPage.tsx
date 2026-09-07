@@ -14,6 +14,7 @@ import DocumentList from '../components/DocumentList'
 import InterrogatePanel, { type InterrogatePinTarget } from '../components/InterrogatePanel'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
+import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import {
@@ -80,6 +81,13 @@ const PaperGenerationPage: React.FC = () => {
 
   const bumpLists = () => setListTick((tick) => tick + 1)
   const uncited = uncitedSentences(attribution)
+  const citationCheck = draft
+    ? runCitationCheck({
+        content: draft,
+        ...citationInputsFromAttribution(draft, attribution),
+        paperReferenceFileIds: citedFiles.map((file) => file.file_id),
+      })
+    : null
 
   useEffect(() => {
     if (!paperId) {
@@ -654,6 +662,14 @@ const PaperGenerationPage: React.FC = () => {
                       ))}
                     </ul>
                   </div>
+                )}
+                {citationCheck && (
+                  <p
+                    className={`mt-3 text-sm ${citationCheck.ok ? 'text-gray-700' : 'text-red-700'}`}
+                    role="status"
+                  >
+                    {citationCheckLabel(citationCheck)}
+                  </p>
                 )}
                 {uncited.length > 0 && (
                   <div className="mt-3" role="status">

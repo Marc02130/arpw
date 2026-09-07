@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { referenceCountFromEmbed } from '../lib/papers'
+import { loadPaperCitedFiles, referenceCountFromEmbed, type CitedFile } from '../lib/papers'
 import { uncitedSentences } from '../lib/attribution'
+import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { Paper, LibraryPaper, VersionHistory } from '../types'
 
 const LibraryPage: React.FC = () => {
@@ -11,6 +12,7 @@ const LibraryPage: React.FC = () => {
   const [versionHistory, setVersionHistory] = useState<VersionHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
+  const [selectedCitedFiles, setSelectedCitedFiles] = useState<CitedFile[]>([])
   const [showVersions, setShowVersions] = useState(false)
 
   useEffect(() => {
@@ -100,6 +102,20 @@ const LibraryPage: React.FC = () => {
 
   const openPaper = (paperId: string) => {
     navigate(`/generate?paper=${paperId}`)
+  }
+
+  const openPreview = async (paper: Paper) => {
+    setSelectedPaper(paper)
+    try {
+      setSelectedCitedFiles(await loadPaperCitedFiles(supabase, paper.paper_id))
+    } catch {
+      setSelectedCitedFiles([])
+    }
+  }
+
+  const closePreview = () => {
+    setSelectedPaper(null)
+    setSelectedCitedFiles([])
   }
 
   const formatDate = (dateString: string) => {
@@ -209,7 +225,7 @@ const LibraryPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         <button
-                          onClick={() => setSelectedPaper(paper)}
+                          onClick={() => void openPreview(paper)}
                           className="text-primary-600 hover:text-primary-900"
                         >
                           View
@@ -262,7 +278,7 @@ const LibraryPage: React.FC = () => {
                           </div>
                           <div className="flex space-x-2">
                             <button
-                              onClick={() => setSelectedPaper(version)}
+                              onClick={() => void openPreview(version)}
                               className="text-xs text-primary-600 hover:text-primary-900"
                             >
                               View
@@ -288,6 +304,11 @@ const LibraryPage: React.FC = () => {
       {/* Paper Preview Modal */}
       {selectedPaper && (() => {
         const uncited = uncitedSentences(selectedPaper.attribution ?? [])
+        const citationCheck = runCitationCheck({
+          content: selectedPaper.content ?? '',
+          ...citationInputsFromAttribution(selectedPaper.content ?? '', selectedPaper.attribution ?? []),
+          paperReferenceFileIds: selectedCitedFiles.map((file) => file.file_id),
+        })
         return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
@@ -296,7 +317,7 @@ const LibraryPage: React.FC = () => {
                 {selectedPaper.title} (v{selectedPaper.version})
               </h3>
               <button
-                onClick={() => setSelectedPaper(null)}
+                onClick={closePreview}
                 className="text-gray-400 hover:text-gray-600"
               >
                 ✕
@@ -306,6 +327,9 @@ const LibraryPage: React.FC = () => {
               <pre className="whitespace-pre-wrap text-sm text-gray-700">
                 {selectedPaper.content || 'No draft yet.'}
               </pre>
+              <p className={`mt-3 text-sm ${citationCheck.ok ? 'text-gray-700' : 'text-red-700'}`} role="status">
+                {citationCheckLabel(citationCheck)}
+              </p>
               {uncited.length > 0 && (
                 <p className="mt-3 text-sm text-amber-800">
                   {uncited.length} uncited sentence{uncited.length === 1 ? '' : 's'}.
@@ -314,7 +338,7 @@ const LibraryPage: React.FC = () => {
             </div>
             <div className="mt-4 flex justify-end space-x-2">
               <button
-                onClick={() => setSelectedPaper(null)}
+                onClick={closePreview}
                 className="btn-secondary"
               >
                 Close

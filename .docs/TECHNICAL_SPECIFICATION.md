@@ -21,7 +21,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
-| Tests | Vitest 2 | `npm test` unit (20 files / 92); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
+| Tests | Vitest 2 | `npm test` unit (21 files / 96); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -41,7 +41,7 @@ Browser (Vite SPA)
 
 TARGET:
   +--> retrieve RPC (hybrid search / MiniLM)
-  +--> run_checks / export_paper
+  +--> QUAL-3/4 polish / export_paper
 ```
 
 The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_api_key` as service_role.
@@ -183,6 +183,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
 7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
+8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
 
 Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 

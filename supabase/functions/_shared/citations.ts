@@ -29,11 +29,13 @@ export const formatSourcesForPrompt = (sources: NumberedSource[]): string => {
     .join('\n\n')
 }
 
-export const citedSids = (text: string, allowed: Set<string>): string[] => {
+export const extractSids = (text: string): string[] => {
   const found = text.match(CITE) ?? []
-  const ids = found.map((token) => token.slice(1, -1)).filter((id) => allowed.has(id))
-  return [...new Set(ids)]
+  return [...new Set(found.map((token) => token.slice(1, -1)))]
 }
+
+export const citedSids = (text: string, allowed: Set<string>): string[] =>
+  extractSids(text).filter((id) => allowed.has(id))
 
 export const stripUnknownCitations = (text: string, allowed: Set<string>): string => {
   const stripped = text.replace(CITE, (token) => {

@@ -90,7 +90,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 ### Tests (written and run 2026-09-07)
 
-Unit (`npm test`, no network): **20 files, 92 passed**, including `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first), `interrogationNotes.test.ts`.
+Unit (`npm test`, no network): **20 files, 92 passed** at slice 5 land, including `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first), `interrogationNotes.test.ts`. QUAL-2 adds `citationCheck.test.ts` on a later branch.
 
 Integration (`npm run test:integration`, local API): **12 files, 36 passed** with Storage and Edge functions up, including:
 
