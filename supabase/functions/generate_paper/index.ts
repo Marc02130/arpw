@@ -6,7 +6,7 @@ import {
   MISSING_GROK_KEY_MESSAGE,
   completeWithGrok,
 } from '../_shared/grokComplete.ts'
-import { retrieveForSection } from '../_shared/retrievePassages.ts'
+import { retrieveExamplePassages, retrieveForSection } from '../_shared/retrievePassages.ts'
 import { saveGeneratedDraft } from '../_shared/saveGeneratedDraft.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -100,6 +100,8 @@ serve(async (req: Request) => {
       researchPrompt: parsed.researchPrompt,
       retrieve: (paperType, section, researchPrompt) =>
         retrieveForSection(userClient, paperType, section, researchPrompt),
+      retrieveExamples: (paperType, section, researchPrompt) =>
+        retrieveExamplePassages(userClient, paperType, section, researchPrompt),
       complete: (prompt) => completeWithGrok(apiKey, prompt),
     })
 
@@ -111,6 +113,7 @@ serve(async (req: Request) => {
       citationStyle: parsed.citationStyle,
       outputFormat: parsed.outputFormat,
       citedFileIds: result.citedFileIds,
+      attribution: result.attribution,
     })
 
     return json({
@@ -118,6 +121,7 @@ serve(async (req: Request) => {
       content: result.content,
       sections: result.sections,
       citedFileIds: saved.citedFileIds,
+      attribution: result.attribution,
       model: GROK_MODEL,
       paperId: saved.paperId,
       status: saved.status,

@@ -76,6 +76,15 @@ export interface Paper {
   version: number
   created_at: string
   status: Status
+  attribution?: Array<{
+    sentence: string
+    section: string
+    citedSids: string[]
+    vectorIds: string[]
+    fileIds: string[]
+    quoteSpans: Array<{ sid: string; quote: string }>
+    uncited: boolean
+  }>
 }
 
 export interface PaperReference {

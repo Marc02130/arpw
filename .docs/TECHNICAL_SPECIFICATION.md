@@ -161,7 +161,7 @@ Join `reference_vectors` to `"references"`. Filter `user_id = auth.uid()`. Then:
 
 Paper type **Literature Review**: `literature` only; ignore `primary`.
 
-Example-paper vectors: style prefix only, never mixed into evidence (GEN-7).
+Example-paper vectors: `match_example_chunks` + style prefix on the section prompt. Never numbered as `[S#]`, never mixed into the citation allow-list (GEN-7).
 
 **Pipeline**
 

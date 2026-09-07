@@ -12,6 +12,7 @@ import {
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
+import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import { loadPaper, paperSectionsOrDefault, updatePaperConfig } from '../lib/papers'
@@ -43,18 +44,21 @@ const PaperGenerationPage: React.FC = () => {
   const [retrieveError, setRetrieveError] = useState<string | null>(null)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [draft, setDraft] = useState<string>('')
+  const [attribution, setAttribution] = useState<SentenceAttribution[]>([])
   const [passages, setPassages] = useState<RetrievedPassage[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
 
   const bumpLists = () => setListTick((tick) => tick + 1)
+  const uncited = uncitedSentences(attribution)
 
   useEffect(() => {
     if (!paperId) {
       setPaper(null)
       setPaperError(null)
       setDraft('')
+      setAttribution([])
       return
     }
     void (async () => {
@@ -63,6 +67,7 @@ const PaperGenerationPage: React.FC = () => {
         setPaper(loaded)
         setPaperError(null)
         setDraft(loaded.content?.trim() ? loaded.content : '')
+        setAttribution(Array.isArray(loaded.attribution) ? loaded.attribution : [])
         setConfig((prev) => ({
           ...prev,
           sections: paperSectionsOrDefault(loaded.sections),
@@ -169,10 +174,13 @@ const PaperGenerationPage: React.FC = () => {
         outputFormat: config.output_format,
       })
       setDraft(result.content)
+      setAttribution(result.attribution)
       const loaded = await loadPaper(supabase, paperId)
       setPaper(loaded)
+      if (Array.isArray(loaded.attribution)) setAttribution(loaded.attribution)
     } catch (error) {
       setDraft('')
+      setAttribution([])
       setGenerateError(error instanceof Error ? error.message : 'Paper generation failed')
     } finally {
       setIsGenerating(false)
@@ -407,8 +415,24 @@ const PaperGenerationPage: React.FC = () => {
                 <pre className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-96 overflow-y-auto">
                   {draft}
                 </pre>
+                {uncited.length > 0 && (
+                  <div className="mt-3" role="status">
+                    <p className="text-sm font-medium text-amber-800">
+                      {uncited.length} sentence
+                      {uncited.length === 1 ? '' : 's'} with no retrieved source
+                    </p>
+                    <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                      {uncited.map((row, index) => (
+                        <li key={`${row.section}-${index}`} className="bg-amber-50 border border-amber-200 rounded p-2">
+                          <span className="text-xs text-amber-700">{row.section}: </span>
+                          {row.sentence}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <p className="mt-2 text-xs text-gray-500">
-                  Citations not in the retrieved set are dropped. This draft is saved to the library.
+                  Citations not in the retrieved set are dropped. Uncited sentences are flagged; this is not a cosine “accuracy” score. This draft is saved to the library.
                 </p>
               </div>
             )}

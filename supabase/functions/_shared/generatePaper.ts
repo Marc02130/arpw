@@ -11,7 +11,8 @@ import {
   getSectionTemplate,
   isKnownPaperType,
 } from './generationTemplates.ts'
-import type { RetrievedPassage } from './retrievePassages.ts'
+import { formatStyleForPrompt, type RetrievedPassage } from './retrievePassages.ts'
+import { attributeSentences, type SentenceAttribution } from './attribution.ts'
 import { parsePaperId } from './saveGeneratedDraft.ts'
 
 export type GenerateComplete = (prompt: string) => Promise<string>
@@ -27,20 +28,29 @@ export type GeneratedSection = {
   text: string
   citedSids: string[]
   citedFileIds: string[]
+  attribution: SentenceAttribution[]
 }
 
 export const buildSectionPrompt = (
   paperType: string,
   section: string,
   researchPrompt: string,
-  sourceBlock: string
-): string =>
-  `${buildGenerationPrompt(paperType, section, researchPrompt)}
+  sourceBlock: string,
+  styleBlock = ''
+): string => {
+  const style = styleBlock.trim()
+    ? `
 
+${styleBlock.trim()}
+`
+    : ''
+  return `${buildGenerationPrompt(paperType, section, researchPrompt)}
+${style}
 Retrieved sources (cite only these ids, like [S1]):
 ${sourceBlock}
 
-If you cite a source, use the [S#] id exactly. Do not invent ids.`
+If you cite a source, use the [S#] id exactly. Do not invent ids. Do not cite style examples.`
+}
 
 const CITATION_STYLES = new Set(['APA', 'MLA', 'Chicago'])
 const OUTPUT_FORMATS = new Set(['word', 'markdown'])
@@ -104,7 +114,13 @@ export const generatePaperDraft = async (opts: {
   researchPrompt: string
   retrieve: GenerateRetrieve
   complete: GenerateComplete
-}): Promise<{ sections: GeneratedSection[]; content: string; citedFileIds: string[] }> => {
+  retrieveExamples?: GenerateRetrieve
+}): Promise<{
+  sections: GeneratedSection[]
+  content: string
+  citedFileIds: string[]
+  attribution: SentenceAttribution[]
+}> => {
   const topic = opts.researchPrompt.trim()
   if (!topic) {
     throw new Error('Enter a research prompt')
@@ -112,6 +128,7 @@ export const generatePaperDraft = async (opts: {
 
   const generated: GeneratedSection[] = []
   const allFileIds = new Set<string>()
+  const attribution: SentenceAttribution[] = []
 
   for (const section of opts.sections) {
     const template = getSectionTemplate(opts.paperType, section)
@@ -119,15 +136,35 @@ export const generatePaperDraft = async (opts: {
       template.preferredSourceRole === 'none' ? [] : await opts.retrieve(opts.paperType, section, topic)
     const sources = numberSources(passages)
     const allowed = new Set(sources.map((source) => source.sid))
-    const prompt = buildSectionPrompt(opts.paperType, section, topic, formatSourcesForPrompt(sources))
+    const examplePassages =
+      template.preferredSourceRole === 'none' || !opts.retrieveExamples
+        ? []
+        : await opts.retrieveExamples(opts.paperType, section, topic)
+    const styleBlock = formatStyleForPrompt(examplePassages)
+    const prompt = buildSectionPrompt(
+      opts.paperType,
+      section,
+      topic,
+      formatSourcesForPrompt(sources),
+      styleBlock
+    )
     const raw = await opts.complete(prompt)
     const text = stripUnknownCitations(raw, allowed)
     const sids = citedSids(text, allowed)
     const fileIds = fileIdsForSids(sids, sources)
     fileIds.forEach((id) => allFileIds.add(id))
-    generated.push({ name: section, text, citedSids: sids, citedFileIds: fileIds })
+    const sectionAttribution =
+      template.preferredSourceRole === 'none' ? [] : attributeSentences(text, section, sources)
+    attribution.push(...sectionAttribution)
+    generated.push({
+      name: section,
+      text,
+      citedSids: sids,
+      citedFileIds: fileIds,
+      attribution: sectionAttribution,
+    })
   }
 
   const content = generated.map((section) => `## ${section.name}\n\n${section.text}`).join('\n\n')
-  return { sections: generated, content, citedFileIds: [...allFileIds] }
+  return { sections: generated, content, citedFileIds: [...allFileIds], attribution }
 }

@@ -24,7 +24,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Outline mode | MISSING | No control |
-| Quality checks | MISSING | Spec’d checks would not measure grounding anyway |
+| Quality checks | PARTIAL | QUAL-1 flags uncited sentences. Citation/format checks and preview polish still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
 | Export | MISSING | Button does nothing |
 | Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS/retrieval/generate-missing-key integration. Fixture PDF parse/chunk/embed covered. Live Storage/ingest/Grok E2E skip if those services are down |
@@ -69,7 +69,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; hash-384. MiniLM still TARGET |
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
-| GEN-7 | MISSING | Examples stored, never used for style-only prompting |
+| GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
 | GEN-8 | MISSING | No outline button |
 | GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
 | GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
@@ -80,7 +80,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`.
 
 | ID | Status | Evidence |
 |---|---|---|
-| QUAL-1 | MISSING | No attribution model |
+| QUAL-1 | DONE | `attributeSentences`: [S#] or quote span → chunk id; else uncited. Stored on `user_papers.attribution`. Not cosine. |
 | QUAL-2 | MISSING | No `run_checks` |
 | QUAL-3 | MISSING | |
 | QUAL-4 | MISSING | Preview placeholder only |

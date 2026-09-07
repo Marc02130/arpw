@@ -110,6 +110,7 @@ export interface Database {
           version: number
           created_at: string
           status: 'draft' | 'completed'
+          attribution: unknown
         }
         Insert: {
           paper_id: string
@@ -123,6 +124,7 @@ export interface Database {
           version?: number
           created_at?: string
           status?: 'draft' | 'completed'
+          attribution?: unknown
         }
         Update: {
           paper_id?: string
@@ -136,6 +138,7 @@ export interface Database {
           version?: number
           created_at?: string
           status?: 'draft' | 'completed'
+          attribution?: unknown
         }
       }
       paper_references: {

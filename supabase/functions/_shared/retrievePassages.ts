@@ -74,6 +74,42 @@ export const retrieveForSection = async (
   return []
 }
 
+export const DEFAULT_EXAMPLE_MATCH_COUNT = 4
+
+export const retrieveExamplePassages = async (
+  client: SupabaseClient,
+  paperType: string,
+  section: string,
+  researchPrompt: string,
+  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT
+): Promise<RetrievedPassage[]> => {
+  const template = getSectionTemplate(paperType, section)
+  if (template.preferredSourceRole === 'none') return []
+  const embedding = hashEmbedding(buildRetrievalQuery(paperType, section, researchPrompt))
+  const { data, error } = await client.rpc('match_example_chunks', {
+    query_embedding: embedding,
+    match_count: matchCount,
+  })
+  if (error) {
+    throw new Error(error.message)
+  }
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    vector_id: String(row.vector_id),
+    file_id: String(row.file_id),
+    chunk_text: String(row.chunk_text ?? ''),
+    section: row.section == null ? null : String(row.section),
+    source_role: 'example',
+    score: typeof row.score === 'number' ? row.score : Number(row.score),
+    paperSection: section,
+  }))
+}
+
+export const formatStyleForPrompt = (passages: RetrievedPassage[]): string => {
+  if (passages.length === 0) return ''
+  const body = passages.map((passage) => passage.chunk_text).join('\n\n')
+  return `Voice and structure examples (style only — do not cite these as evidence, and do not invent [S#] ids for them):\n${body}`
+}
+
 export const retrieveForPaper = async (
   client: SupabaseClient,
   paperType: string,

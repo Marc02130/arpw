@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SentenceAttribution } from './attribution'
 import type { GeneratedSection } from './generatePaper'
 
 export type GeneratePaperInput = {
@@ -18,6 +19,7 @@ export type GeneratePaperResult = {
   paperId: string
   status: string
   saved: boolean
+  attribution: SentenceAttribution[]
 }
 
 const messageFromBody = (body: unknown): string | null => {
@@ -77,5 +79,6 @@ export const invokeGeneratePaper = async (
     paperId: typeof data.paperId === 'string' ? data.paperId : input.paperId,
     status: typeof data.status === 'string' ? data.status : 'completed',
     saved: data.saved === true,
+    attribution: Array.isArray(data.attribution) ? data.attribution : [],
   }
 }

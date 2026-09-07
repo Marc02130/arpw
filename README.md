@@ -239,7 +239,7 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required). Toggle sections. Pick paper type, citation style, output format.
 3. Click **Show passages**. Matching chunks list per section (literature vs original research).
-4. Click **Generate Paper**. The Edge function retrieves again (it does not trust ids from the page), calls Grok, strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`.
+4. Click **Generate Paper**. The Edge function retrieves literature and original-research chunks as evidence, example-paper chunks as style only, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 6. Open `/library`. The paper is listed as completed. View shows the markdown. Sources is the number of cited files.
 
@@ -507,6 +507,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
 | `retrievePassages.test.ts` | Primary-then-literature attempts; References retrieves nothing |
 | `papers.test.ts` | Draft title, default sections, paper id parse, source count |
+| `attribution.test.ts` | Sentence → chunk via `[S#]` or quote span; uncited flag (QUAL-1) |
 | `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
 | `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |

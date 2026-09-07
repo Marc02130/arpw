@@ -29,6 +29,7 @@ export type SaveGeneratedDraftInput = {
   citationStyle?: string
   outputFormat?: string
   citedFileIds: string[]
+  attribution?: unknown
 }
 
 export const saveGeneratedDraft = async (
@@ -52,6 +53,7 @@ export const saveGeneratedDraft = async (
   }
   if (input.citationStyle) patch.citation_style = input.citationStyle
   if (input.outputFormat) patch.output_format = input.outputFormat
+  if (input.attribution !== undefined) patch.attribution = input.attribution
 
   const { data: updated, error: updateError } = await client
     .from('user_papers')
