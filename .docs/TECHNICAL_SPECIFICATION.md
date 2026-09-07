@@ -16,10 +16,10 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Auth / DB / Storage | Supabase (local CLI or hosted) | `@supabase/supabase-js` |
 | Vectors | Postgres `vector` extension, 384 dims | `supabase/migrations/20260906133100_init.sql` |
 | Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, chunk, `hash-384`. Live E2E needs Storage |
-| Generation | Not implemented | `DashboardPage.tsx` TODO / alert |
+| Generation | Deno Edge Function `generate_paper` | Section loop, Grok, citation allow-list. Save is slice 5 |
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
-| LLM (intended) | xAI Grok, user-supplied key | Encrypted `user_grok_keys`; SPA sees last4 |
+| LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
 | Tests | Vitest 2 | `npm test` unit; `npm run test:integration` live Auth/REST/RLS |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
@@ -35,14 +35,15 @@ Browser (Vite SPA)
   |                    paper_references
   +--> Storage buckets: references, examples, papers
   +--> Edge Function upload_processor  (service role)
+  +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
 
 TARGET:
-  +--> retrieve RPC (hybrid search)
-  +--> generate_paper (section loop, Grok)
+  +--> retrieve RPC (hybrid search / MiniLM)
+  +--> persist user_papers + paper_references
   +--> run_checks / export_paper
 ```
 
-The SPA must not hold the Grok key. TARGET: Edge Function or worker reads the key from Vault / encrypted column the client cannot select.
+The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_api_key` as service_role.
 
 ### 3. Routes (as-built)
 
@@ -130,27 +131,22 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 
 `DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(user.id, fileId)` (same helper as upload).
 
-### 7. Generation (TARGET)
+### 7. Generation (as-built vs TARGET)
 
-No `generate_paper` function. UI:
+`supabase/functions/generate_paper/index.ts`. Shared loop/templates/allow-list: `supabase/functions/_shared/` (re-exported from `src/lib`). UI: `PaperGenerationPage` Prompt tab.
 
-```ts
-// src/pages/DashboardPage.tsx
-alert('Paper generation feature will be implemented in the next phase')
-```
-
-Build order: `.docs/GENERATION_SLICES.md`.
+Build order: `.docs/GENERATION_SLICES.md`. Slice 4 shipped; slice 5 (save) is next.
 
 **Who writes which prompt**
 
 | Text | Owner | MVP |
 |---|---|---|
-| Research prompt (topic / question / constraints) | User, dashboard textarea | Yes (GEN-1) |
+| Research prompt (topic / question / constraints) | User, Prompt tab textarea | Yes (GEN-1) |
 | Paper type × section retrieval suffix + generation instructions | Server module, frozen | Yes (GEN-2, GEN-5) |
 | System prompt / per-section template editor | User | No |
 | Extra notes appended to every section | User | Deferred |
 
-The SPA must not send a system prompt to Grok. Templates live in `src/lib/generationTemplates.ts` (`getSectionTemplate`, `buildRetrievalQuery`, `buildGenerationPrompt`). The worker loads that module or a copy; there is no system-prompt argument.
+The SPA must not send a system prompt to Grok. Templates live in `supabase/functions/_shared/generationTemplates.ts` (`getSectionTemplate`, `buildRetrievalQuery`, `buildGenerationPrompt`). The worker imports that module; there is no system-prompt argument. Client `sourceIds` / `systemPrompt` fields are ignored.
 
 **`source_role` and retrieval**
 
@@ -175,9 +171,9 @@ Example-paper vectors: style prefix only, never mixed into evidence (GEN-7).
 4. Optional rerank later.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
-7. Concatenate sections; insert `user_papers`; insert `paper_references` for cited `file_id`s.
+7. Concatenate sections. TARGET (slice 5): insert `user_papers` content; insert `paper_references` for cited `file_id`s. As-built: return markdown to the SPA; do not persist content.
 
-Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, fail with a message to save one on `/profile`.
+Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 
 ### 8. Library and export (as-built vs TARGET)
 
@@ -198,9 +194,9 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 ### 10. Public surface (files)
 
-Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
+Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata, storage object RLS), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata, storage object RLS, source_role, match_reference_chunks), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 
@@ -247,7 +243,7 @@ Two Vitest suites. `npm test` is the default and must not require Docker.
 
 Integration helper `src/integration/supabaseTest.ts`: health-check `/auth/v1/health`; `signUp` then `admin.updateUserById({ email_confirm: true })` because `enable_confirmations = true`; local demo JWT fallback; `deleteUser` cleanup. Service role is for confirm/admin seed only; user JWTs exercise RLS.
 
-Not as-built: live `upload_processor` HTTP while Storage/Edge are down; retrieval hit; generation refuse-unknown-citation-id.
+Not as-built: live `upload_processor` HTTP while Storage/Edge are down; live Grok while `generate_paper` is down or no key. Unit tests cover refuse-unknown-citation-id.
 
 How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. Why the split: `../README.md#why-two-test-suites`.
 

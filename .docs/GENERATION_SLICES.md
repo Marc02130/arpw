@@ -20,8 +20,8 @@ Locked product calls (2026-09-07):
 | 1 | `source_role` on references | **DONE** | Role-filtered retrieval |
 | 2 | Frozen type × section templates | **DONE** | Generate without a user system prompt |
 | 3 | Per-section retrieval + passages | **DONE** | GEN-4; NFR-7 retrieval hit |
-| 4 | Grok section loop + citation allow-list | **NEXT** | GEN-5/6; NFR-7 refuse unknown ids |
-| 5 | Save `user_papers` + `paper_references` | NOT STARTED | GEN-9/10; library has rows |
+| 4 | Grok section loop + citation allow-list | **DONE** | GEN-5/6; NFR-7 refuse unknown ids |
+| 5 | Save `user_papers` + `paper_references` | **NEXT** | GEN-9/10; library has rows |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
 
@@ -63,13 +63,15 @@ Hash-384 is acceptable. MiniLM still TARGET.
 
 **Not in this slice:** writing `user_papers`; QUAL flags.
 
-**Shipped:** `match_reference_chunks` RPC; `src/lib/retrievePassages.ts` (primary then literature); dashboard **Show passages**. NFR-7 hit is the integration test with `nfr7probe`.
+**Shipped:** `match_reference_chunks` RPC; `src/lib/retrievePassages.ts` (primary then literature); Prompt tab **Show passages**. NFR-7 hit is the integration test with `nfr7probe`.
 
 ### Slice 4 — Grok section loop + allow-list
 
 **Done when:** generate runs selected sections in order; each call gets templates + research prompt + retrieved `source_id`s; output citations not in that set are dropped; missing Grok key is a clear error; NFR-7: a fixture generate refuses an unknown citation id.
 
-**Not in this slice:** outline mode; user-edited system prompts; QUAL-1 sentence mapping (follow-on).
+**Shipped:** Edge `generate_paper` (JWT + `read_grok_api_key`, per-section retrieve, Grok `chat/completions`, strip unknown `[S#]`). SPA `PaperGenerationPage` invokes it; does not send source ids or a system prompt. Unit tests: `citations.test.ts`, `generatePaper.test.ts`, `grokComplete.test.ts`. Live Grok E2E skips if the function is down; missing-key is covered in `generate.integration.test.ts`.
+
+**Not in this slice:** outline mode; user-edited system prompts; QUAL-1 sentence mapping (follow-on); writing `user_papers.content` / `paper_references` (slice 5).
 
 Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the key.
 
@@ -97,5 +99,5 @@ After a slice lands, set its Status to **DONE** and point at the commit or files
 - `.docs/PRODUCT_REQUIREMENTS.md` — GEN-1–10, DOCS-8
 - `.docs/TECHNICAL_SPECIFICATION.md` — §4 `source_role`, §7 generate pipeline
 - `.docs/GAP_ANALYSIS.md` — remaining GEN/NFR-7
-- `src/pages/DashboardPage.tsx` — stub generate handler
+- `src/pages/PaperGenerationPage.tsx` — Prompt tab generate handler
 - `src/lib/nfr7Fixture.ts` — probe token `nfr7probe`

@@ -12,6 +12,7 @@ import {
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
+import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import { loadPaper, paperSectionsOrDefault, updatePaperConfig } from '../lib/papers'
 import { retrieveForPaper, type RetrievedPassage } from '../lib/retrievePassages'
@@ -40,6 +41,8 @@ const PaperGenerationPage: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRetrieving, setIsRetrieving] = useState(false)
   const [retrieveError, setRetrieveError] = useState<string | null>(null)
+  const [generateError, setGenerateError] = useState<string | null>(null)
+  const [draft, setDraft] = useState<string>('')
   const [passages, setPassages] = useState<RetrievedPassage[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
@@ -141,20 +144,29 @@ const PaperGenerationPage: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!paperId) {
-      alert('Start or continue a paper from the Dashboard first')
+      setGenerateError('Start or continue a paper from the Dashboard first')
       return
     }
     if (!config.prompt.trim()) {
-      alert('Please enter a research prompt')
+      setGenerateError('Enter a research prompt')
+      return
+    }
+    if (config.sections.length === 0) {
+      setGenerateError('Select at least one section')
       return
     }
     setIsGenerating(true)
+    setGenerateError(null)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-      alert('Paper generation feature will be implemented in the next phase')
+      const result = await invokeGeneratePaper(supabase, {
+        paperType: config.paper_type,
+        sections: config.sections,
+        researchPrompt: config.prompt,
+      })
+      setDraft(result.content)
     } catch (error) {
-      console.error('Error generating paper:', error)
-      alert('Error generating paper. Please try again.')
+      setDraft('')
+      setGenerateError(error instanceof Error ? error.message : 'Paper generation failed')
     } finally {
       setIsGenerating(false)
     }
@@ -325,6 +337,16 @@ const PaperGenerationPage: React.FC = () => {
             >
               {isRetrieving ? 'Retrieving...' : 'Show passages'}
             </button>
+            {generateError && (
+              <p className="text-sm text-red-700" role="alert">
+                {generateError}{' '}
+                {/Grok API key/i.test(generateError) && (
+                  <Link to="/profile" className="font-medium text-primary-600 hover:text-primary-500">
+                    Open Profile
+                  </Link>
+                )}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => void handleGenerate()}
@@ -344,7 +366,7 @@ const PaperGenerationPage: React.FC = () => {
               {isRetrieving && <p className="text-gray-500 text-center">Retrieving passages...</p>}
               {!isRetrieving && passages.length === 0 && !retrieveError && (
                 <p className="text-gray-500 text-center">
-                  Enter a research prompt and click Show passages. Generate is still a stub.
+                  Enter a research prompt and click Show passages, then Generate Paper.
                 </p>
               )}
               {!isRetrieving &&
@@ -372,6 +394,17 @@ const PaperGenerationPage: React.FC = () => {
                   )
                 )}
             </div>
+            {draft && (
+              <div className="mt-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Draft</h2>
+                <pre className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {draft}
+                </pre>
+                <p className="mt-2 text-xs text-gray-500">
+                  Citations not in the retrieved set are dropped. Saving to the library is the next slice.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

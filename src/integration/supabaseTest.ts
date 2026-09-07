@@ -71,6 +71,18 @@ export async function ingestFunctionIsUp(): Promise<boolean> {
   }
 }
 
+export async function generateFunctionIsUp(): Promise<boolean> {
+  try {
+    const response = await fetch(`${supabaseUrl()}/functions/v1/generate_paper`, {
+      method: 'OPTIONS',
+      headers: { apikey: anonKey() },
+    })
+    return response.ok || response.status === 204
+  } catch {
+    return false
+  }
+}
+
 export async function createConfirmedUser(
   label: string
 ): Promise<{ id: string; email: string; accessToken: string; client: SupabaseClient }> {

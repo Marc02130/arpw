@@ -1,16 +1,17 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then (when generation ships) draft a literature-backed paper from that corpus. Today the running app is auth, an upload UI, a profile page, and a library shell. Paper generation, retrieval, quality checks, and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages and generate a section-by-section draft (Grok key required). Saving to the library, quality checks, and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
-| Sign up, confirm email, sign in, sign out, reset password | Generate a paper (the button waits 2s then alerts “next phase”) |
-| Open dashboard, profile, library after confirmation | Retrieve passages or cite uploaded files |
+| Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
+| Open dashboard, paper generation, profile, library after confirmation | Save a generated draft to the library (slice 5) |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
-| Edit your display name; save a Grok key the SPA cannot read back | Decrypt the Grok key in the browser |
-| Run unit tests and Auth/REST/RLS integration tests | Storage upload, ingest Edge E2E, retrieval/generation fixtures |
+| Retrieve passages and generate a draft when a Grok key is saved | Outline mode, quality checks, or Word export |
+| Edit your display name; save a Grok key the SPA cannot read back | Live Grok E2E in `npm test` (unit suite has no network) |
+| Run unit tests and Auth/REST/RLS/retrieval integration tests | Storage upload, ingest Edge E2E, or live Grok if those services are down |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
 
@@ -228,22 +229,33 @@ The row disappears. REST `GET /rest/v1/references?file_id=eq.<id>` is empty. Vec
 
 ## How to generate a paper
 
-You can retrieve passages for the research prompt. You cannot generate a draft yet.
+Section-by-section draft from your research prompt, frozen type×section templates, and retrieved chunks. Citations must use retrieved `[S#]` ids; unknown ids are dropped. The draft is shown on the Prompt tab. It is not saved to the library yet.
+
+### Prerequisites
+
+A confirmed session, a paper started from `/dashboard`, indexed files on the Upload tab, and a Grok API key on `/profile`. The browser never reads the key back.
 
 ### Steps
 
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required). Toggle sections. Pick paper type, citation style, output format.
 3. Click **Show passages**. Matching chunks list per section (literature vs original research).
-4. Click **Generate Paper**. Still a stub: after about 2 seconds you get “next phase”. Nothing is written to `user_papers`.
+4. Click **Generate Paper**. The Edge function retrieves again (it does not trust ids from the page), calls Grok, and strips unknown `[S#]` citations.
+5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 
 Files live on the **Upload** tab (`/generate/upload`).
 
 ### Verification
 
-Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
-When generate ships, the pipeline is in [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+### Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
+| Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
+| Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
 
 ## How to save a Grok API key
 
@@ -494,10 +506,14 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
 | `retrievePassages.test.ts` | Primary-then-literature attempts; References retrieves nothing |
 | `papers.test.ts` | Draft title and default sections |
+| `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
+| `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
+| `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
+| `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
-Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
+Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `ingestFunctionIsUp`, `generateFunctionIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
 
 | File | What it locks |
 |---|---|
@@ -509,8 +525,9 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `c
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
 | `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary |
 | `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title |
+| `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
 
-**Not in either suite:** generation refuses unknown citation ids (rest of NFR-7).
+**Not in either suite:** live Grok completion (needs a real xAI key and `generate_paper` up).
 
 How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
 

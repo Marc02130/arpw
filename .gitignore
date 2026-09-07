@@ -32,6 +32,7 @@ dist-ssr
 
 # Supabase
 .supabase
+supabase/functions/**/deno.lock
 
 # Local/PII fixtures — never commit
 .docs/*.pdf

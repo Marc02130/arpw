@@ -4,6 +4,12 @@ This directory contains the Edge Functions for the ARPW application.
 
 ## Functions
 
+### generate_paper
+
+Section-by-section draft. Auth JWT required. Reads the Grok key with service_role `read_grok_api_key` (the SPA never sees it). Retrieves chunks itself — client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`.
+
+POST body: `{ paperType, sections, researchPrompt }`.
+
 ### upload_processor
 
 Processes uploaded documents by:

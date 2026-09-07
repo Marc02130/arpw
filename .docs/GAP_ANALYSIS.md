@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, and ingest them into 384-d hash vectors. You cannot retrieve, generate, check, or export a paper. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, and generate a section-by-section draft (if a Grok key is saved). You cannot save that draft to the library, check, or export a paper. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -21,13 +21,13 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
-| Retrieval | MISSING | No match RPC, no UI of passages |
-| Paper generation | MISSING | Alert: “next phase” |
+| Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
+| Paper generation | PARTIAL | Section loop + Grok + allow-list. Draft shown in UI; not saved to `user_papers` |
 | Outline mode | MISSING | No control |
 | Quality checks | MISSING | Spec’d checks would not measure grounding anyway |
 | Library | PARTIAL | Lists papers if any exist; regenerate/export no-ops; count is 0 |
 | Export | MISSING | Button does nothing |
-| Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS integration. Fixture PDF parse/chunk/embed covered. Live Storage/ingest E2E skip if those services are down. No retrieval/generation fixtures |
+| Tests | PARTIAL | Unit (`npm test`) plus Auth/REST/RLS/retrieval/generate-missing-key integration. Fixture PDF parse/chunk/embed covered. Live Storage/ingest/Grok E2E skip if those services are down |
 | Docs vs product | DONE | README states generation/retrieval/export are unbuilt; `.docs/` holds PRD/spec/gap |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -63,23 +63,18 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 
 | ID | Status | Evidence |
 |---|---|---|
-| GEN-1 | DONE (UI only) | Checkboxes in `DashboardPage.tsx` |
-| GEN-2 | PARTIAL | `PaperType` select; frozen templates in `generationTemplates.ts`; generate still stub |
+| GEN-1 | DONE (UI only) | Checkboxes in `PaperGenerationPage.tsx` |
+| GEN-2 | DONE | `PaperType` select; frozen templates in `generationTemplates.ts`; worker uses the same module |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
-| GEN-4 | DONE | `match_reference_chunks` + dashboard Show passages; hash-384. MiniLM still TARGET |
-| GEN-5 | MISSING | Single fake 2s timeout |
-| GEN-6 | MISSING | No generation |
+| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; hash-384. MiniLM still TARGET |
+| GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
+| GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | MISSING | Examples stored, never used for style-only prompting |
 | GEN-8 | MISSING | No outline button |
 | GEN-9 | PARTIAL | Dashboard creates draft `user_papers` rows; generate still does not write content |
 | GEN-10 | MISSING | `paper_references` unused by app code |
 
-```56:68:src/pages/DashboardPage.tsx
-  const handleGenerate = async () => {
-      // TODO: Implement paper generation logic
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      alert('Paper generation feature will be implemented in the next phase')
-```
+Draft markdown is shown on the Prompt tab. Slice 5 writes `user_papers.content` and `paper_references`.
 
 #### Quality
 
@@ -111,7 +106,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | NFR-4 | UNKNOWN | Live ingest E2E unmeasured while Storage is down |
 | NFR-5 | MISSING | |
 | NFR-6 | PARTIAL | Login has labels/aria; upload zone is keyboard-activatable |
-| NFR-7 | PARTIAL | Fixture PDF unit + retrieval hit on `nfr7probe` (`retrieval.integration.test.ts`). Live ingest E2E skips if Storage/Edge down. Generation refuse-unknown-citation still MISSING |
+| NFR-7 | PARTIAL | Fixture PDF unit + retrieval hit on `nfr7probe`. Unit generate strips unknown `[S#]`. Live ingest E2E and live Grok skip if those services are down |
 
 ### 4. Code vs old documentation
 
@@ -139,7 +134,7 @@ These are not “missing files.” They are product defects if you implement the
 
 - `src/pages/LoginPage.tsx` vs `src/components/Login.tsx` (router uses the latter)
 - `src/pages/ProfilePage.tsx` vs `src/components/Profile.tsx`
-- `src/edge-functions/` empty; real function is `supabase/functions/upload_processor`
+- `src/edge-functions/` empty; real functions are `supabase/functions/upload_processor` and `generate_paper`
 
 ### 7. Recommended build order
 
@@ -162,12 +157,13 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- `npm test` (63 unit tests, no Docker)
-- `npm run test:integration` (live Storage/ingest cases skip if those services are down)
+- `npm test` (unit, no Docker)
+- `npm run test:integration` (live Storage/ingest/generate-Grok cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
-- Library empty state
+- Generate if `generate_paper` is up and a Grok key is saved
+- Library empty state until slice 5 saves drafts
 
-Does not work: generate, outline, export, retrieval. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
+Does not work: outline, export, saving generated content. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 
