@@ -50,13 +50,13 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 
 | ID | Status | Evidence |
 |---|---|---|
-| DOCS-1 | PARTIAL | UI + Storage upload. Cap 500 is per picker batch (`UploadZone.tsx`). `.doc` accepted then rejected in Edge |
+| DOCS-1 | DONE | PDF/DOCX/TXT, 10 MB, metadata row on Storage upload, cap 500 vs existing rows + insert trigger |
 | DOCS-2 | PARTIAL | Separate example zone, cap 10 per batch |
 | DOCS-3 | DONE | Drag/drop, picker, progress list |
 | DOCS-4 | PARTIAL | List/delete. Delete storage key matches upload. No “processed vs failed” state |
 | DOCS-5 | BROKEN | `upload_processor/index.ts`: `downloadFile` splits `storagePath` so bucket = filename; `pdf-parse`/`Buffer` on Deno; `docx` is a writer; MiniLM in Edge |
 | DOCS-6 | PARTIAL | Client size/type checks; server re-validates size/extension |
-| DOCS-7 | MISSING | No count query before upload |
+| DOCS-7 | PARTIAL | Client counts existing rows for both zones. Server trigger only on `"references"` (500). Examples still lack a DB cap |
 
 #### Generation
 

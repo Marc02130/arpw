@@ -36,7 +36,7 @@ const DashboardPage: React.FC = () => {
   }
 
   const handleUploadComplete = () => {
-    setUploadSuccess('Files uploaded and processed successfully!')
+    setUploadSuccess('Files uploaded. Indexing may still fail until ingest is fixed.')
     setUploadError(null)
     // Clear success message after 5 seconds
     setTimeout(() => setUploadSuccess(null), 5000)
@@ -210,7 +210,7 @@ const DashboardPage: React.FC = () => {
           <div className="card">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Reference Documents</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Upload up to 500 reference documents (PDF, DOC, DOCX, TXT) for citations and research context.
+              Upload up to 500 reference documents (PDF, DOCX, TXT) for citations and research context. The cap counts files you already stored, not only this batch.
             </p>
             
             <UploadZone

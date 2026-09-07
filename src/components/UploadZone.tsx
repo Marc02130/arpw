@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { UploadProgress, DocumentType } from '../types'
 
@@ -18,25 +18,43 @@ const UploadZone: React.FC<UploadZoneProps> = ({
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [existingCount, setExistingCount] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
 
-  const acceptedExtensions = ['.pdf', '.docx', '.doc', '.txt']
+  const acceptedExtensions = ['.pdf', '.docx', '.txt']
   const maxFileSize = 10 * 1024 * 1024 // 10MB
+  const tableName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
+  const bucketName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
 
   const validateFile = (file: File): string | null => {
-    // Check file size
+    if (file.size <= 0) {
+      return `File "${file.name}" is empty.`
+    }
     if (file.size > maxFileSize) {
       return `File "${file.name}" is too large. Maximum size is 10MB.`
     }
 
-    // Check file type
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
     if (!acceptedExtensions.includes(fileExtension)) {
-      return `File "${file.name}" has an unsupported format. Supported formats: PDF, DOC, DOCX, TXT.`
+      return `File "${file.name}" has an unsupported format. Supported formats: PDF, DOCX, TXT.`
     }
 
     return null
+  }
+
+  const countExisting = async (userId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from(tableName)
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+
+    if (error) {
+      throw new Error(`Could not count existing files: ${error.message}`)
+    }
+    const total = count ?? 0
+    setExistingCount(total)
+    return total
   }
 
   const uploadFile = async (file: File): Promise<void> => {
@@ -55,8 +73,13 @@ const UploadZone: React.FC<UploadZoneProps> = ({
 
     try {
       // Upload to Supabase Storage
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(documentType === DocumentType.REFERENCE ? 'references' : 'examples')
+        .from(bucketName)
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false,
@@ -66,24 +89,27 @@ const UploadZone: React.FC<UploadZoneProps> = ({
         throw new Error(`Upload failed: ${uploadError.message}`)
       }
 
-      // Update progress to processing
-      setUploadProgress(prev => 
-        prev.map(p => 
-          p.fileId === fileId 
-            ? { ...p, progress: 50, status: 'processing' }
-            : p
+      const { error: insertError } = await supabase.from(tableName).insert({
+        file_id: fileId,
+        user_id: user.id,
+        document_type: documentType,
+        file_name: file.name,
+        file_size: file.size,
+      })
+
+      if (insertError) {
+        await supabase.storage.from(bucketName).remove([fileName])
+        throw new Error(`Upload failed: ${insertError.message}`)
+      }
+
+      setUploadProgress((prev) =>
+        prev.map((p) =>
+          p.fileId === fileId ? { ...p, progress: 80, status: 'processing' } : p
         )
       )
 
-      // Call Edge Function to process the file
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        throw new Error('User not authenticated')
-      }
-
-      const { data: processData, error: processError } = await supabase.functions.invoke(
-        'upload_processor',
-        {
+      try {
+        await supabase.functions.invoke('upload_processor', {
           body: {
             fileId,
             fileName: file.name,
@@ -92,23 +118,14 @@ const UploadZone: React.FC<UploadZoneProps> = ({
             storagePath: uploadData.path,
             userId: user.id,
           },
-        }
-      )
-
-      if (processError) {
-        throw new Error(`Processing failed: ${processError.message}`)
+        })
+      } catch (processError) {
+        console.warn('Indexing skipped or failed:', processError)
       }
 
-      if (!processData.success) {
-        throw new Error(processData.error || 'Processing failed')
-      }
-
-      // Update progress to completed
-      setUploadProgress(prev => 
-        prev.map(p => 
-          p.fileId === fileId 
-            ? { ...p, progress: 100, status: 'completed' }
-            : p
+      setUploadProgress((prev) =>
+        prev.map((p) =>
+          p.fileId === fileId ? { ...p, progress: 100, status: 'completed' } : p
         )
       )
 
@@ -130,14 +147,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
 
   const handleFiles = useCallback(async (files: FileList) => {
     const fileArray = Array.from(files)
-    
-    // Validate file count
-    if (fileArray.length > maxFiles) {
-      onUploadError(`Too many files. Maximum ${maxFiles} files allowed.`)
-      return
-    }
 
-    // Validate each file
     for (const file of fileArray) {
       const validationError = validateFile(file)
       if (validationError) {
@@ -146,15 +156,40 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       }
     }
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      onUploadError('User not authenticated')
+      return
+    }
+
+    let existing: number
+    try {
+      existing = await countExisting(user.id)
+    } catch (error) {
+      onUploadError(error instanceof Error ? error.message : 'Could not count existing files')
+      return
+    }
+
+    const remaining = maxFiles - existing
+    if (remaining <= 0) {
+      onUploadError(`File cap reached (${maxFiles}). Delete a file before uploading more.`)
+      return
+    }
+    if (fileArray.length > remaining) {
+      onUploadError(
+        `Too many files. You have ${existing} of ${maxFiles} and can add ${remaining} more.`
+      )
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress([])
 
     try {
-      // Upload files in batches of 10
       const batchSize = 10
       for (let i = 0; i < fileArray.length; i += batchSize) {
         const batch = fileArray.slice(i, i + batchSize)
-        await Promise.all(batch.map(file => uploadFile(file)))
+        await Promise.all(batch.map((file) => uploadFile(file)))
       }
 
       onUploadComplete()
@@ -163,7 +198,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     } finally {
       setIsUploading(false)
     }
-  }, [maxFiles, onUploadComplete, onUploadError])
+  }, [maxFiles, onUploadComplete, onUploadError, documentType])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -201,6 +236,18 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       fileInputRef.current.click()
     }
   }, [isUploading])
+
+  useEffect(() => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      try {
+        await countExisting(user.id)
+      } catch {
+        setExistingCount(null)
+      }
+    })()
+  }, [documentType])
 
   const clearProgress = useCallback(() => {
     setUploadProgress([])
@@ -311,10 +358,11 @@ const UploadZone: React.FC<UploadZoneProps> = ({
           </div>
           
           <p className="text-xs text-gray-500">
-            {documentType === DocumentType.REFERENCE 
-              ? `Up to ${maxFiles} reference documents` 
-              : `Up to ${maxFiles} example papers`
-            } (PDF, DOC, DOCX, TXT)
+            {documentType === DocumentType.REFERENCE
+              ? `Up to ${maxFiles} reference documents`
+              : `Up to ${maxFiles} example papers`}{' '}
+            (PDF, DOCX, TXT)
+            {existingCount !== null ? ` · ${existingCount} stored` : ''}
           </p>
           
           <p className="text-xs text-gray-400">

@@ -44,7 +44,7 @@ const validateFile = (fileName: string, fileSize: number): string | null => {
 
   // Check file extension
   const extension = fileName.split('.').pop()?.toLowerCase()
-  const allowedExtensions = ['pdf', 'doc', 'docx', 'txt']
+  const allowedExtensions = ['pdf', 'docx', 'txt']
   
   if (!extension || !allowedExtensions.includes(extension)) {
     return `Unsupported file type: ${extension}. Allowed: ${allowedExtensions.join(', ')}`
@@ -145,6 +145,12 @@ const storeDocumentMetadata = async (request: UploadRequest): Promise<void> => {
       file_size: request.fileSize,
       uploaded_at: new Date().toISOString(),
     })
+    .select('file_id')
+    .maybeSingle()
+
+  if (error && error.code === '23505') {
+    return
+  }
 
   if (error) {
     throw new Error(`Failed to store document metadata: ${error.message}`)

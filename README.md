@@ -131,21 +131,21 @@ Confirmed session on `/dashboard`.
 
 ### Steps
 
-1. On the dashboard, use **Reference Documents** (cap 500 in the picker batch) or **Example Papers** (cap 10 in the picker batch).
-2. Drag a file or click the drop zone. Allowed extensions: `.pdf`, `.docx`, `.doc`, `.txt`. Max 10 MB each (`UploadZone.tsx`).
-3. The client uploads to bucket `references` or `examples` as `{uuid}_{originalName}`, then invokes Edge Function `upload_processor`.
+1. On the dashboard, use **Reference Documents** (500 per user) or **Example Papers** (10 per user).
+2. Drag a file or click the drop zone. Allowed extensions: `.pdf`, `.docx`, `.txt`. Max 10 MB each. `.doc` is rejected in the picker.
+3. The client writes `{uuid}_{originalName}` to Storage, inserts a metadata row, then invokes `upload_processor` (ingest may still fail).
 
 ### Verification
 
-The file appears in the list under the zone if Storage accepted it. A green “uploaded and processed” banner means the UI thinks ingest succeeded. Today ingest is still broken (wrong storage path parse, PDF/DOCX handling on Edge), so treat “processed” as untrusted until [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md) marks DOCS-5 done.
+The file appears in the list under the zone. The drop zone shows how many are already stored. A 501st reference is blocked. Indexing is still DOCS-5.
 
 ### Troubleshooting
 
 | What you see | What to do |
 |---|---|
-| File too large / unsupported format | Client check failed. Stay under 10 MB; use PDF, DOC, DOCX, or TXT. `.doc` is accepted in the UI and rejected later in the function. |
-| Processing failed | Expected with the current `upload_processor`. The object may still sit in Storage. |
-| Caps feel wrong | Caps are per FileList, not against existing rows (DOCS-7 missing). |
+| File too large / unsupported format | Stay under 10 MB. Use PDF, DOCX, or TXT. |
+| File cap reached | Delete a stored file, then upload again. The cap includes files already in the table. |
+| Indexing failed / banner about ingest | The file is still stored. Vector ingest is a separate gap. |
 
 ## How to generate a paper
 
