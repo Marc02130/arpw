@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { validateLoginFields } from '../lib/validateAuth'
 
 interface LoginFormData {
   email: string
@@ -37,35 +38,7 @@ const Login: React.FC = () => {
   }, [loading, error])
 
   const validateForm = (): boolean => {
-    const errors: Partial<LoginFormData> = {}
-
-    // Email validation
-    if (!formData.email.trim()) {
-      errors.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Please enter a valid email address'
-    }
-
-    // Password validation
-    if (!formData.password) {
-      errors.password = 'Password is required'
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters'
-    }
-
-    // Sign up specific validations
-    if (isSignUp) {
-      if (!formData.fullName.trim()) {
-        errors.fullName = 'Full name is required'
-      }
-
-      if (!formData.confirmPassword) {
-        errors.confirmPassword = 'Please confirm your password'
-      } else if (formData.password !== formData.confirmPassword) {
-        errors.confirmPassword = 'Passwords do not match'
-      }
-    }
-
+    const errors = validateLoginFields(formData, isSignUp)
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { validateConfirmPassword, validatePassword } from '../lib/validateAuth'
 import AuthAlert from './AuthAlert'
 import AuthShell from './AuthShell'
 
@@ -16,16 +17,10 @@ const ResetPassword: React.FC = () => {
 
   const validate = () => {
     const next: { password?: string; confirmPassword?: string } = {}
-    if (!password) {
-      next.password = 'Password is required'
-    } else if (password.length < 6) {
-      next.password = 'Password must be at least 6 characters'
-    }
-    if (!confirmPassword) {
-      next.confirmPassword = 'Please confirm your password'
-    } else if (password !== confirmPassword) {
-      next.confirmPassword = 'Passwords do not match'
-    }
+    const passwordError = validatePassword(password)
+    if (passwordError) next.password = passwordError
+    const confirmError = validateConfirmPassword(password, confirmPassword)
+    if (confirmError) next.confirmPassword = confirmError
     setFieldErrors(next)
     return Object.keys(next).length === 0
   }

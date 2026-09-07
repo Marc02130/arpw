@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { validateEmail } from '../lib/validateAuth'
 import AuthAlert from './AuthAlert'
 import AuthShell from './AuthShell'
 
@@ -15,12 +16,9 @@ const ForgotPassword: React.FC = () => {
     e.preventDefault()
     clearError()
 
-    if (!email.trim()) {
-      setEmailError('Email is required')
-      return
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError('Please enter a valid email address')
+    const emailErrorMessage = validateEmail(email)
+    if (emailErrorMessage) {
+      setEmailError(emailErrorMessage)
       return
     }
 

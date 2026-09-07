@@ -223,7 +223,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 | `VITE_SUPABASE_URL` | API URL from `supabase status` |
 | `VITE_SUPABASE_ANON_KEY` | anon key from `supabase status` |
 
-Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`. There is no `npm test`.
+Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (Vitest: upload/auth validators in `src/lib/`).
 
 ### Routes (`src/App.tsx`)
 

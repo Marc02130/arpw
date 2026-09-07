@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { validateFullName, validateGrokApiKeyInput } from '../lib/validateAuth'
 
 interface ProfileFormData {
   full_name: string
@@ -50,18 +51,10 @@ const Profile: React.FC = () => {
 
   const validateForm = (): boolean => {
     const errors: Partial<ProfileFormData> = {}
-
-    // Full name validation
-    if (!formData.full_name.trim()) {
-      errors.full_name = 'Full name is required'
-    } else if (formData.full_name.trim().length < 2) {
-      errors.full_name = 'Full name must be at least 2 characters'
-    }
-
-    // API key validation (optional but if provided, should be reasonable length)
-    if (formData.grok_api_key.trim() && formData.grok_api_key.trim().length < 10) {
-      errors.grok_api_key = 'API key appears to be too short'
-    }
+    const nameError = validateFullName(formData.full_name)
+    if (nameError) errors.full_name = nameError
+    const keyError = validateGrokApiKeyInput(formData.grok_api_key)
+    if (keyError) errors.grok_api_key = keyError
 
     setValidationErrors(errors)
     return Object.keys(errors).length === 0

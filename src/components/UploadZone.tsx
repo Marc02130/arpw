@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { UploadProgress, DocumentType } from '../types'
+import { ACCEPTED_UPLOAD_EXTENSIONS, validateUploadFile } from '../lib/validateFile'
+import { uploadCapError } from '../lib/fileCap'
 
 interface UploadZoneProps {
   documentType: DocumentType
@@ -22,26 +24,8 @@ const UploadZone: React.FC<UploadZoneProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
 
-  const acceptedExtensions = ['.pdf', '.docx', '.txt']
-  const maxFileSize = 10 * 1024 * 1024 // 10MB
   const tableName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
   const bucketName = documentType === DocumentType.REFERENCE ? 'references' : 'examples'
-
-  const validateFile = (file: File): string | null => {
-    if (file.size <= 0) {
-      return `File "${file.name}" is empty.`
-    }
-    if (file.size > maxFileSize) {
-      return `File "${file.name}" is too large. Maximum size is 10MB.`
-    }
-
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
-    if (!acceptedExtensions.includes(fileExtension)) {
-      return `File "${file.name}" has an unsupported format. Supported formats: PDF, DOCX, TXT.`
-    }
-
-    return null
-  }
 
   const countExisting = async (userId: string): Promise<number> => {
     const { count, error } = await supabase
@@ -149,7 +133,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     const fileArray = Array.from(files)
 
     for (const file of fileArray) {
-      const validationError = validateFile(file)
+      const validationError = validateUploadFile(file)
       if (validationError) {
         onUploadError(validationError)
         return
@@ -170,15 +154,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       return
     }
 
-    const remaining = maxFiles - existing
-    if (remaining <= 0) {
-      onUploadError(`File cap reached (${maxFiles}). Delete a file before uploading more.`)
-      return
-    }
-    if (fileArray.length > remaining) {
-      onUploadError(
-        `Too many files. You have ${existing} of ${maxFiles} and can add ${remaining} more.`
-      )
+    const capError = uploadCapError(maxFiles, existing, fileArray.length)
+    if (capError) {
+      onUploadError(capError)
       return
     }
 
@@ -328,7 +306,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={acceptedExtensions.join(',')}
+          accept={ACCEPTED_UPLOAD_EXTENSIONS.join(',')}
           onChange={handleFileInput}
           className="hidden"
           aria-hidden="true"

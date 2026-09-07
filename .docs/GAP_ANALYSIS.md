@@ -110,7 +110,7 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 | NFR-4 | UNKNOWN | Ingest not working, so unmeasured |
 | NFR-5 | MISSING | |
 | NFR-6 | PARTIAL | Login has labels/aria; upload zone is keyboard-activatable |
-| NFR-7 | MISSING | No `npm test` |
+| NFR-7 | PARTIAL | Vitest covers upload/auth validators (`src/lib/*.test.ts`). No ingest/retrieval/generate fixture tests |
 
 ### 4. Code vs old documentation
 
