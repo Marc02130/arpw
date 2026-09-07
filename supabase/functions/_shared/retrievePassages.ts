@@ -16,7 +16,79 @@ export type RetrievedPassage = {
   source_role: string
   score: number
   paperSection: string
+  pinned?: boolean
 }
+
+export type EvidencePin = RetrievedPassage & { target_section: string | null }
+
+export type RetrieveOptions = {
+  matchCount?: number
+  paperId?: string
+  pins?: EvidencePin[]
+}
+
+export const PINNED_SCORE = 1
+
+export const isEvidenceRole = (role: string): boolean =>
+  role === 'literature' || role === 'primary'
+
+export const filterPinsForSection = (
+  pins: EvidencePin[],
+  section: string,
+  paperType: string
+): RetrievedPassage[] => {
+  if (section === 'References') return []
+  const literatureReview = paperType === 'Literature Review'
+  return pins
+    .filter((pin) => {
+      if (!isEvidenceRole(pin.source_role)) return false
+      if (literatureReview && pin.source_role === 'primary') return false
+      return pin.target_section == null || pin.target_section === section
+    })
+    .map((pin) => ({
+      vector_id: pin.vector_id,
+      file_id: pin.file_id,
+      chunk_text: pin.chunk_text,
+      section: pin.section,
+      source_role: pin.source_role,
+      score: PINNED_SCORE,
+      paperSection: section,
+      pinned: true,
+    }))
+}
+
+export const mergePinnedFirst = (
+  pinned: RetrievedPassage[],
+  retrieved: RetrievedPassage[]
+): RetrievedPassage[] => {
+  const seen = new Set<string>()
+  const out: RetrievedPassage[] = []
+  for (const row of [...pinned, ...retrieved]) {
+    if (!row.vector_id || seen.has(row.vector_id)) continue
+    if (row.source_role === 'example') continue
+    seen.add(row.vector_id)
+    out.push(row)
+  }
+  return out
+}
+
+const uniqueByVector = (rows: RetrievedPassage[]): RetrievedPassage[] => {
+  const seen = new Set<string>()
+  const out: RetrievedPassage[] = []
+  for (const row of rows) {
+    if (seen.has(row.vector_id)) continue
+    seen.add(row.vector_id)
+    out.push(row)
+  }
+  return out
+}
+
+const normalizeRetrieveOptions = (opts?: number | RetrieveOptions): RetrieveOptions =>
+  typeof opts === 'number' ? { matchCount: opts } : (opts ?? {})
+
+/** Abstract/Intro: literature plus primary when this is not a literature-review paper. */
+export const unionPrimaryForSection = (paperType: string, section: string): boolean =>
+  paperType !== 'Literature Review' && (section === 'Abstract' || section === 'Introduction')
 
 export const retrievalAttempts = (
   preferred: RetrievalRole
@@ -52,26 +124,88 @@ const matchChunks = async (
   }))
 }
 
+export const loadEvidencePins = async (
+  client: SupabaseClient,
+  paperId: string
+): Promise<EvidencePin[]> => {
+  const { data, error } = await client
+    .from('pinned_passages')
+    .select('file_id, vector_id, target_section')
+    .eq('paper_id', paperId)
+  if (error) throw new Error(error.message)
+  const pins = data ?? []
+  if (pins.length === 0) return []
+
+  const vectorIds = [...new Set(pins.map((pin) => String(pin.vector_id)))]
+  const fileIds = [...new Set(pins.map((pin) => String(pin.file_id)))]
+  const [chunks, files] = await Promise.all([
+    client.from('reference_vectors').select('vector_id, file_id, chunk_text, section').in('vector_id', vectorIds),
+    client.from('references').select('file_id, source_role').in('file_id', fileIds),
+  ])
+  if (chunks.error) throw new Error(chunks.error.message)
+  if (files.error) throw new Error(files.error.message)
+  const chunkById = new Map(
+    (chunks.data ?? []).map((row) => [String(row.vector_id), row])
+  )
+  const fileById = new Map(
+    (files.data ?? []).map((row) => [String(row.file_id), row])
+  )
+
+  const out: EvidencePin[] = []
+  for (const pin of pins) {
+    const chunk = chunkById.get(String(pin.vector_id))
+    const file = fileById.get(String(pin.file_id))
+    const sourceRole = String(file?.source_role ?? '')
+    if (!chunk || !isEvidenceRole(sourceRole)) continue
+    out.push({
+      vector_id: String(pin.vector_id),
+      file_id: String(pin.file_id),
+      chunk_text: String(chunk.chunk_text ?? ''),
+      section: chunk.section == null ? null : String(chunk.section),
+      source_role: sourceRole,
+      score: PINNED_SCORE,
+      paperSection: '',
+      pinned: true,
+      target_section: pin.target_section == null ? null : String(pin.target_section),
+    })
+  }
+  return out
+}
+
 export const retrieveForSection = async (
   client: SupabaseClient,
   paperType: string,
   section: string,
   researchPrompt: string,
-  matchCount = DEFAULT_MATCH_COUNT
+  matchCountOrOpts: number | RetrieveOptions = DEFAULT_MATCH_COUNT
 ): Promise<RetrievedPassage[]> => {
+  const opts = normalizeRetrieveOptions(matchCountOrOpts)
+  const matchCount = opts.matchCount ?? DEFAULT_MATCH_COUNT
+  const pins = opts.pins ?? (opts.paperId ? await loadEvidencePins(client, opts.paperId) : [])
+  const pinned = filterPinsForSection(pins, section, paperType)
+
   const template = getSectionTemplate(paperType, section)
   const attempts = retrievalAttempts(template.preferredSourceRole)
   if (attempts.length === 0) return []
 
   const embedding = hashEmbedding(buildRetrievalQuery(paperType, section, researchPrompt))
+  const withSection = (rows: RetrievedPassage[]): RetrievedPassage[] =>
+    rows.map((row) => ({ ...row, paperSection: section }))
+
+  if (template.preferredSourceRole === 'both' || unionPrimaryForSection(paperType, section)) {
+    const roles: Array<'literature' | 'primary' | 'both'> =
+      template.preferredSourceRole === 'both' ? ['both'] : ['literature', 'primary']
+    const batches = await Promise.all(roles.map((role) => matchChunks(client, embedding, role, matchCount)))
+    return mergePinnedFirst(pinned, uniqueByVector(withSection(batches.flat())))
+  }
 
   for (const filterRole of attempts) {
     const rows = await matchChunks(client, embedding, filterRole, matchCount)
     if (rows.length > 0) {
-      return rows.map((row) => ({ ...row, paperSection: section }))
+      return mergePinnedFirst(pinned, withSection(rows))
     }
   }
-  return []
+  return pinned
 }
 
 export const DEFAULT_EXAMPLE_MATCH_COUNT = 4
@@ -136,16 +270,22 @@ export const retrieveForPaper = async (
   paperType: string,
   sections: string[],
   researchPrompt: string,
-  matchCount = DEFAULT_MATCH_COUNT
+  matchCountOrOpts: number | RetrieveOptions = DEFAULT_MATCH_COUNT
 ): Promise<RetrievedPassage[]> => {
   const topic = researchPrompt.trim()
   if (!topic) {
     throw new Error('Enter a research prompt')
   }
+  const opts = normalizeRetrieveOptions(matchCountOrOpts)
+  const pins = opts.pins ?? (opts.paperId ? await loadEvidencePins(client, opts.paperId) : [])
+  const matchCount = opts.matchCount ?? DEFAULT_MATCH_COUNT
 
   const out: RetrievedPassage[] = []
   for (const section of sections) {
-    const rows = await retrieveForSection(client, paperType, section, topic, matchCount)
+    const rows = await retrieveForSection(client, paperType, section, topic, {
+      matchCount,
+      pins,
+    })
     out.push(...rows)
   }
   return out

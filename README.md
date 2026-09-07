@@ -1,13 +1,13 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus, generate a section-by-section draft (Grok key required), and save it to the library. Generate-from-pins, saved interrogation threads, quality-check polish, and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus, generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Saved interrogation threads, quality-check polish, and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Generate using pins, saved interrogation threads, outline, or Word export |
+| Open dashboard, paper generation, profile, library after confirmation | Saved interrogation threads, outline, or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
 | Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see nineteen files pass, currently 87 tests:
+You should see nineteen files pass, currently 90 tests:
 
 ```
 Test Files  19 passed (19)
-      Tests  87 passed (87)
+      Tests  90 passed (90)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -238,8 +238,8 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
-3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned.
-4. Click **Generate Paper**. The Edge function retrieves the same way, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, and uncited sentences show on the right. Generate does not prefer pins yet.
+3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
+4. Click **Generate Paper**. The Edge function retrieves pins first, then the same role-filtered search, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, and uncited sentences show on the right.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 6. Open `/library`. The paper is listed as completed. View shows the markdown. Continue restores the prompt. Sources is the number of cited files.
 
@@ -350,7 +350,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  19 passed (19)` and `Tests  87 passed (87)` (counts as of 2026-09-07).
+- Unit: `Test Files  19 passed (19)` and `Tests  90 passed (90)` (counts as of 2026-09-07).
 - Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 

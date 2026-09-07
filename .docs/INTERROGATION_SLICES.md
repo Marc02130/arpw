@@ -24,8 +24,8 @@ Locked product calls (2026-09-07):
 | 1 | Pin schema + list/unpin | **DONE** | Structured “include this” |
 | 2 | Interrogate tab (grounded Q&A) | **DONE** | Researcher inspects the corpus |
 | 3 | Pin from interrogation | **DONE** | Pins from a real question |
-| 4 | Generate uses pins first | **NEXT** | Draft follows marked passages |
-| 5 | Persist interrogation chat as notes | NOT STARTED | Continue the conversation |
+| 4 | Generate uses pins first | **DONE** | Draft follows marked passages |
+| 5 | Persist interrogation chat as notes | **NEXT** | Continue the conversation |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
 
@@ -67,6 +67,8 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 | Discussion, Conclusion | both |
 | References | no retrieval (from cited ids) |
 | Literature Review as **paper type** | `literature` only; ignore `primary` |
+
+**Shipped:** `filterPinsForSection` + `mergePinnedFirst` + `loadEvidencePins` in `retrievePassages.ts`; `generate_paper` and Query sources pass `paperId`/`pins`. Example roles dropped. Literature Review ignores primary pins. Abstract/Introduction unions primary for non-review papers. Integration: pinned literature chunk leads Methods retrieval.
 
 **Not in this slice:** QUAL sentence mapping changes beyond using the larger allow-list.
 

@@ -6,7 +6,11 @@ import {
   MISSING_GROK_KEY_MESSAGE,
   completeWithGrok,
 } from '../_shared/grokComplete.ts'
-import { retrieveExamplePassages, retrieveForSection } from '../_shared/retrievePassages.ts'
+import {
+  loadEvidencePins,
+  retrieveExamplePassages,
+  retrieveForSection,
+} from '../_shared/retrievePassages.ts'
 import { saveGeneratedDraft } from '../_shared/saveGeneratedDraft.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -94,12 +98,13 @@ serve(async (req: Request) => {
       return json({ success: false, error: 'Paper not found' }, 404)
     }
 
+    const pins = await loadEvidencePins(userClient, parsed.paperId)
     const result = await generatePaperDraft({
       paperType: parsed.paperType,
       sections: parsed.sections,
       researchPrompt: parsed.researchPrompt,
       retrieve: (paperType, section, researchPrompt) =>
-        retrieveForSection(userClient, paperType, section, researchPrompt),
+        retrieveForSection(userClient, paperType, section, researchPrompt, { pins }),
       retrieveExamples: (paperType, section, researchPrompt) =>
         retrieveExamplePassages(userClient, paperType, section, researchPrompt),
       complete: (prompt) => completeWithGrok(apiKey, prompt),

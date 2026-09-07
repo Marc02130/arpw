@@ -23,7 +23,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
-| Interrogation / pins | PARTIAL | PIN-1 + Interrogate tab + pin from Q&A. Generate does not prefer pins; chat not persisted |
+| Interrogation / pins | PARTIAL | Pins + Interrogate + generate prefers pins. Chat not persisted |
 | Outline mode | MISSING | No control |
 | Quality checks | PARTIAL | QUAL-1 flags uncited sentences. Citation/format checks and preview polish still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
@@ -74,7 +74,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-8 | MISSING | No outline button |
 | GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
 | GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
-| GEN-4 pins | MISSING | Retrieval is role-filtered vectors only; pins not in the allow-list yet |
+| GEN-4 pins | DONE | Pins first (section or unscoped), then role-filtered vectors; examples rejected |
 
 #### Interrogation and pins
 
@@ -84,7 +84,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | INT-2 | DONE | Edge `interrogate_corpus`; same Grok key path; `match_reference_chunks` + strip unknown `[S#]` |
 | INT-3 | MISSING | No chat-as-notes table |
 | PIN-1 | DONE | `pinned_passages`; Prompt list/unpin; Interrogate Pin with optional target section; cannot pin another user’s chunk or examples |
-| PIN-2 | MISSING | Generate does not read pins |
+| PIN-2 | DONE | `retrieveForSection` / `generate_paper` merge pins first; Query sources matches |
 
 Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interrogation slices: `.docs/INTERROGATION_SLICES.md`.
 

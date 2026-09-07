@@ -39,7 +39,6 @@ Browser (Vite SPA)
   +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
 
 TARGET:
-  +--> generate reads pinned_passages first, then vector search
   +--> retrieve RPC (hybrid search / MiniLM)
   +--> run_checks / export_paper
 ```
@@ -156,9 +155,10 @@ The SPA must not send a system prompt to Grok. Templates live in `supabase/funct
 
 Join `reference_vectors` to `"references"`. Filter `user_id = auth.uid()`. Then:
 
-| Section | Chunks to search |
+| Section | Chunks to search (after pins) |
 |---|---|
-| Abstract, Introduction, Literature Review | `source_role = 'literature'` |
+| Abstract, Introduction | `literature`; also `primary` unless the paper type is Literature Review |
+| Literature Review | `literature` only |
 | Methods, Results | `primary` first; if none, `literature` |
 | Discussion, Conclusion | both |
 | References | none (built from cited ids) |
@@ -169,12 +169,12 @@ Example-paper vectors: `match_example_chunks` + style prefix on the section prom
 
 **Pins and interrogation**
 
-See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns are not saved. Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). TARGET: generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks`. Chat turns are notes only. Do not ingest Ragged transcripts as `"references"`.
+See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns are not saved. Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks` (PIN-2). Example pins and chat notes are not evidence. Literature Review paper type ignores `primary`. Abstract/Introduction also union primary when this is not a literature-review paper.
 
 **Pipeline**
 
 1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
-2. For each selected section, rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above.
+2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Dedup by `vector_id`.
 3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. k capped at 20. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
 4. Optional rerank later.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.

@@ -17,6 +17,7 @@ import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import {
+  isVectorPinned,
   loadPins,
   pinForVector,
   pinPassage,
@@ -233,7 +234,9 @@ const PaperGenerationPage: React.FC = () => {
     setRetrieveError(null)
     try {
       const [evidence, examples] = await Promise.all([
-        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt, {
+          paperId: paperId ?? undefined,
+        }),
         retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
       ])
       setPassages(evidence)
@@ -282,7 +285,9 @@ const PaperGenerationPage: React.FC = () => {
       setPaper(loaded)
       if (Array.isArray(loaded.attribution)) setAttribution(loaded.attribution)
       const [evidence, examples] = await Promise.all([
-        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt, {
+          paperId: paperId ?? undefined,
+        }),
         retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
       ])
       setPassages(evidence)
@@ -507,7 +512,7 @@ const PaperGenerationPage: React.FC = () => {
             </p>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Pinned passages</h2>
             <p className="text-sm text-gray-600 mb-3">
-              Generate will prefer these (next slice). Unpin anytime. Pin from queried sources or Interrogate.
+              Generate and Query sources put these first. Unpin anytime. Pin from queried sources or Interrogate.
             </p>
             {pinError && (
               <p className="text-sm text-red-700 mb-3" role="alert">{pinError}</p>
@@ -576,6 +581,7 @@ const PaperGenerationPage: React.FC = () => {
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="text-xs text-gray-500 mb-1">
+                                  {row.pinned || isVectorPinned(pins, row.vector_id) ? 'pinned · ' : ''}
                                   {row.source_role} · score {row.score.toFixed(3)}
                                 </div>
                                 {existing ? (
