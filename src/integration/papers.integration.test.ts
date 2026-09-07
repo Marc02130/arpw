@@ -37,9 +37,13 @@ describe('papers integration (dashboard workspace)', () => {
         .eq('paper_id', paper.paper_id)
       expect(stolen).toEqual([])
 
-      await updatePaperConfig(owner.client, paper.paper_id, { title: 'Citation overlap v2' })
+      await updatePaperConfig(owner.client, paper.paper_id, {
+        title: 'Citation overlap v2',
+        research_prompt: 'nfr7probe citation overlap',
+      })
       const reloaded = await loadPaper(owner.client, paper.paper_id)
       expect(reloaded.title).toBe('Citation overlap v2')
+      expect(reloaded.research_prompt).toBe('nfr7probe citation overlap')
     } finally {
       await owner.client.from('user_papers').delete().eq('user_id', owner.id)
       await deleteUser(owner.id)

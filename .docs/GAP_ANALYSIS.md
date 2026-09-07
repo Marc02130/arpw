@@ -104,7 +104,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 |---|---|---|
 | LIB-1 | DONE | Table UI lists `user_papers` |
 | LIB-2 | DONE | Groups by title in memory |
-| LIB-3 | PARTIAL | View shows saved content; regenerate alerts; delete hits DB |
+| LIB-3 | PARTIAL | View shows saved content; Continue opens generate; delete hits DB. Export still no-op |
 | LIB-4 | MISSING | Export button no handler |
 | LIB-5 | DONE | `referenceCountFromEmbed` on `paper_references(count)` |
 

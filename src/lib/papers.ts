@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CitationStyle, OutputFormat, PaperType, Status, type Paper } from '../types'
+import { uniqueFileIds } from '../../supabase/functions/_shared/saveGeneratedDraft'
 
 export {
   parsePaperId,
@@ -29,6 +30,63 @@ export type PaperConfigPatch = {
   paper_type?: PaperType
   citation_style?: CitationStyle
   output_format?: OutputFormat
+  research_prompt?: string
+}
+
+export type CitedFile = {
+  file_id: string
+  file_name: string
+  source_role: string
+}
+
+export type CorpusCounts = {
+  literature: number
+  primary: number
+  examples: number
+}
+
+export const loadCorpusCounts = async (
+  client: SupabaseClient,
+  userId: string
+): Promise<CorpusCounts> => {
+  const [literature, primary, examples] = await Promise.all([
+    client.from('references').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('source_role', 'literature'),
+    client.from('references').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('source_role', 'primary'),
+    client.from('examples').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+  ])
+  const firstError = literature.error || primary.error || examples.error
+  if (firstError) throw new Error(firstError.message)
+  return {
+    literature: literature.count ?? 0,
+    primary: primary.count ?? 0,
+    examples: examples.count ?? 0,
+  }
+}
+
+export const loadCitedFiles = async (
+  client: SupabaseClient,
+  fileIds: string[]
+): Promise<CitedFile[]> => {
+  const ids = uniqueFileIds(fileIds)
+  if (ids.length === 0) return []
+  const { data, error } = await client
+    .from('references')
+    .select('file_id, file_name, source_role')
+    .in('file_id', ids)
+  if (error) throw new Error(error.message)
+  return (data ?? []) as CitedFile[]
+}
+
+export const loadPaperCitedFiles = async (
+  client: SupabaseClient,
+  paperId: string
+): Promise<CitedFile[]> => {
+  const { data, error } = await client
+    .from('paper_references')
+    .select('file_id')
+    .eq('paper_id', paperId)
+  if (error) throw new Error(error.message)
+  return loadCitedFiles(client, (data ?? []).map((row: { file_id: string }) => row.file_id))
 }
 
 export const createDraftPaper = async (
@@ -48,6 +106,7 @@ export const createDraftPaper = async (
       output_format: OutputFormat.MARKDOWN,
       version: 1,
       status: Status.DRAFT,
+      research_prompt: '',
     })
     .select('*')
     .single()
@@ -92,6 +151,7 @@ export const updatePaperConfig = async (
   if (patch.paper_type !== undefined) body.paper_type = patch.paper_type
   if (patch.citation_style !== undefined) body.citation_style = patch.citation_style
   if (patch.output_format !== undefined) body.output_format = patch.output_format
+  if (patch.research_prompt !== undefined) body.research_prompt = patch.research_prompt
   if (Object.keys(body).length === 0) return
   const { error } = await client.from('user_papers').update(body).eq('paper_id', paperId)
   if (error) {

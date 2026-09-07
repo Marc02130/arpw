@@ -129,3 +129,27 @@ export const retrieveForPaper = async (
   }
   return out
 }
+
+export const retrieveExamplesForPaper = async (
+  client: SupabaseClient,
+  paperType: string,
+  sections: string[],
+  researchPrompt: string,
+  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT
+): Promise<RetrievedPassage[]> => {
+  const topic = researchPrompt.trim()
+  if (!topic) {
+    throw new Error('Enter a research prompt')
+  }
+  const out: RetrievedPassage[] = []
+  const seen = new Set<string>()
+  for (const section of sections) {
+    const rows = await retrieveExamplePassages(client, paperType, section, topic, matchCount)
+    for (const row of rows) {
+      if (seen.has(row.vector_id)) continue
+      seen.add(row.vector_id)
+      out.push(row)
+    }
+  }
+  return out
+}

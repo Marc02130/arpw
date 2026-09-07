@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { referenceCountFromEmbed } from '../lib/papers'
+import { uncitedSentences } from '../lib/attribution'
 import { Paper, LibraryPaper, VersionHistory } from '../types'
 
 const LibraryPage: React.FC = () => {
+  const navigate = useNavigate()
   const [papers, setPapers] = useState<LibraryPaper[]>([])
   const [versionHistory, setVersionHistory] = useState<VersionHistory[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,9 +98,8 @@ const LibraryPage: React.FC = () => {
     }
   }
 
-  const handleRegeneratePaper = async (_paper: Paper) => {
-    // TODO: Implement regeneration logic
-    alert('Paper regeneration feature will be implemented in the next phase')
+  const openPaper = (paperId: string) => {
+    navigate(`/generate?paper=${paperId}`)
   }
 
   const formatDate = (dateString: string) => {
@@ -212,12 +214,12 @@ const LibraryPage: React.FC = () => {
                         >
                           View
                         </button>
-                        <button
-                          onClick={() => handleRegeneratePaper(paper)}
+                        <Link
+                          to={`/generate?paper=${paper.paper_id}`}
                           className="text-blue-600 hover:text-blue-900"
                         >
-                          Regenerate
-                        </button>
+                          Continue
+                        </Link>
                         <button
                           onClick={() => handleDeletePaper(paper.paper_id)}
                           className="text-red-600 hover:text-red-900"
@@ -284,7 +286,9 @@ const LibraryPage: React.FC = () => {
       )}
 
       {/* Paper Preview Modal */}
-      {selectedPaper && (
+      {selectedPaper && (() => {
+        const uncited = uncitedSentences(selectedPaper.attribution ?? [])
+        return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
@@ -300,8 +304,13 @@ const LibraryPage: React.FC = () => {
             </div>
             <div className="max-h-96 overflow-y-auto border rounded p-4 bg-gray-50">
               <pre className="whitespace-pre-wrap text-sm text-gray-700">
-                {selectedPaper.content}
+                {selectedPaper.content || 'No draft yet.'}
               </pre>
+              {uncited.length > 0 && (
+                <p className="mt-3 text-sm text-amber-800">
+                  {uncited.length} uncited sentence{uncited.length === 1 ? '' : 's'}.
+                </p>
+              )}
             </div>
             <div className="mt-4 flex justify-end space-x-2">
               <button
@@ -310,13 +319,18 @@ const LibraryPage: React.FC = () => {
               >
                 Close
               </button>
-              <button className="btn-primary">
-                Export
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => openPaper(selectedPaper.paper_id)}
+              >
+                Continue
               </button>
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

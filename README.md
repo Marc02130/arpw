@@ -237,17 +237,17 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 ### Steps
 
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
-2. Enter a research prompt (required). Toggle sections. Pick paper type, citation style, output format.
-3. Click **Show passages**. Matching chunks list per section (literature vs original research).
-4. Click **Generate Paper**. The Edge function retrieves literature and original-research chunks as evidence, example-paper chunks as style only, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`.
+2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
+3. Click **Query sources**. Literature and original research list as evidence; example papers as style only.
+4. Click **Generate Paper**. The Edge function retrieves the same way, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, and uncited sentences show on the right.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
-6. Open `/library`. The paper is listed as completed. View shows the markdown. Sources is the number of cited files.
+6. Open `/library`. The paper is listed as completed. View shows the markdown. Continue restores the prompt. Sources is the number of cited files.
 
 Files live on the **Upload** tab (`/generate/upload`).
 
 ### Verification
 
-Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper and View shows the content. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper; Continue reopens Prompt with the saved research prompt. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
 ### Troubleshooting
 
@@ -291,7 +291,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Regenerate and Export are no-ops.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown. Continue opens Paper generation with the saved prompt. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Export is not built.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 

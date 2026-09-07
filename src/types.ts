@@ -76,6 +76,7 @@ export interface Paper {
   version: number
   created_at: string
   status: Status
+  research_prompt?: string
   attribution?: Array<{
     sentence: string
     section: string

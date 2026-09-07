@@ -15,8 +15,21 @@ import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
-import { loadPaper, paperSectionsOrDefault, updatePaperConfig } from '../lib/papers'
-import { retrieveForPaper, type RetrievedPassage } from '../lib/retrievePassages'
+import {
+  loadCitedFiles,
+  loadCorpusCounts,
+  loadPaper,
+  loadPaperCitedFiles,
+  paperSectionsOrDefault,
+  updatePaperConfig,
+  type CitedFile,
+  type CorpusCounts,
+} from '../lib/papers'
+import {
+  retrieveExamplesForPaper,
+  retrieveForPaper,
+  type RetrievedPassage,
+} from '../lib/retrievePassages'
 import { supabase } from '../supabaseClient'
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
@@ -46,6 +59,9 @@ const PaperGenerationPage: React.FC = () => {
   const [draft, setDraft] = useState<string>('')
   const [attribution, setAttribution] = useState<SentenceAttribution[]>([])
   const [passages, setPassages] = useState<RetrievedPassage[]>([])
+  const [stylePassages, setStylePassages] = useState<RetrievedPassage[]>([])
+  const [citedFiles, setCitedFiles] = useState<CitedFile[]>([])
+  const [corpus, setCorpus] = useState<CorpusCounts>({ literature: 0, primary: 0, examples: 0 })
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
@@ -59,6 +75,9 @@ const PaperGenerationPage: React.FC = () => {
       setPaperError(null)
       setDraft('')
       setAttribution([])
+      setPassages([])
+      setStylePassages([])
+      setCitedFiles([])
       return
     }
     void (async () => {
@@ -70,17 +89,35 @@ const PaperGenerationPage: React.FC = () => {
         setAttribution(Array.isArray(loaded.attribution) ? loaded.attribution : [])
         setConfig((prev) => ({
           ...prev,
+          prompt: loaded.research_prompt ?? '',
           sections: paperSectionsOrDefault(loaded.sections),
           paper_type: loaded.paper_type,
           citation_style: loaded.citation_style,
           output_format: loaded.output_format,
         }))
+        try {
+          setCitedFiles(await loadPaperCitedFiles(supabase, paperId))
+        } catch {
+          setCitedFiles([])
+        }
       } catch (err) {
         setPaper(null)
         setPaperError(err instanceof Error ? err.message : 'Paper not found')
       }
     })()
   }, [paperId])
+
+  useEffect(() => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      try {
+        setCorpus(await loadCorpusCounts(supabase, user.id))
+      } catch {
+        /* counts are advisory */
+      }
+    })()
+  }, [listTick, uploadTab])
 
   const persistConfig = async (next: PaperGenerationConfig, title?: string) => {
     if (!paperId) return
@@ -91,6 +128,7 @@ const PaperGenerationPage: React.FC = () => {
         paper_type: next.paper_type,
         citation_style: next.citation_style,
         output_format: next.output_format,
+        research_prompt: next.prompt,
       })
     } catch (err) {
       setPaperError(err instanceof Error ? err.message : 'Could not save paper')
@@ -111,7 +149,7 @@ const PaperGenerationPage: React.FC = () => {
   }
 
   const handleUploadComplete = () => {
-    setUploadSuccess('Files uploaded. Indexing may still fail until ingest is fixed.')
+    setUploadSuccess('Files uploaded. Indexing runs in the background.')
     setUploadError(null)
     bumpLists()
     setTimeout(() => setUploadSuccess(null), 5000)
@@ -131,18 +169,18 @@ const PaperGenerationPage: React.FC = () => {
     setIsRetrieving(true)
     setRetrieveError(null)
     try {
-      const rows = await retrieveForPaper(
-        supabase,
-        config.paper_type,
-        config.sections,
-        config.prompt
-      )
-      setPassages(rows)
-      if (rows.length === 0) {
+      const [evidence, examples] = await Promise.all([
+        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
+      ])
+      setPassages(evidence)
+      setStylePassages(examples)
+      if (evidence.length === 0 && examples.length === 0) {
         setRetrieveError('No passages matched. Upload and index files on the Upload tab.')
       }
     } catch (error) {
       setPassages([])
+      setStylePassages([])
       setRetrieveError(error instanceof Error ? error.message : 'Retrieval failed')
     } finally {
       setIsRetrieving(false)
@@ -165,6 +203,7 @@ const PaperGenerationPage: React.FC = () => {
     setIsGenerating(true)
     setGenerateError(null)
     try {
+      await persistConfig(config, paper?.title)
       const result = await invokeGeneratePaper(supabase, {
         paperId,
         paperType: config.paper_type,
@@ -175,12 +214,20 @@ const PaperGenerationPage: React.FC = () => {
       })
       setDraft(result.content)
       setAttribution(result.attribution)
+      setCitedFiles(await loadCitedFiles(supabase, result.citedFileIds))
       const loaded = await loadPaper(supabase, paperId)
       setPaper(loaded)
       if (Array.isArray(loaded.attribution)) setAttribution(loaded.attribution)
+      const [evidence, examples] = await Promise.all([
+        retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
+      ])
+      setPassages(evidence)
+      setStylePassages(examples)
     } catch (error) {
       setDraft('')
       setAttribution([])
+      setCitedFiles([])
       setGenerateError(error instanceof Error ? error.message : 'Paper generation failed')
     } finally {
       setIsGenerating(false)
@@ -257,6 +304,7 @@ const PaperGenerationPage: React.FC = () => {
               <textarea
                 value={config.prompt}
                 onChange={(e) => setConfig((prev) => ({ ...prev, prompt: e.target.value }))}
+                onBlur={() => void persistConfig(config, paper?.title)}
                 className="input-field h-32 resize-none"
                 placeholder="Describe your research topic, objectives, and any specific requirements..."
               />
@@ -350,7 +398,7 @@ const PaperGenerationPage: React.FC = () => {
               disabled={isRetrieving || !config.prompt.trim()}
               className="btn-secondary w-full py-3 text-lg"
             >
-              {isRetrieving ? 'Retrieving...' : 'Show passages'}
+              {isRetrieving ? 'Querying...' : 'Query sources'}
             </button>
             {generateError && (
               <p className="text-sm text-red-700" role="alert">
@@ -373,15 +421,23 @@ const PaperGenerationPage: React.FC = () => {
           </div>
 
           <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Your corpus</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {corpus.literature} literature · {corpus.primary} original research · {corpus.examples} example
+              {corpus.examples === 1 ? '' : 's'}.{' '}
+              <Link to={`/generate/upload${paperQuery}`} className="text-primary-600 hover:text-primary-500">
+                Upload
+              </Link>
+            </p>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Passages for this prompt</h2>
             {retrieveError && (
               <p className="text-sm text-red-700 mb-3" role="alert">{retrieveError}</p>
             )}
             <div className="bg-gray-50 rounded-lg p-4 min-h-48 space-y-4 max-h-96 overflow-y-auto">
-              {isRetrieving && <p className="text-gray-500 text-center">Retrieving passages...</p>}
-              {!isRetrieving && passages.length === 0 && !retrieveError && (
+              {isRetrieving && <p className="text-gray-500 text-center">Querying vectorized papers...</p>}
+              {!isRetrieving && passages.length === 0 && stylePassages.length === 0 && !retrieveError && (
                 <p className="text-gray-500 text-center">
-                  Enter a research prompt and click Show passages, then Generate Paper.
+                  Enter a research prompt and click Query sources. Generate uses the same retrieval.
                 </p>
               )}
               {!isRetrieving &&
@@ -408,13 +464,49 @@ const PaperGenerationPage: React.FC = () => {
                     </div>
                   )
                 )}
+              {stylePassages.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800 mb-2">Style examples (not cited)</h3>
+                  <ul className="space-y-2">
+                    {stylePassages.map((row) => (
+                      <li
+                        key={row.vector_id}
+                        className="text-sm text-gray-700 bg-white border border-dashed border-gray-300 rounded p-2"
+                      >
+                        {row.chunk_text.slice(0, 400)}
+                        {row.chunk_text.length > 400 ? '…' : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             {draft && (
               <div className="mt-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Draft</h2>
+                <p className="text-sm text-gray-600 mb-2">
+                  Saved to the{' '}
+                  <Link to="/library" className="text-primary-600 hover:text-primary-500">
+                    library
+                  </Link>
+                  .
+                </p>
                 <pre className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-96 overflow-y-auto">
                   {draft}
                 </pre>
+                {citedFiles.length > 0 && (
+                  <div className="mt-3">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">Cited files</h3>
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      {citedFiles.map((file) => (
+                        <li key={file.file_id}>
+                          {file.file_name}{' '}
+                          <span className="text-xs text-gray-500">({file.source_role})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {uncited.length > 0 && (
                   <div className="mt-3" role="status">
                     <p className="text-sm font-medium text-amber-800">

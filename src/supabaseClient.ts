@@ -111,6 +111,7 @@ export interface Database {
           created_at: string
           status: 'draft' | 'completed'
           attribution: unknown
+          research_prompt: string
         }
         Insert: {
           paper_id: string
@@ -125,6 +126,7 @@ export interface Database {
           created_at?: string
           status?: 'draft' | 'completed'
           attribution?: unknown
+          research_prompt?: string
         }
         Update: {
           paper_id?: string
@@ -139,6 +141,7 @@ export interface Database {
           created_at?: string
           status?: 'draft' | 'completed'
           attribution?: unknown
+          research_prompt?: string
         }
       }
       paper_references: {
