@@ -57,7 +57,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | DOCS-5 | DONE | Bucket from `documentType`; TXT/DOCX/PDF parse; chunk+section; `hash-384` vectors. MiniLM still TARGET |
 | DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
-| DOCS-8 | DONE | `source_role` literature/primary on `"references"`; list select in `DocumentList.tsx` |
+| DOCS-8 | DONE | `source_role` literature/primary; Upload tab splits literature vs original research (author’s work on this paper’s topic) |
 
 #### Generation
 
@@ -66,12 +66,12 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | GEN-1 | DONE (UI only) | Checkboxes in `DashboardPage.tsx` |
 | GEN-2 | PARTIAL | `PaperType` select; frozen templates in `generationTemplates.ts`; generate still stub |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
-| GEN-4 | MISSING | No RPC, no passage panel |
+| GEN-4 | DONE | `match_reference_chunks` + dashboard Show passages; hash-384. MiniLM still TARGET |
 | GEN-5 | MISSING | Single fake 2s timeout |
 | GEN-6 | MISSING | No generation |
 | GEN-7 | MISSING | Examples stored, never used for style-only prompting |
 | GEN-8 | MISSING | No outline button |
-| GEN-9 | MISSING | No insert into `user_papers` from dashboard |
+| GEN-9 | PARTIAL | Dashboard creates draft `user_papers` rows; generate still does not write content |
 | GEN-10 | MISSING | `paper_references` unused by app code |
 
 ```56:68:src/pages/DashboardPage.tsx
@@ -111,7 +111,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | NFR-4 | UNKNOWN | Live ingest E2E unmeasured while Storage is down |
 | NFR-5 | MISSING | |
 | NFR-6 | PARTIAL | Login has labels/aria; upload zone is keyboard-activatable |
-| NFR-7 | PARTIAL | Fixture PDF unit: extract probe token, chunk, hash-384 (`src/lib/nfr7Fixture.test.ts`). Live ingest E2E skips unless Storage and `upload_processor` are up. Retrieval hit and refuse-unknown-citation still MISSING |
+| NFR-7 | PARTIAL | Fixture PDF unit + retrieval hit on `nfr7probe` (`retrieval.integration.test.ts`). Live ingest E2E skips if Storage/Edge down. Generation refuse-unknown-citation still MISSING |
 
 ### 4. Code vs old documentation
 
@@ -162,7 +162,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- `npm test` (60 unit tests, no Docker)
+- `npm test` (63 unit tests, no Docker)
 - `npm run test:integration` (live Storage/ingest cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Library empty state

@@ -5,7 +5,8 @@ import Login from './components/Login'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import VerifyEmail from './components/VerifyEmail'
-import DashboardPage from './pages/DashboardPage'
+import HomePage from './pages/HomePage'
+import PaperGenerationPage from './pages/PaperGenerationPage'
 import Profile from './components/Profile'
 import LibraryPage from './pages/LibraryPage'
 import Layout from './components/Layout'
@@ -70,7 +71,8 @@ function App() {
             }
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="dashboard" element={<HomePage />} />
+            <Route path="generate/*" element={<PaperGenerationPage />} />
             <Route path="profile" element={<Profile />} />
             <Route path="library" element={<LibraryPage />} />
           </Route>

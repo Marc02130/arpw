@@ -41,7 +41,7 @@ Writing a literature-backed draft from a personal PDF pile is slow. Generic chat
 - Journal submission, plagiarism scanning, or publisher templates.
 - Generating a full paper from 10–20 random chunks with no section-wise retrieval.
 - User-editable system prompts or per-section prompt templates (server owns type × section templates).
-- A third upload drop zone for “original research” (use `source_role` on references instead).
+- A separate Storage bucket for original research (same `"references"` table and cap; two upload sections).
 
 ### 3. Users
 
@@ -77,7 +77,7 @@ Each item has an ID for the gap analysis.
 | DOCS-5 | Parse text, chunk with section/page metadata, embed, store in `pgvector`. | P0 |
 | DOCS-6 | Reject unsupported types and oversize files before upload. | P0 |
 | DOCS-7 | Enforce the 500 / 10 caps against existing rows, not only the current batch. | P1 |
-| DOCS-8 | Each reference has `source_role`: `literature` (default) or `primary` (the user’s study). List shows the tag; the user can change it. Same bucket and cap as DOCS-1. Not used on example papers. | P0 |
+| DOCS-8 | Each reference has `source_role`: `literature` (default, published sources) or `primary` (the author’s original research on this paper’s topic). Upload UI may split those into two sections; same table, bucket, and cap as DOCS-1. The user can recategorize. Not used on example papers. | P0 |
 
 #### GEN
 

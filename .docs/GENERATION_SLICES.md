@@ -8,7 +8,7 @@ Locked product calls (2026-09-07):
 
 - Server owns **paper type × section** prompt templates. Users do not edit them in this cut.
 - The dashboard **Research prompt** is the only user-written generation text (topic, question, constraints).
-- Each **reference** has `source_role`: `literature` (default) or `primary` (this study). Not a third upload zone. Example papers stay style-only (GEN-7).
+- Each **reference** has `source_role`: `literature` (published work you cite) or `primary` (the author’s original research on this paper’s topic). Upload tab shows two sections writing the same `"references"` table and cap. Example papers stay style-only (GEN-7).
 - QUAL, outline (GEN-8), Word export, MiniLM, and a per-section prompt editor are **out of these slices**.
 
 ## Content
@@ -19,8 +19,8 @@ Locked product calls (2026-09-07):
 |---|---|---|---|
 | 1 | `source_role` on references | **DONE** | Role-filtered retrieval |
 | 2 | Frozen type × section templates | **DONE** | Generate without a user system prompt |
-| 3 | Per-section retrieval + passages | **NEXT** | GEN-4; NFR-7 retrieval hit |
-| 4 | Grok section loop + citation allow-list | NOT STARTED | GEN-5/6; NFR-7 refuse unknown ids |
+| 3 | Per-section retrieval + passages | **DONE** | GEN-4; NFR-7 retrieval hit |
+| 4 | Grok section loop + citation allow-list | **NEXT** | GEN-5/6; NFR-7 refuse unknown ids |
 | 5 | Save `user_papers` + `paper_references` | NOT STARTED | GEN-9/10; library has rows |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
@@ -62,6 +62,8 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 Hash-384 is acceptable. MiniLM still TARGET.
 
 **Not in this slice:** writing `user_papers`; QUAL flags.
+
+**Shipped:** `match_reference_chunks` RPC; `src/lib/retrievePassages.ts` (primary then literature); dashboard **Show passages**. NFR-7 hit is the integration test with `nfr7probe`.
 
 ### Slice 4 — Grok section loop + allow-list
 

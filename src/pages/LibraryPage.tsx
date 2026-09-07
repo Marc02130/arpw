@@ -132,7 +132,7 @@ const LibraryPage: React.FC = () => {
             Generate your first research paper to see it here.
           </p>
           <a href="/dashboard" className="btn-primary">
-            Generate Paper
+            Start a paper
           </a>
         </div>
       ) : (

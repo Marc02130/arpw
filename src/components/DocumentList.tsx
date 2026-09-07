@@ -29,11 +29,19 @@ type ListedDocument = {
 interface DocumentListProps {
   documentType: DocumentType
   onDocumentDeleted: () => void
+  onRoleChanged?: () => void
+  sourceRole?: SourceRole
+  refreshKey?: number
+  heading?: string
 }
 
 const DocumentList: React.FC<DocumentListProps> = ({
   documentType,
   onDocumentDeleted,
+  onRoleChanged,
+  sourceRole,
+  refreshKey = 0,
+  heading,
 }) => {
   const [documents, setDocuments] = useState<ListedDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,11 +63,16 @@ const DocumentList: React.FC<DocumentListProps> = ({
 
       const store = documentStore(documentType)
 
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from(store.table)
         .select(`*, ${store.vectorTable}(count)`)
         .eq('user_id', user.id)
         .order('uploaded_at', { ascending: false })
+      if (documentType === DocumentType.REFERENCE && sourceRole) {
+        query = query.eq('source_role', sourceRole)
+      }
+
+      const { data, error: fetchError } = await query
 
       if (fetchError) {
         throw new Error(fetchError.message)
@@ -85,7 +98,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
     } finally {
       setLoading(false)
     }
-  }, [documentType])
+  }, [documentType, sourceRole, refreshKey])
 
   useEffect(() => {
     fetchDocuments()
@@ -108,8 +121,11 @@ const DocumentList: React.FC<DocumentListProps> = ({
       if (updateError) throw new Error(updateError.message)
 
       setDocuments((prev) =>
-        prev.map((doc) => (doc.file_id === fileId ? { ...doc, source_role: next } : doc))
+        prev
+          .map((doc) => (doc.file_id === fileId ? { ...doc, source_role: next } : doc))
+          .filter((doc) => !sourceRole || doc.source_role === sourceRole)
       )
+      onRoleChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update role')
     } finally {
@@ -216,10 +232,16 @@ const DocumentList: React.FC<DocumentListProps> = ({
           {documentType === DocumentType.REFERENCE ? '📚' : '📖'}
         </div>
         <h3 className="text-lg font-medium text-gray-900 mb-1">
-          No {documentType}s uploaded yet
+          {heading
+            ? `No ${heading.toLowerCase()} yet`
+            : `No ${documentType}s uploaded yet`}
         </h3>
         <p className="text-gray-500">
-          Upload your first {documentType} to get started.
+          {sourceRole === 'primary'
+            ? 'Upload your own research on this paper’s topic.'
+            : sourceRole === 'literature'
+              ? 'Upload published papers you will cite.'
+              : `Upload your first ${documentType} to get started.`}
         </p>
       </div>
     )
@@ -230,7 +252,8 @@ const DocumentList: React.FC<DocumentListProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900">
-          {documentType === DocumentType.REFERENCE ? 'Reference Documents' : 'Example Papers'} 
+          {heading ??
+            (documentType === DocumentType.REFERENCE ? 'Reference Documents' : 'Example Papers')}{' '}
           ({documents.length})
         </h3>
         <button

@@ -11,4 +11,4 @@ export const parseSourceRole = (value: unknown): SourceRole =>
   value === 'primary' ? 'primary' : DEFAULT_SOURCE_ROLE
 
 export const sourceRoleLabel = (role: SourceRole): string =>
-  role === 'primary' ? 'This study' : 'Literature'
+  role === 'primary' ? 'Original research' : 'Literature'

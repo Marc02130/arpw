@@ -52,7 +52,9 @@ The SPA must not hold the Grok key. TARGET: Edge Function or worker reads the ke
 | `/verify-email` | `src/components/VerifyEmail.tsx` | after signup or unconfirmed sign-in |
 | `/forgot-password` | `src/components/ForgotPassword.tsx` | sends reset mail |
 | `/reset-password` | `src/components/ResetPassword.tsx` | recovery session from email link |
-| `/dashboard` | `src/pages/DashboardPage.tsx` | upload + generate form |
+| `/dashboard` | `src/pages/HomePage.tsx` | counts; start or continue a paper |
+| `/generate` | `src/pages/PaperGenerationPage.tsx` | Prompt tab |
+| `/generate/upload` | same | Upload tab: literature, original research, examples |
 | `/profile` | `src/components/Profile.tsx` | `ProfilePage.tsx` is unused |
 | `/library` | `src/pages/LibraryPage.tsx` | list/view stubs |
 | `*` | redirect | |
@@ -78,7 +80,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
 
-`source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))` (`20260907160000_reference_source_role.sql`). `literature` = other people’s work. `primary` = this study. Example papers do **not** have this column. Dashboard: `DocumentList` select for references only.
+`source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))` (`20260907160000_reference_source_role.sql`). `literature` = published work to cite. `primary` = the author’s original research on this paper’s topic. Example papers do **not** have this column. Paper generation Upload tab: two sections, same table. Role select can recategorize.
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
@@ -169,7 +171,7 @@ Example-paper vectors: style prefix only, never mixed into evidence (GEN-7).
 
 1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
 2. For each selected section, rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above.
-3. SQL RPC: cosine + full-text, return `chunk_text`, `file_id`, `vector_id`, `section`, score. k ≈ 8–20 **per section**.
+3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. k capped at 20. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
 4. Optional rerank later.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).

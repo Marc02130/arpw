@@ -16,8 +16,8 @@ describe('sourceRole (DOCS-8)', () => {
     expect(isSourceRole('evidence')).toBe(false)
   })
 
-  it('should label primary as this study', () => {
+  it('should label primary as original research', () => {
     expect(sourceRoleLabel('literature')).toBe('Literature')
-    expect(sourceRoleLabel('primary')).toBe('This study')
+    expect(sourceRoleLabel('primary')).toBe('Original research')
   })
 })

@@ -14,9 +14,15 @@ const Layout: React.FC<LayoutProps> = ({ user }) => {
 
   const navigation: NavItem[] = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Paper generation', href: '/generate', icon: '✍️' },
     { name: 'Library', href: '/library', icon: '📚' },
     { name: 'Profile', href: '/profile', icon: '👤' },
   ]
+
+  const navActive = (href: string) =>
+    href === '/generate'
+      ? location.pathname.startsWith('/generate')
+      : location.pathname === href
 
   const handleSignOut = async () => {
     try {
@@ -45,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ user }) => {
                     key={item.name}
                     href={item.href}
                     className={`${
-                      location.pathname === item.href
+                      navActive(item.href)
                         ? 'border-primary-500 text-primary-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200`}

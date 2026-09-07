@@ -68,13 +68,13 @@ The app moves to `/verify-email` and says “Check your email”. You cannot ope
 2. Open the message **Confirm Your Email**.
 3. Click the confirm link (it goes through `http://127.0.0.1:54321/auth/v1/verify` then back to `/login`).
 
-You should land on the dashboard: “Generate Research Paper”, Welcome with your full name, Sign Out.
+You should land on the Dashboard: counts for papers and uploads, Welcome with your full name, Sign Out. Paper generation is a separate tab.
 
 If the link is expired, stay on `/verify-email` and click **Resend confirmation email**, then check the mailbox again.
 
 ### What you built
 
-A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [Run the unit tests](#tutorial-run-the-unit-tests), [How to upload a reference](#how-to-upload-a-reference), [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), or the [reference](#reference).
+A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/generate`, `/profile`, and `/library`. Next: [Run the unit tests](#tutorial-run-the-unit-tests), [How to upload a reference](#how-to-upload-a-reference), [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), or the [reference](#reference).
 
 ## Tutorial: run the unit tests
 
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see ten files pass, currently 60 tests:
+You should see twelve files pass, currently 63 tests:
 
 ```
 Test Files  7 passed (7)
-      Tests  60 passed (60)
+      Tests  63 passed (63)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -135,7 +135,7 @@ Local stack running. Mail UI at [http://127.0.0.1:54324](http://127.0.0.1:54324)
 
 ### Verification
 
-`/dashboard` loads and the header shows your name or email. Unconfirmed users hitting `/dashboard` are sent to `/login` or `/verify-email`.
+`/dashboard` loads and the header shows your name or email. Unconfirmed users hitting `/dashboard` or `/generate` are sent to `/login` or `/verify-email`.
 
 ### Troubleshooting
 
@@ -177,19 +177,19 @@ The app goes to `/dashboard`. Sign out, sign in with the new password. The old p
 
 ## How to upload a reference
 
-You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file cap for your account. After upload, `upload_processor` chunks the text and stores 384-d hash embeddings (`hash-384`). MiniLM is still TARGET.
+You will store a PDF, DOCX, or TXT. Literature and original research share a 500-file cap. After upload, `upload_processor` chunks the text and stores 384-d hash embeddings (`hash-384`). MiniLM is still TARGET.
 
 ### Prerequisites
 
-- Confirmed session on [http://127.0.0.1:5173/dashboard](http://127.0.0.1:5173/dashboard)
+- Confirmed session. Open [http://127.0.0.1:5173/generate/upload](http://127.0.0.1:5173/generate/upload).
 - Local Storage healthy (`docker ps` shows `supabase_storage_arpw` up). If Storage is stopped, the UI shows `Upload failed: name resolution failed` and no row is inserted.
 
 ### Steps
 
-1. Under **Reference Documents**, click the drop zone or drag files. The line `N stored` is the current count.
+1. On the **Upload** tab, use **Literature** for published papers you will cite, or **Original research** for your own work on this paper’s topic. `N stored` is the combined reference count (cap 500).
 2. Use `.pdf`, `.docx`, or `.txt` only. Each file must be larger than 0 bytes and at most 10 MB. `.doc` is rejected before upload.
-3. Wait until the progress row says Completed. The list under the zone should show the file name, size, and date.
-4. **Example Papers** uses the same types and picker, with a cap of 10 stored rows (client count + `examples_file_cap` trigger).
+3. Wait until the progress row says Completed. The list under that section should show the file.
+4. **Example papers** (voice/style only) use the same types, cap 10.
 
 ### Verification
 
@@ -213,13 +213,13 @@ Constraints and object key: [Reference: uploads](#upload-constraints-srccomponen
 
 ## How to list and delete a file
 
-The dashboard table shows each stored file’s name, size, upload time, and whether vectors exist. Reference rows also have **Role**: Literature (default) or This study (`primary`).
+The Upload tab lists literature, original research, and example papers (name, size, date, index). Literature and original research share the reference cap. Role can be changed: Literature vs Original research (your work on this paper’s topic).
 
 ### Steps
 
-1. Open `/dashboard`. Under **Reference Documents** or **Example Papers**, read the table (name, size, date, Index).
+1. Open `/generate/upload`.
 2. Index is `Indexed (N chunks)` after ingest, or `Stored (not indexed)` if Edge did not write vectors.
-3. For a reference, set **Role** to Literature or This study. Example papers have no role.
+3. Upload published sources under **Literature**. Upload your own research on this paper’s topic under **Original research**. Upload voice/style files under **Example papers**.
 4. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{user_id}/{file_id}`.
 
 ### Verification
@@ -228,19 +228,22 @@ The row disappears. REST `GET /rest/v1/references?file_id=eq.<id>` is empty. Vec
 
 ## How to generate a paper
 
-You cannot yet. The dashboard form is wired; the generate handler is a stub.
+You can retrieve passages for the research prompt. You cannot generate a draft yet.
 
 ### Steps
 
-1. Enter a research prompt (required; empty prompt alerts “Please enter a research prompt”).
-2. Toggle sections (Abstract through References). Pick paper type, citation style, output format.
-3. Click **Generate Paper**.
+1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
+2. Enter a research prompt (required). Toggle sections. Pick paper type, citation style, output format.
+3. Click **Show passages**. Matching chunks list per section (literature vs original research).
+4. Click **Generate Paper**. Still a stub: after about 2 seconds you get “next phase”. Nothing is written to `user_papers`.
+
+Files live on the **Upload** tab (`/generate/upload`).
 
 ### Verification
 
-After about 2 seconds you get: `Paper generation feature will be implemented in the next phase` (`DashboardPage.tsx` `handleGenerate`). Nothing is written to `user_papers`.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”.
 
-When that changes, the intended pipeline is in [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+When generate ships, the pipeline is in [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
 ## How to save a Grok API key
 
@@ -314,7 +317,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  10 passed (10)` and `Tests  60 passed (60)` (counts as of 2026-09-07).
+- Unit: `Test Files  12 passed (12)` and `Tests  63 passed (63)` (counts as of 2026-09-07).
 - Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
@@ -377,7 +380,9 @@ Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run 
 | `/verify-email` | Check inbox / resend | Public; confirmed users go to `/dashboard` |
 | `/forgot-password` | Request reset | Public; confirmed users go to `/dashboard` |
 | `/reset-password` | Set new password | Public; needs recovery session or any session |
-| `/dashboard` | Generate form + uploads | Confirmed, not in recovery |
+| `/dashboard` | Home: counts, new paper, continue existing | Confirmed, not in recovery |
+| `/generate` | Paper generation · Prompt | Same |
+| `/generate/upload` | Paper generation · Upload (literature, original research, examples) | Same |
 | `/profile` | Name and Grok key | Same |
 | `/library` | Saved papers | Same |
 | `/` | Redirect to `/dashboard` | Same |
@@ -487,6 +492,8 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
+| `retrievePassages.test.ts` | Primary-then-literature attempts; References retrieves nothing |
+| `papers.test.ts` | Draft title and default sections |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
@@ -500,8 +507,10 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `c
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
+| `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary |
+| `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title |
 
-**Not in either suite:** retrieval hit on a known query; generation refuses unknown citation ids (rest of NFR-7).
+**Not in either suite:** generation refuses unknown citation ids (rest of NFR-7).
 
 How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
 

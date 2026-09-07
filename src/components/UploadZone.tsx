@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
-import { UploadProgress, DocumentType } from '../types'
+import { UploadProgress, DocumentType, type SourceRole } from '../types'
 import { ACCEPTED_UPLOAD_EXTENSIONS, validateUploadFile } from '../lib/validateFile'
 import { uploadCapError } from '../lib/fileCap'
 import { documentStore, storageObjectKey } from '../lib/documentStore'
@@ -15,6 +15,7 @@ interface UploadZoneProps {
   maxFiles: number
   onUploadComplete: () => void
   onUploadError: (error: string) => void
+  sourceRole?: SourceRole
 }
 
 const UploadZone: React.FC<UploadZoneProps> = ({
@@ -22,6 +23,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
   maxFiles,
   onUploadComplete,
   onUploadError,
+  sourceRole,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([])
@@ -77,6 +79,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({
         document_type: documentType,
         file_name: file.name,
         file_size: file.size,
+        ...(documentType === DocumentType.REFERENCE
+          ? { source_role: sourceRole ?? 'literature' }
+          : {}),
       })
 
       if (insertError) {
