@@ -18,8 +18,8 @@ You can sign up, confirm email, reset a password, upload files to Storage, and c
 |---|---|---|
 | Auth email/password | DONE | Open signup, confirm-before-access, password reset; profile row is not a login gate |
 | Profile name | DONE | Saves full name |
-| Grok key storage | BROKEN | Saved plaintext; UI says encrypted |
-| Reference upload UI | PARTIAL | Upload + list + delete; caps not real; processing likely fails |
+| Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
+| Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete; ingest still fails |
 | Vector ingest | BROKEN | Path parse, Deno/PDF, DOCX writer-as-parser, Transformers on Edge |
 | Retrieval | MISSING | No match RPC, no UI of passages |
 | Paper generation | MISSING | Alert: “next phase” |

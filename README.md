@@ -63,7 +63,7 @@ If the link is expired, stay on `/verify-email` and click **Resend confirmation 
 
 ### What you built
 
-A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), [How to upload files](#how-to-upload-files), or the [reference](#reference).
+A confirmed local user, a `user_profile` row (created by the `handle_new_user` trigger), and a session that can open `/dashboard`, `/profile`, and `/library`. Next: [How to upload a reference](#how-to-upload-a-reference), [How to save a Grok API key](#how-to-save-a-grok-api-key), [How to reset your password](#how-to-reset-your-password), or the [reference](#reference).
 
 ## How to confirm your email
 
@@ -121,31 +121,40 @@ The app goes to `/dashboard`. Sign out, sign in with the new password. The old p
 | Forgot-password form never shows success | You were still signed in; `/forgot-password` redirects confirmed users to `/dashboard`. Sign out first. |
 | Update succeeds but you bounce back to reset | You still have a recovery session. Finish **Update password**; do not visit other app routes until it completes. |
 
-## How to upload files
+## How to upload a reference
 
-You will attach a PDF, DOCX, or TXT as a reference or example. The file is stored in Supabase Storage. Indexing into vectors is not working yet.
+You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file cap for your account. Indexing into vectors is still broken (DOCS-5); the file can still sit in Storage and in the `references` table.
 
 ### Prerequisites
 
-Confirmed session on `/dashboard`.
+- Confirmed session on [http://127.0.0.1:5173/dashboard](http://127.0.0.1:5173/dashboard)
+- Local Storage healthy (`docker ps` shows `supabase_storage_arpw` up). If Storage is stopped, the UI shows `Upload failed: name resolution failed` and no row is inserted.
 
 ### Steps
 
-1. On the dashboard, use **Reference Documents** (500 per user) or **Example Papers** (10 per user).
-2. Drag a file or click the drop zone. Allowed extensions: `.pdf`, `.docx`, `.txt`. Max 10 MB each. `.doc` is rejected in the picker.
-3. The client writes `{uuid}_{originalName}` to Storage, inserts a metadata row, then invokes `upload_processor` (ingest may still fail).
+1. Under **Reference Documents**, click the drop zone or drag files. The line `N stored` is the current count.
+2. Use `.pdf`, `.docx`, or `.txt` only. Each file must be larger than 0 bytes and at most 10 MB. `.doc` is rejected before upload.
+3. Wait until the progress row says Completed. The list under the zone should show the file name, size, and date.
+4. Example papers use the same picker with a client-side cap of 10. Only references have a database trigger at 500.
 
 ### Verification
 
-The file appears in the list under the zone. The drop zone shows how many are already stored. A 501st reference is blocked. Indexing is still DOCS-5.
+- Drop zone: `Up to 500 reference documents (PDF, DOCX, TXT) · N stored` with N increased.
+- List: filename in **Reference Documents**.
+- REST `GET /rest/v1/references?select=file_name,file_size` as the signed-in user returns the row.
+- A `.doc` insert fails check `references_file_name_ext`.
+- A 501st insert fails with `Reference cap of 500 files reached`.
+
+Constraints and object key: [Reference: uploads](#upload-constraints-srccomponentsuploadzonetsx). Why the cap is on the table: [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table).
 
 ### Troubleshooting
 
 | What you see | What to do |
 |---|---|
-| File too large / unsupported format | Stay under 10 MB. Use PDF, DOCX, or TXT. |
-| File cap reached | Delete a stored file, then upload again. The cap includes files already in the table. |
-| Indexing failed / banner about ingest | The file is still stored. Vector ingest is a separate gap. |
+| Unsupported format / empty / too large | Use PDF, DOCX, or TXT; 1 byte through 10 MB. |
+| File cap reached / “can add N more” | Delete a listed reference, then retry. The cap includes rows already stored, not only this drop. |
+| `name resolution failed` | Storage container is down. Start the local stack with the installed `supabase` CLI, not `npx supabase`. |
+| Banner “Indexing may still fail” | Expected. The file is stored; `upload_processor` is still DOCS-5. |
 
 ## How to generate a paper
 
@@ -287,10 +296,27 @@ Generation workers should call `read_grok_api_key` with the service role key and
 
 ### Upload constraints (`src/components/UploadZone.tsx`)
 
-- Extensions: `.pdf`, `.docx`, `.doc`, `.txt`
-- Max size: 10 MiB
-- Buckets: `references`, `examples` (also `papers` in the migration; unused by the SPA)
-- Object key: `{uuid}_{originalFileName}` at the bucket root
+Client (`UploadZone.tsx`, references zone `maxFiles={500}`):
+
+| Rule | Value |
+|---|---|
+| Extensions | `.pdf`, `.docx`, `.txt` (not `.doc`) |
+| Size | `0 < size <= 10485760` (10 MiB) |
+| Cap | `count(*)` of `"references"` for `auth.uid()` plus this batch must be ≤ 500 |
+| Bucket | `references` |
+| Object key | `{uuid}_{originalFileName}` at bucket root |
+| Metadata | insert `{ file_id, user_id, document_type: 'reference', file_name, file_size }` after Storage succeeds; Storage object is removed if insert fails |
+| Ingest | `upload_processor` is invoked after insert; failure does not roll back the file |
+
+Database (`supabase/migrations/20260907010000_reference_upload_cap.sql`):
+
+| Rule | Value |
+|---|---|
+| `references_file_name_ext` | `file_name ~* '\.(pdf\|docx\|txt)$'` |
+| `references_file_size_check` | `file_size > 0 AND file_size <= 10485760` (from init) |
+| `references_file_cap` | `BEFORE INSERT`: if the user already has 500 rows, raise `Reference cap of 500 files reached` |
+
+Examples still use the same component with `maxFiles={10}` (client count only; no DB trigger). Bucket `papers` exists and is unused by the SPA.
 
 ### npm scripts
 
@@ -322,6 +348,16 @@ The key is now a separate table with no client grants, written only through `set
 **Trade-off:** last4 is a small leak if someone else sees the profile screen. The full key never crosses the wire after save. Encryption uses a DB-side secret in `private.secrets`; if that row is lost, stored keys cannot be decrypted (re-paste the key).
 
 **Not chosen:** leaving the column and “not showing it in the form” (REST still returned it). **Not chosen:** client-side encryption (the SPA would still hold the wrapping key).
+
+## Why the reference cap is on the table
+
+A cap of “500 files in this picker batch” lets you upload 500, then 500 more. DOCS-1 is 500 **per user**. The only per-user list the app has is `"references"`: Storage keys are `{uuid}_{name}` at the bucket root, with no `user_id` in the path.
+
+So upload writes the Storage object, then a metadata row. The picker counts existing rows before it starts. The trigger blocks a 501st insert if two tabs race. Ingest (`upload_processor`) runs after that and can fail without deleting the file; otherwise a broken Edge function would hide files you already paid to store.
+
+**Trade-off:** a file can exist in the list with no vectors until DOCS-5 is fixed. Empty or `.doc` names never get a row (`CHECK` on `file_name`).
+
+**Not chosen:** counting only the current `FileList` (the old bug). **Not chosen:** waiting for ingest before insert (the list and cap would stay empty while Edge is broken).
 
 ## Project structure
 

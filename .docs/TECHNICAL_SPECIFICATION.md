@@ -59,7 +59,7 @@ Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `u
 
 ### 4. Data model (as-built)
 
-Source of truth: `supabase/migrations/20260906133100_init.sql` plus `20260907000000_grok_key_storage.sql`. Table `"references"` is quoted because `references` is reserved.
+Source of truth: `supabase/migrations/20260906133100_init.sql`, `20260907000000_grok_key_storage.sql`, `20260907010000_reference_upload_cap.sql`. Table `"references"` is quoted because `references` is reserved.
 
 **user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, timestamps. Grok keys are **not** on this table.
 
@@ -74,7 +74,9 @@ Source of truth: `supabase/migrations/20260906133100_init.sql` plus `20260907000
 
 SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx` never `select`s ciphertext. How-to: `../README.md#how-to-save-a-grok-api-key`.
 
-**"references" / examples:** `file_id`, `user_id`, `document_type`, `file_name`, `file_size` (1..10 MiB), `uploaded_at`.
+**"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
+
+**examples:** same shape except `document_type = 'example'`. Client cap 10; no DB trigger yet (DOCS-2 / DOCS-7).
 
 **reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`. No page, section, doi, authors, chunk_index, embedding_model. TARGET: add those columns.
 
@@ -104,13 +106,15 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 
 ### 6. Upload path (as-built)
 
-`UploadZone.tsx`:
+`UploadZone.tsx` (references: `maxFiles={500}`):
 
-1. Validate extension (`.pdf/.doc/.docx/.txt`) and 10 MB.
-2. Upload to bucket `references` or `examples` as `{uuid}_{originalName}`.
-3. Invoke `upload_processor` with `fileId`, `fileName`, `fileSize`, `documentType`, `storagePath` (`uploadData.path`), `userId`.
+1. Reject empty files, size > 10 MB, and extensions other than `.pdf` / `.docx` / `.txt`.
+2. `count(*)` existing rows for `auth.uid()`; refuse if `existing + batch > maxFiles`.
+3. Upload to bucket `references` or `examples` as `{uuid}_{originalName}`.
+4. Insert the metadata row. If insert fails, delete the Storage object.
+5. Invoke `upload_processor`. Failure is logged; the file stays stored.
 
-`maxFiles` is checked against the **current FileList**, not DB counts.
+`upload_processor` still cannot index (path split, PDF/DOCX, Transformers on Edge). Duplicate metadata insert uses unique-violation `23505` as success.
 
 `DocumentList.tsx` lists and deletes. Storage delete uses `{fileId}_{fileName}`. DB delete relies on FK cascade for vectors. Storage path on delete matches upload shape.
 
@@ -167,7 +171,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
 
-Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/migrations/20260907010000_reference_upload_cap.sql`, `supabase/config.toml`.
 
 Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
 
@@ -209,4 +213,5 @@ Call only with the user’s JWT so RLS still applies if rewritten without `filte
 - `supabase/functions/upload_processor/index.ts`
 - `supabase/migrations/20260906133100_init.sql`
 - `supabase/migrations/20260907000000_grok_key_storage.sql`
+- `supabase/migrations/20260907010000_reference_upload_cap.sql`
 - `README.md` (local setup, Grok key how-to and RPCs)
