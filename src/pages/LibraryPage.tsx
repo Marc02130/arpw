@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient'
 import { loadPaperCitedFiles, referenceCountFromEmbed, type CitedFile } from '../lib/papers'
 import { uncitedSentences } from '../lib/attribution'
 import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
+import { formatCheckLabel, runFormatCheck } from '../lib/formatCheck'
 import { Paper, LibraryPaper, VersionHistory } from '../types'
 
 const LibraryPage: React.FC = () => {
@@ -309,6 +310,10 @@ const LibraryPage: React.FC = () => {
           ...citationInputsFromAttribution(selectedPaper.content ?? '', selectedPaper.attribution ?? []),
           paperReferenceFileIds: selectedCitedFiles.map((file) => file.file_id),
         })
+        const formatCheck = runFormatCheck({
+          content: selectedPaper.content ?? '',
+          requiredSections: selectedPaper.sections ?? [],
+        })
         return (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
@@ -329,6 +334,9 @@ const LibraryPage: React.FC = () => {
               </pre>
               <p className={`mt-3 text-sm ${citationCheck.ok ? 'text-gray-700' : 'text-red-700'}`} role="status">
                 {citationCheckLabel(citationCheck)}
+              </p>
+              <p className={`mt-3 text-sm ${formatCheck.ok ? 'text-gray-700' : 'text-red-700'}`} role="status">
+                {formatCheckLabel(formatCheck)}
               </p>
               {uncited.length > 0 && (
                 <p className="mt-3 text-sm text-amber-800">

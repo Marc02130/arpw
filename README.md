@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see twenty-one files pass, currently 96 tests:
+You should see twenty-two files pass, currently 99 tests:
 
 ```
-Test Files  21 passed (21)
-      Tests  96 passed (96)
+Test Files  22 passed (22)
+      Tests  99 passed (99)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -350,7 +350,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  21 passed (21)` and `Tests  96 passed (96)` (run 2026-09-07).
+- Unit: `Test Files  22 passed (22)` and `Tests  99 passed (99)` (run 2026-09-07).
 - Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not.
@@ -535,6 +535,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `attribution.test.ts` | Sentence → chunk via `[S#]` or quote span; uncited flag (QUAL-1) |
 | `citations.test.ts` | `[S#]` numbering; drop unknown ids (NFR-7) |
 | `citationCheck.test.ts` | QUAL-2: `[S#]` in retrieved set and cited files in `paper_references` |
+| `formatCheck.test.ts` | QUAL-3: required `##` section headings present |
 | `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |

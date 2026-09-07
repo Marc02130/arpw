@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), save it to the library, and run a citation check against the retrieved set and `paper_references`. You cannot run format checks, preview polish, or export. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), save it to the library, and run citation and required-section checks. You cannot polish the preview (disclaimer) or export. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -25,10 +25,10 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | MISSING | No control |
-| Quality checks | PARTIAL | QUAL-1 uncited sentences; QUAL-2 citation check vs retrieved set and `paper_references`. QUAL-3/4 still missing |
+| Quality checks | PARTIAL | QUAL-1 uncited; QUAL-2 citation check; QUAL-3 required section headings. QUAL-4 preview disclaimer still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
 | Export | MISSING | Button does nothing |
-| Tests | PARTIAL | Unit `npm test` 21 files / 96 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 22 files / 99 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins; QUAL-2 and export still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -94,7 +94,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 |---|---|---|
 | QUAL-1 | DONE | `attributeSentences`: [S#] or quote span → chunk id; else uncited. Stored on `user_papers.attribution`. Not cosine. |
 | QUAL-2 | DONE | `runCitationCheck`: every `[S#]` in the draft is in the retrieved/attributed set; cited file ids are in `paper_references`. Shown on generate draft and library preview. |
-| QUAL-3 | MISSING | |
+| QUAL-3 | DONE | `runFormatCheck`: each selected section has a `##` / `###` heading in the draft. Shown on generate and library preview. |
 | QUAL-4 | MISSING | Preview placeholder only |
 | QUAL-5 | WRONG-BY-DESIGN in old spec | `.docs/legacy` tech doc still says cosine > 0.7 = accuracy. Do not implement that |
 

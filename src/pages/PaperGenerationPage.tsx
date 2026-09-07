@@ -15,6 +15,7 @@ import InterrogatePanel, { type InterrogatePinTarget } from '../components/Inter
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { citationCheckLabel, citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
+import { formatCheckLabel, runFormatCheck } from '../lib/formatCheck'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import {
@@ -86,6 +87,12 @@ const PaperGenerationPage: React.FC = () => {
         content: draft,
         ...citationInputsFromAttribution(draft, attribution),
         paperReferenceFileIds: citedFiles.map((file) => file.file_id),
+      })
+    : null
+  const formatCheck = draft
+    ? runFormatCheck({
+        content: draft,
+        requiredSections: config.sections,
       })
     : null
 
@@ -669,6 +676,14 @@ const PaperGenerationPage: React.FC = () => {
                     role="status"
                   >
                     {citationCheckLabel(citationCheck)}
+                  </p>
+                )}
+                {formatCheck && (
+                  <p
+                    className={`mt-3 text-sm ${formatCheck.ok ? 'text-gray-700' : 'text-red-700'}`}
+                    role="status"
+                  >
+                    {formatCheckLabel(formatCheck)}
                   </p>
                 )}
                 {uncited.length > 0 && (
