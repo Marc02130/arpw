@@ -32,14 +32,14 @@ Browser (Vite SPA)
   +--> Supabase Auth
   +--> Postgres (RLS)  tables: user_profile, "references", examples,
   |                    reference_vectors, example_vectors, user_papers,
-  |                    paper_references
+  |                    paper_references, pinned_passages
   +--> Storage buckets: references, examples, papers
   +--> Edge Function upload_processor  (service role)
   +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
+  +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
 
 TARGET:
-  +--> interrogate_corpus (same retrieve + Grok allow-list)
-  +--> pinned_passages (pins first, then vector search)
+  +--> generate reads pinned_passages first, then vector search
   +--> retrieve RPC (hybrid search / MiniLM)
   +--> run_checks / export_paper
 ```
@@ -57,7 +57,7 @@ The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_ap
 | `/dashboard` | `src/pages/HomePage.tsx` | counts; start or continue a paper |
 | `/generate` | `src/pages/PaperGenerationPage.tsx` | Prompt tab |
 | `/generate/upload` | same | Upload tab: literature, original research, examples |
-| `/generate/interrogate` | TARGET same page | Interrogate tab: Q&A + pins |
+| `/generate/interrogate` | same | Interrogate tab: grounded Q&A; Pin on passages with optional target section |
 | `/profile` | `src/components/Profile.tsx` | `ProfilePage.tsx` is unused |
 | `/library` | `src/pages/LibraryPage.tsx` | list/view stubs |
 | `*` | redirect | |
@@ -92,6 +92,8 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 **user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
 
 **paper_references:** (`paper_id`, `file_id`).
+
+**pinned_passages:** `pin_id`, `user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section` (PAPER_SECTIONS or null), `created_at`. Unique `(paper_id, vector_id)`. Composite FKs: paper and file must belong to `user_id`; vector must belong to that `file_id` on `reference_vectors` (example-paper chunks cannot be pinned). RLS own rows only. Prompt tab lists/unpins; Query sources can pin. Generate does not read pins yet (PIN-2).
 
 RLS: row owner = `auth.uid()`; vector tables via EXISTS to parent file. Storage policies: authenticated CRUD only when `split_part(name, '/', 1) = auth.uid()::text` and the key is `{uid}/…` (`20260907150000_storage_object_rls.sql`).
 
@@ -165,9 +167,9 @@ Paper type **Literature Review**: `literature` only; ignore `primary`.
 
 Example-paper vectors: `match_example_chunks` + style prefix on the section prompt. Never numbered as `[S#]`, never mixed into the citation allow-list (GEN-7).
 
-**Pins and interrogation (TARGET)**
+**Pins and interrogation**
 
-See `.docs/INTERROGATION_SLICES.md`. Pins are rows (`user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks`. Interrogation Q&A uses the same retrieve + `[S#]` strip as generate. Chat turns are notes only. Do not ingest Ragged transcripts as `"references"`.
+See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns are not saved. Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). TARGET: generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks`. Chat turns are notes only. Do not ingest Ragged transcripts as `"references"`.
 
 **Pipeline**
 

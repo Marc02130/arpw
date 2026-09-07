@@ -110,6 +110,27 @@ export const formatStyleForPrompt = (passages: RetrievedPassage[]): string => {
   return `Voice and structure examples (style only — do not cite these as evidence, and do not invent [S#] ids for them):\n${body}`
 }
 
+export type InterrogateFilter = 'literature' | 'primary' | 'both'
+
+export const parseInterrogateFilter = (value: unknown): InterrogateFilter => {
+  if (value === 'literature' || value === 'primary' || value === 'both') return value
+  return 'both'
+}
+
+export const retrieveForQuestion = async (
+  client: SupabaseClient,
+  question: string,
+  filterRole: InterrogateFilter,
+  matchCount = DEFAULT_MATCH_COUNT
+): Promise<RetrievedPassage[]> => {
+  const topic = question.trim()
+  if (!topic) {
+    throw new Error('Enter a question')
+  }
+  const rows = await matchChunks(client, hashEmbedding(topic), filterRole, matchCount)
+  return rows.map((row) => ({ ...row, paperSection: 'Interrogate' }))
+}
+
 export const retrieveForPaper = async (
   client: SupabaseClient,
   paperType: string,

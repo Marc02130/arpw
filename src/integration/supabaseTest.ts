@@ -83,6 +83,18 @@ export async function generateFunctionIsUp(): Promise<boolean> {
   }
 }
 
+export async function interrogateFunctionIsUp(): Promise<boolean> {
+  try {
+    const response = await fetch(`${supabaseUrl()}/functions/v1/interrogate_corpus`, {
+      method: 'OPTIONS',
+      headers: { apikey: anonKey() },
+    })
+    return response.ok || response.status === 204
+  } catch {
+    return false
+  }
+}
+
 export async function createConfirmedUser(
   label: string
 ): Promise<{ id: string; email: string; accessToken: string; client: SupabaseClient }> {

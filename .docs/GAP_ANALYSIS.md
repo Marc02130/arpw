@@ -23,7 +23,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. MiniLM still TARGET. No ingest E2E while Storage is down |
 | Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
-| Interrogation / pins | MISSING | No interrogate tab; no `pinned_passages`; generate does not prefer pins |
+| Interrogation / pins | PARTIAL | PIN-1 + Interrogate tab + pin from Q&A. Generate does not prefer pins; chat not persisted |
 | Outline mode | MISSING | No control |
 | Quality checks | PARTIAL | QUAL-1 flags uncited sentences. Citation/format checks and preview polish still missing |
 | Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
@@ -80,10 +80,10 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 
 | ID | Status | Evidence |
 |---|---|---|
-| INT-1 | MISSING | No Interrogate tab |
-| INT-2 | MISSING | No interrogate worker |
+| INT-1 | DONE | `/generate/interrogate` + `InterrogatePanel` |
+| INT-2 | DONE | Edge `interrogate_corpus`; same Grok key path; `match_reference_chunks` + strip unknown `[S#]` |
 | INT-3 | MISSING | No chat-as-notes table |
-| PIN-1 | MISSING | No pin rows |
+| PIN-1 | DONE | `pinned_passages`; Prompt list/unpin; Interrogate Pin with optional target section; cannot pin another user’s chunk or examples |
 | PIN-2 | MISSING | Generate does not read pins |
 
 Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interrogation slices: `.docs/INTERROGATION_SLICES.md`.

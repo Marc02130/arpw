@@ -1,15 +1,15 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, generate a section-by-section draft (Grok key required), and save it to the library. Interrogation, pins, quality-check polish, and export are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus, generate a section-by-section draft (Grok key required), and save it to the library. Generate-from-pins, saved interrogation threads, quality-check polish, and export are not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Interrogate tab, pins, outline, or Word export |
+| Open dashboard, paper generation, profile, library after confirmation | Generate using pins, saved interrogation threads, outline, or Word export |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
-| Retrieve passages, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
+| Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
 
 Product intent, architecture, and the remaining gap list live in [`.docs/`](.docs/README.md). This README is the user-facing walkthrough and reference.
@@ -19,7 +19,7 @@ Product intent, architecture, and the remaining gap list live in [`.docs/`](.doc
 | Kind | Where |
 |---|---|
 | Tutorial | [Get to the dashboard](#tutorial-get-to-the-dashboard), [Run the unit tests](#tutorial-run-the-unit-tests) |
-| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test) |
+| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Interrogate](#how-to-interrogate-the-corpus), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test) |
 | Reference | [Ports and env](#ports-and-env), [Routes](#routes-srcapptsx), [Auth](#auth-behavior-srchooksuseauthts), [Grok RPCs](#grok-key-rpcs), [Uploads](#upload-constraints-srccomponentsuploadzonetsx), [Tests](#tests), [npm scripts](#npm-scripts) |
 | Explanation | [Why email confirmation](#why-email-confirmation), [Why the Grok key is not on the profile](#why-the-grok-key-is-not-on-the-profile), [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table), [Why two test suites](#why-two-test-suites) |
 | Specs | [`.docs/`](.docs/README.md) |
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see twelve files pass, currently 63 tests:
+You should see nineteen files pass, currently 87 tests:
 
 ```
-Test Files  7 passed (7)
-      Tests  63 passed (63)
+Test Files  19 passed (19)
+      Tests  87 passed (87)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -238,12 +238,12 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 
 1. On `/dashboard`, start a new paper or click Continue on an existing one. Then open the Prompt tab (`/generate?paper=…`).
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
-3. Click **Query sources**. Literature and original research list as evidence; example papers as style only.
-4. Click **Generate Paper**. The Edge function retrieves the same way, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, and uncited sentences show on the right.
+3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned.
+4. Click **Generate Paper**. The Edge function retrieves the same way, calls Grok, strips unknown `[S#]` citations, flags uncited sentences, and writes `user_papers` plus `paper_references`. The draft, cited files, and uncited sentences show on the right. Generate does not prefer pins yet.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 6. Open `/library`. The paper is listed as completed. View shows the markdown. Continue restores the prompt. Sources is the number of cited files.
 
-Files live on the **Upload** tab (`/generate/upload`).
+Files live on the **Upload** tab (`/generate/upload`). Interrogate the corpus on **Interrogate** (`/generate/interrogate?paper=…`).
 
 ### Verification
 
@@ -256,7 +256,27 @@ Indexed references + a prompt that overlaps their text should list passages with
 | “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
 | Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
 | Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
+| Interrogate 404 / function not found | `interrogate_corpus` is a new Edge function. Run `supabase functions serve` (installed CLI) so it registers next to `generate_paper`. |
 | Upload/index 502, logs say lock file hash mismatch | Delete `supabase/functions/**/deno.lock` (gitignored). `deno.json` sets `"lock": false` so esm.sh republishes do not break ingest. |
+
+## How to interrogate the corpus
+
+Ask a question of your literature and/or original research. The worker retrieves chunks, Grok answers using only those `[S#]` ids, and unknown ids are dropped. The turn is not saved.
+
+### Prerequisites
+
+A confirmed session, a paper from `/dashboard`, indexed literature or original research, and a Grok API key on `/profile`.
+
+### Steps
+
+1. Open the Interrogate tab (`/generate/interrogate?paper=…`).
+2. Choose sources: both, literature only, or original research only. Example papers are never searched.
+3. Enter a question and click **Ask**.
+4. Read the answer and the passages used. Pin a passage (optional target section, or any section). Unpin from this list or from the Prompt tab.
+
+### Verification
+
+A question that overlaps indexed text should list passages with `[S#]` labels. Pin, then open Prompt: the pin is listed. A missing key shows the same Profile error as generate. Example-paper-only corpora should match nothing.
 
 ## How to save a Grok API key
 
@@ -330,7 +350,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  12 passed (12)` and `Tests  63 passed (63)` (counts as of 2026-09-07).
+- Unit: `Test Files  19 passed (19)` and `Tests  87 passed (87)` (counts as of 2026-09-07).
 - Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
@@ -396,6 +416,7 @@ Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run 
 | `/dashboard` | Home: counts, new paper, continue existing | Confirmed, not in recovery |
 | `/generate` | Paper generation · Prompt | Same |
 | `/generate/upload` | Paper generation · Upload (literature, original research, examples) | Same |
+| `/generate/interrogate` | Paper generation · Interrogate | Same |
 | `/profile` | Name and Grok key | Same |
 | `/library` | Saved papers | Same |
 | `/` | Redirect to `/dashboard` | Same |

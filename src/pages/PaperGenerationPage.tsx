@@ -11,10 +11,18 @@ import {
 } from '../types'
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
+import InterrogatePanel, { type InterrogatePinTarget } from '../components/InterrogatePanel'
 import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
+import {
+  loadPins,
+  pinForVector,
+  pinPassage,
+  unpinPassage,
+  type PinnedPassage,
+} from '../lib/pins'
 import {
   loadCitedFiles,
   loadCorpusCounts,
@@ -42,6 +50,7 @@ const PaperGenerationPage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const paperId = searchParams.get('paper')
   const uploadTab = location.pathname.endsWith('/upload')
+  const interrogateTab = location.pathname.endsWith('/interrogate')
   const paperQuery = paperId ? `?paper=${paperId}` : ''
   const [paper, setPaper] = useState<Paper | null>(null)
   const [paperError, setPaperError] = useState<string | null>(null)
@@ -62,6 +71,8 @@ const PaperGenerationPage: React.FC = () => {
   const [stylePassages, setStylePassages] = useState<RetrievedPassage[]>([])
   const [citedFiles, setCitedFiles] = useState<CitedFile[]>([])
   const [corpus, setCorpus] = useState<CorpusCounts>({ literature: 0, primary: 0, examples: 0 })
+  const [pins, setPins] = useState<PinnedPassage[]>([])
+  const [pinError, setPinError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
@@ -78,6 +89,8 @@ const PaperGenerationPage: React.FC = () => {
       setPassages([])
       setStylePassages([])
       setCitedFiles([])
+      setPins([])
+      setPinError(null)
       return
     }
     void (async () => {
@@ -99,6 +112,13 @@ const PaperGenerationPage: React.FC = () => {
           setCitedFiles(await loadPaperCitedFiles(supabase, paperId))
         } catch {
           setCitedFiles([])
+        }
+        try {
+          setPins(await loadPins(supabase, paperId))
+          setPinError(null)
+        } catch (err) {
+          setPins([])
+          setPinError(err instanceof Error ? err.message : 'Could not load pins')
         }
       } catch (err) {
         setPaper(null)
@@ -159,6 +179,49 @@ const PaperGenerationPage: React.FC = () => {
     setUploadError(error)
     setUploadSuccess(null)
     setTimeout(() => setUploadError(null), 10000)
+  }
+
+  const refreshPins = async () => {
+    if (!paperId) {
+      setPins([])
+      return
+    }
+    setPins(await loadPins(supabase, paperId))
+  }
+
+  const handlePinPassage = async (row: InterrogatePinTarget, targetSection?: string | null) => {
+    if (!paperId) {
+      setPinError('Start or continue a paper from the Dashboard first')
+      return
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setPinError(null)
+    try {
+      await pinPassage(supabase, user.id, {
+        paperId,
+        fileId: row.file_id,
+        vectorId: row.vector_id,
+        targetSection: targetSection ?? null,
+      })
+      await refreshPins()
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Already pinned') {
+        await refreshPins()
+        return
+      }
+      setPinError(error instanceof Error ? error.message : 'Could not pin passage')
+    }
+  }
+
+  const handleUnpin = async (pinId: string) => {
+    setPinError(null)
+    try {
+      await unpinPassage(supabase, pinId)
+      await refreshPins()
+    } catch (error) {
+      setPinError(error instanceof Error ? error.message : 'Could not unpin')
+    }
   }
 
   const handleRetrievePassages = async () => {
@@ -278,9 +341,22 @@ const PaperGenerationPage: React.FC = () => {
         <NavLink to={`/generate/upload${paperQuery}`} className={tabClass}>
           Upload
         </NavLink>
+        <NavLink to={`/generate/interrogate${paperQuery}`} className={tabClass}>
+          Interrogate
+        </NavLink>
       </div>
 
-      {!uploadTab && (
+      {interrogateTab && (
+        <InterrogatePanel
+          paperId={paperId}
+          pins={pins}
+          pinError={pinError}
+          onPin={handlePinPassage}
+          onUnpin={handleUnpin}
+        />
+      )}
+
+      {!uploadTab && !interrogateTab && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             {paper && (
@@ -429,6 +505,49 @@ const PaperGenerationPage: React.FC = () => {
                 Upload
               </Link>
             </p>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Pinned passages</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Generate will prefer these (next slice). Unpin anytime. Pin from queried sources or Interrogate.
+            </p>
+            {pinError && (
+              <p className="text-sm text-red-700 mb-3" role="alert">{pinError}</p>
+            )}
+            {!paperId && (
+              <p className="text-sm text-gray-500 mb-4">Pick a paper on the Dashboard to pin passages.</p>
+            )}
+            {paperId && pins.length === 0 && (
+              <p className="text-sm text-gray-500 mb-4">
+                No pins yet. Query sources or Interrogate, then pin a literature or original-research chunk.
+              </p>
+            )}
+            {pins.length > 0 && (
+              <ul className="mb-6 space-y-2 max-h-56 overflow-y-auto">
+                {pins.map((pin) => (
+                  <li
+                    key={pin.pin_id}
+                    className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">
+                          {pin.file_name} · {pin.target_section ?? 'any section'}
+                        </div>
+                        {pin.chunk_text.slice(0, 240)}
+                        {pin.chunk_text.length > 240 ? '…' : ''}
+                      </div>
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                        onClick={() => void handleUnpin(pin.pin_id)}
+                      >
+                        Unpin
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Passages for this prompt</h2>
             {retrieveError && (
               <p className="text-sm text-red-700 mb-3" role="alert">{retrieveError}</p>
@@ -448,18 +567,41 @@ const PaperGenerationPage: React.FC = () => {
                       <ul className="space-y-2">
                         {passages
                           .filter((row) => row.paperSection === section)
-                          .map((row) => (
+                          .map((row) => {
+                            const existing = pinForVector(pins, row.vector_id)
+                            return (
                             <li
                               key={row.vector_id}
                               className="text-sm text-gray-700 bg-white border border-gray-200 rounded p-2"
                             >
-                              <div className="text-xs text-gray-500 mb-1">
-                                {row.source_role} · score {row.score.toFixed(3)}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  {row.source_role} · score {row.score.toFixed(3)}
+                                </div>
+                                {existing ? (
+                                  <button
+                                    type="button"
+                                    className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                                    onClick={() => void handleUnpin(existing.pin_id)}
+                                  >
+                                    Unpin
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                                    onClick={() => void handlePinPassage(row, row.paperSection)}
+                                    disabled={!paperId}
+                                  >
+                                    Pin
+                                  </button>
+                                )}
                               </div>
                               {row.chunk_text.slice(0, 400)}
                               {row.chunk_text.length > 400 ? '…' : ''}
                             </li>
-                          ))}
+                            )
+                          })}
                       </ul>
                     </div>
                   )

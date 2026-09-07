@@ -4,6 +4,10 @@ This directory contains the Edge Functions for the ARPW application.
 
 ## Functions
 
+### interrogate_corpus
+
+Grounded Q&A on the current paper’s literature and/or original research. Auth JWT required. Same Grok key path as generate (`read_grok_api_key`; SPA never sees it). Retrieves with `match_reference_chunks` only — no example papers. Client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`. Does not persist the turn.
+
 ### generate_paper
 
 Section-by-section draft. Auth JWT required. Reads the Grok key with service_role `read_grok_api_key` (the SPA never sees it). Retrieves chunks itself — client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`.

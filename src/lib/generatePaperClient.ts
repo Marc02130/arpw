@@ -30,7 +30,8 @@ const messageFromBody = (body: unknown): string | null => {
 
 export const generateInvokeError = async (
   data: unknown,
-  error: { message?: string; context?: unknown } | null
+  error: { message?: string; context?: unknown } | null,
+  fallback = 'Paper generation failed'
 ): Promise<string> => {
   const fromData = messageFromBody(data)
   if (fromData) return fromData
@@ -48,7 +49,7 @@ export const generateInvokeError = async (
     }
   }
 
-  return error?.message?.trim() || 'Paper generation failed'
+  return error?.message?.trim() || fallback
 }
 
 export const invokeGeneratePaper = async (

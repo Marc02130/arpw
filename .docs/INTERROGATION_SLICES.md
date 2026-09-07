@@ -21,10 +21,10 @@ Locked product calls (2026-09-07):
 
 | Slice | Name | Status | Unlocks |
 |---|---|---|---|
-| 1 | Pin schema + list/unpin | **NEXT** | Structured “include this” |
-| 2 | Interrogate tab (grounded Q&A) | NOT STARTED | Researcher inspects the corpus |
-| 3 | Pin from interrogation | NOT STARTED | Pins from a real question |
-| 4 | Generate uses pins first | NOT STARTED | Draft follows marked passages |
+| 1 | Pin schema + list/unpin | **DONE** | Structured “include this” |
+| 2 | Interrogate tab (grounded Q&A) | **DONE** | Researcher inspects the corpus |
+| 3 | Pin from interrogation | **DONE** | Pins from a real question |
+| 4 | Generate uses pins first | **NEXT** | Draft follows marked passages |
 | 5 | Persist interrogation chat as notes | NOT STARTED | Continue the conversation |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
@@ -33,21 +33,23 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 **Done when:** a `pinned_passages` (name can change) row stores `user_id`, `paper_id`, `file_id`, `vector_id`, optional `target_section`, timestamps; RLS is own rows only; the Prompt tab can list and unpin pins for the current paper; unit + REST tests cover CHECK/RLS (cannot pin another user’s chunk).
 
-**Not in this slice:** chat UI; generate reading pins; pinning from interrogation.
+**Shipped:** `supabase/migrations/20260907210000_pinned_passages.sql`; `src/lib/pins.ts` + `pins.test.ts`; Prompt tab list/unpin and Pin on Query sources (examples rejected by FK); `src/integration/pins.integration.test.ts`.
 
-**Likely files:** migration; `src/lib/pins.ts` + tests; Prompt tab pin list. Integration: `src/integration/` RLS + own-row insert.
+**Not in this slice:** chat UI; generate reading pins; pinning from interrogation.
 
 ### Slice 2 — Interrogate tab
 
 **Done when:** Paper generation has an **Interrogate** tab (`/generate/interrogate?paper=…`); the user asks a question; the worker retrieves from `literature` and/or `primary` (user filter); Grok answers using only retrieved `[S#]` ids; unknown ids are stripped; missing Grok key is the same Profile error as generate. Passages for the answer are visible.
 
-**Not in this slice:** pins; saving the thread; examples in the interrogate retriever (examples stay style-only on generate).
+**Shipped:** Edge `interrogate_corpus`; `src/lib/interrogateCorpus.ts` + tests; `src/lib/interrogateClient.ts`; `src/components/InterrogatePanel.tsx`; tab on `PaperGenerationPage`; `src/integration/interrogate.integration.test.ts`. Reuses `match_reference_chunks` + `stripUnknownCitations`. No examples, no persisted thread.
 
-**Likely files:** Edge `interrogate_corpus` (or extend `generate_paper`); `PaperGenerationPage` tab. Reuse `match_reference_chunks` + `stripUnknownCitations`.
+**Not in this slice:** pins; saving the thread; examples in the interrogate retriever (examples stay style-only on generate).
 
 ### Slice 3 — Pin from interrogation
 
 **Done when:** each shown passage has Pin; pin stores `vector_id` / `file_id` and optional target section (Methods, Results, …); Prompt tab shows those pins; unpin works.
+
+**Shipped:** `InterrogatePanel` Pin/Unpin + target-section select (`Any section` or a paper section, never `Interrogate`); shared `handlePinPassage` on `PaperGenerationPage`; Prompt list refreshes from the same `pins` state. `parsePinTargetSection('Interrogate')` is rejected.
 
 **Not in this slice:** generate consuming pins.
 

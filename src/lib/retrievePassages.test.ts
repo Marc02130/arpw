@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
 import { getSectionTemplate } from './generationTemplates'
-import { formatStyleForPrompt, retrievalAttempts } from './retrievePassages'
+import { formatStyleForPrompt, parseInterrogateFilter, retrievalAttempts } from './retrievePassages'
 
 describe('retrievalAttempts (slice 3)', () => {
   it('should skip references and try primary then literature for empirical methods', () => {
@@ -18,6 +18,16 @@ describe('retrievalAttempts (slice 3)', () => {
     expect(
       retrievalAttempts(getSectionTemplate(PaperType.EMPIRICAL_STUDY, 'References').preferredSourceRole)
     ).toEqual([])
+  })
+})
+
+describe('parseInterrogateFilter (slice 2)', () => {
+  it('should keep literature or primary and default everything else to both', () => {
+    expect(parseInterrogateFilter('literature')).toBe('literature')
+    expect(parseInterrogateFilter('primary')).toBe('primary')
+    expect(parseInterrogateFilter('both')).toBe('both')
+    expect(parseInterrogateFilter('example')).toBe('both')
+    expect(parseInterrogateFilter(undefined)).toBe('both')
   })
 })
 
