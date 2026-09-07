@@ -57,6 +57,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | DOCS-5 | DONE | Bucket from `documentType`; TXT/DOCX/PDF parse; chunk+section; `hash-384` vectors. MiniLM still TARGET |
 | DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
+| DOCS-8 | MISSING | No `source_role` on `"references"` |
 
 #### Generation
 
@@ -148,8 +149,7 @@ Matches engineering, not README order.
 |---|---|---|
 | 0 | Keep PII out of git; README that matches reality. Auth (confirm + reset) is shipped. | Trust |
 | 1 | Storage path `{user_id}/{file_id}` shipped. Fixture PDF unit ingest shipped. Remaining: Storage up + live ingest E2E | Corpus |
-| 2 | `match_reference_chunks` + dashboard “passages for this prompt” | Retrieval you can debug |
-| 3 | Section-wise `generate_paper` with citation allow-list | Drafts that are not fiction |
+| 2–5 | Generate slices in `.docs/GENERATION_SLICES.md` (`source_role`, templates, retrieval, Grok allow-list, save) | Grounded drafts |
 | 4 | Attribution flags + library save/export | MVP cut line |
 | 5 | Outline, extra styles, eval harness | After MVP |
 

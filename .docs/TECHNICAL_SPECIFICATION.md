@@ -78,6 +78,8 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
 
+TARGET (slice 1): `source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))`. `literature` = other people’s work (citable evidence). `primary` = this study (protocols, results, own manuscript). Example papers do **not** get this column.
+
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
 **reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section`, `embedding_model` (`hash-384`). TARGET: page/doi/authors; MiniLM or hosted embeddings in the same 384-d column.
@@ -135,17 +137,45 @@ No `generate_paper` function. UI:
 alert('Paper generation feature will be implemented in the next phase')
 ```
 
-TARGET pipeline:
+Build order: `.docs/GENERATION_SLICES.md`.
 
-1. Embed the user prompt (same model as chunks; store model id on rows).
-2. For each selected section, rewrite a retrieval query (e.g. “Methods: …” + prompt).
-3. SQL RPC: cosine + full-text, filter `user_id`, return `chunk_text`, `file_id`, `section`, `page`, score. k ≈ 8–20 **per section**.
-4. Optional rerank.
-5. Prompt Grok: only cite `source_id`s in the retrieved set; quote or paraphrase with `[S12]`.
-6. Parse output; drop unknown ids.
-7. Concatenate sections; insert `user_papers`; insert `paper_references`.
+**Who writes which prompt**
 
-Example-paper vectors: style prefix only, never mixed into evidence.
+| Text | Owner | MVP |
+|---|---|---|
+| Research prompt (topic / question / constraints) | User, dashboard textarea | Yes (GEN-1) |
+| Paper type × section retrieval suffix + generation instructions | Server module, frozen | Yes (GEN-2, GEN-5) |
+| System prompt / per-section template editor | User | No |
+| Extra notes appended to every section | User | Deferred |
+
+The SPA must not send a system prompt to Grok. The worker loads templates from code.
+
+**`source_role` and retrieval**
+
+Join `reference_vectors` to `"references"`. Filter `user_id = auth.uid()`. Then:
+
+| Section | Chunks to search |
+|---|---|
+| Abstract, Introduction, Literature Review | `source_role = 'literature'` |
+| Methods, Results | `primary` first; if none, `literature` |
+| Discussion, Conclusion | both |
+| References | none (built from cited ids) |
+
+Paper type **Literature Review**: `literature` only; ignore `primary`.
+
+Example-paper vectors: style prefix only, never mixed into evidence (GEN-7).
+
+**Pipeline**
+
+1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
+2. For each selected section, rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above.
+3. SQL RPC: cosine + full-text, return `chunk_text`, `file_id`, `vector_id`, `section`, score. k ≈ 8–20 **per section**.
+4. Optional rerank later.
+5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`.
+6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
+7. Concatenate sections; insert `user_papers`; insert `paper_references` for cited `file_id`s.
+
+Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, fail with a message to save one on `/profile`.
 
 ### 8. Library and export (as-built vs TARGET)
 
@@ -229,4 +259,5 @@ How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. W
 - `supabase/migrations/20260907000000_grok_key_storage.sql`
 - `supabase/migrations/20260907010000_reference_upload_cap.sql`
 - `README.md` (local setup, Grok key how-to and RPCs, tests)
+- `.docs/GENERATION_SLICES.md`
 - `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`

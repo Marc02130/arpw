@@ -597,6 +597,7 @@ Intent and remaining work (not this walkthrough):
 - **Index**: [`.docs/README.md`](.docs/README.md)
 - **PRD**: [`.docs/PRODUCT_REQUIREMENTS.md`](.docs/PRODUCT_REQUIREMENTS.md)
 - **Tech spec**: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) (as-built tests: §12)
+- **Generate slices**: [`.docs/GENERATION_SLICES.md`](.docs/GENERATION_SLICES.md)
 - **Gap analysis**: [`.docs/GAP_ANALYSIS.md`](.docs/GAP_ANALYSIS.md) (NFR-7)
 
 Superseded drafts: [`.docs/legacy/`](.docs/legacy/).

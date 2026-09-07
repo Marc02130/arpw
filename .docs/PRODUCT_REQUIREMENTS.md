@@ -7,8 +7,8 @@ Product requirements for AI Research Paper Writer (ARPW), a web app that helps a
 - Product: ARPW
 - Audience: individual academic users (researchers, PIs, graduate students)
 - Platform: web (desktop first)
-- Version of this PRD: 1.2
-- Date: 2026-09-06
+- Version of this PRD: 1.3
+- Date: 2026-09-07
 - Status: current product intent on `main`
 
 ARPW is a **grounded drafting assistant**. It retrieves passages from the user’s corpus, generates section drafts with citations that map to those passages, and requires human review before anything looks like a submission. It is not a paper mill and it must not emit citations that are not in the retrieved set.
@@ -23,7 +23,7 @@ Writing a literature-backed draft from a personal PDF pile is slow. Generic chat
 
 **User goals**
 
-- Upload their own reference PDFs (and a few style examples).
+- Upload their own PDFs and mark each as literature or this-study (primary). Optional style examples.
 - Ask for a paper on a topic, pick sections and paper type, get a draft grounded in those files.
 - See which source passage supports each claim.
 - Keep versions, export Markdown or Word, review before use.
@@ -40,6 +40,8 @@ Writing a literature-backed draft from a personal PDF pile is slow. Generic chat
 - Mobile-first layout.
 - Journal submission, plagiarism scanning, or publisher templates.
 - Generating a full paper from 10–20 random chunks with no section-wise retrieval.
+- User-editable system prompts or per-section prompt templates (server owns type × section templates).
+- A third upload drop zone for “original research” (use `source_role` on references instead).
 
 ### 3. Users
 
@@ -75,16 +77,17 @@ Each item has an ID for the gap analysis.
 | DOCS-5 | Parse text, chunk with section/page metadata, embed, store in `pgvector`. | P0 |
 | DOCS-6 | Reject unsupported types and oversize files before upload. | P0 |
 | DOCS-7 | Enforce the 500 / 10 caps against existing rows, not only the current batch. | P1 |
+| DOCS-8 | Each reference has `source_role`: `literature` (default) or `primary` (the user’s study). List shows the tag; the user can change it. Same bucket and cap as DOCS-1. Not used on example papers. | P0 |
 
 #### GEN
 
 | ID | Requirement | Priority |
 |---|---|---|
-| GEN-1 | Prompt textarea; section checkboxes (Abstract through References). | P0 |
-| GEN-2 | Paper type: Empirical Study, Literature Review, Theoretical Paper, Case Study. | P0 |
+| GEN-1 | Research prompt textarea (topic, question, constraints). This is the only user-written generation text in MVP. Section checkboxes (Abstract through References). | P0 |
+| GEN-2 | Paper type: Empirical Study, Literature Review, Theoretical Paper, Case Study. Type selects the server template pack. | P0 |
 | GEN-3 | Citation style: APA for MVP (MLA/Chicago later). | P1 |
-| GEN-4 | Retrieve relevant reference chunks (hybrid search + rerank later); show sources in the UI. | P0 |
-| GEN-5 | Generate **section by section**, each section with its own retrieval. | P0 |
+| GEN-4 | Retrieve relevant reference chunks per section (hybrid search + rerank later); filter by `source_role` (see generation slices); show sources in the UI. | P0 |
+| GEN-5 | Generate **section by section**. Each section uses a frozen server template for that paper type × section, its own retrieval, and the research prompt. | P0 |
 | GEN-6 | Citations only from retrieved `source_id`s; drop invented citations. | P0 |
 | GEN-7 | Example papers constrain tone/structure only; they are not evidence. | P1 |
 | GEN-8 | Outline mode: generate an editable outline, then full draft. | P2 |
@@ -126,9 +129,9 @@ Each item has an ID for the gap analysis.
 ### 5. UX flow
 
 1. Sign up, confirm email (or request a password reset), then sign in.
-2. Dashboard: upload references (and optional examples).
+2. Dashboard: upload references (and optional examples). Mark each reference as literature or primary (this study).
 3. Wait until files show as processed (not only “uploaded”).
-4. Enter prompt, pick sections and paper type.
+4. Enter the research prompt, pick sections and paper type.
 5. Optional: generate outline, edit, confirm.
 6. Generate draft section by section; inspect retrieved passages.
 7. Preview with flags; light edits.
@@ -150,20 +153,22 @@ Measure these; do not invent pass rates.
 | Risk | Mitigation |
 |---|---|
 | Hallucinated citations | Hard allow-list of retrieved source ids; refuse the rest. |
-| Naive whole-paper generation | Section-wise retrieval and generation. |
+| Mixing the user’s study with published papers | `source_role` on references; section retrieval prefers literature vs primary. |
+| Naive whole-paper generation | Section-wise retrieval and generation; frozen type × section templates. |
 | Academic misconduct if sold as “write my paper” | Product copy: drafting assistant; disclaimer on every export. |
 | API keys in the browser | Server-only secret storage. |
 | PII in the repo | `.docs/*.pdf` gitignored; never commit identity documents. |
 
 ### 8. MVP cut line
 
-**Must ship for “MVP”:** AUTH-1–3, AUTH-5–8, DOCS-1, DOCS-4–6, GEN-1–2, GEN-4–6, GEN-9–10, QUAL-1–2, QUAL-4, LIB-1, LIB-3, NFR-1–3, NFR-7.
+**Must ship for “MVP”:** AUTH-1–3, AUTH-5–8, DOCS-1, DOCS-4–6, DOCS-8, GEN-1–2, GEN-4–6, GEN-9–10, QUAL-1–2, QUAL-4, LIB-1, LIB-3, NFR-1–3, NFR-7.
 
 Everything else can follow without pretending it is done.
 
 ## References
 
 - `.docs/TECHNICAL_SPECIFICATION.md` — as-built and target architecture
+- `.docs/GENERATION_SLICES.md` — generate build slices
 - `.docs/GAP_ANALYSIS.md` — PRD vs code
 - `supabase/migrations/20260906133100_init.sql` — current schema
 - `.docs/legacy/AI_Research_Paper_Writer_User_Stories.markdown` — original stories (stale; superseded where they conflict)

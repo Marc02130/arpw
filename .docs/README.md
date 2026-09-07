@@ -11,6 +11,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 | [../README.md](../README.md) | Tutorial / how-to / reference / explanation | First run, tasks, APIs, why (including [tests](../README.md#how-to-run-tests)) |
 | [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md) | Intent | Who it is for, requirement IDs, MVP cut line. Not a status report. |
 | [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md) | As-built + TARGET | Stack, schema, RPCs, ingest, tests, TARGET RAG |
+| [GENERATION_SLICES.md](./GENERATION_SLICES.md) | Generate cut | Slice tracker: `source_role`, templates, retrieval, Grok, save |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Planning | PRD vs code; build order |
 | [legacy/](./legacy/) | Superseded | Drafts; ignore where they conflict |
 
@@ -18,6 +19,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 
 - First run, confirm email, upload, Grok key, tests: `../README.md`
 - About to write code: [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)
+- About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
 - Schema, RPCs, embeddings, test commands: [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)
 - What “MVP” still means: [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)
 
