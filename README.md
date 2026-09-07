@@ -256,6 +256,7 @@ Indexed references + a prompt that overlaps their text should list passages with
 | “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
 | Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
 | Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
+| Upload/index 502, logs say lock file hash mismatch | Delete `supabase/functions/**/deno.lock` (gitignored). `deno.json` sets `"lock": false` so esm.sh republishes do not break ingest. |
 
 ## How to save a Grok API key
 
