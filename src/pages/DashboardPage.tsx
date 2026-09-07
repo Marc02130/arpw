@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { PaperGenerationConfig, PaperType, CitationStyle, OutputFormat, DocumentType } from '../types'
 import UploadZone from '../components/UploadZone'
 import DocumentList from '../components/DocumentList'
+import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP } from '../lib/fileCap'
 
 const DashboardPage: React.FC = () => {
   const [config, setConfig] = useState<PaperGenerationConfig>({
@@ -210,12 +211,12 @@ const DashboardPage: React.FC = () => {
           <div className="card">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Reference Documents</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Upload up to 500 reference documents (PDF, DOCX, TXT) for citations and research context. The cap counts files you already stored, not only this batch.
+              Upload up to {REFERENCE_FILE_CAP} reference documents (PDF, DOCX, TXT) for citations and research context. The cap counts files you already stored, not only this batch.
             </p>
             
             <UploadZone
               documentType={DocumentType.REFERENCE}
-              maxFiles={500}
+              maxFiles={REFERENCE_FILE_CAP}
               onUploadComplete={handleUploadComplete}
               onUploadError={handleUploadError}
             />
@@ -232,12 +233,12 @@ const DashboardPage: React.FC = () => {
           <div className="card">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Example Papers</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Upload up to 10 example papers for style emulation and formatting reference.
+              Upload up to {EXAMPLE_FILE_CAP} example papers (PDF, DOCX, TXT). The cap counts files you already stored, not only this batch.
             </p>
             
             <UploadZone
               documentType={DocumentType.EXAMPLE}
-              maxFiles={10}
+              maxFiles={EXAMPLE_FILE_CAP}
               onUploadComplete={handleUploadComplete}
               onUploadError={handleUploadError}
             />

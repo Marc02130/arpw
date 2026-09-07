@@ -1,3 +1,6 @@
+export const REFERENCE_FILE_CAP = 500
+export const EXAMPLE_FILE_CAP = 10
+
 export const remainingSlots = (maxFiles: number, existing: number): number =>
   maxFiles - existing
 

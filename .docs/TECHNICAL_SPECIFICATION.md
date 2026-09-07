@@ -76,7 +76,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
 
-**examples:** same shape except `document_type = 'example'`. Client cap 10; no DB trigger yet (DOCS-2 / DOCS-7).
+**examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
 **reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`. No page, section, doi, authors, chunk_index, embedding_model. TARGET: add those columns.
 
@@ -171,7 +171,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`.
 
-Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/migrations/20260907010000_reference_upload_cap.sql`, `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/index.ts`, `supabase/migrations/20260906133100_init.sql`, `supabase/migrations/20260907000000_grok_key_storage.sql`, `supabase/migrations/20260907010000_reference_upload_cap.sql`, `supabase/migrations/20260907120000_example_upload_cap.sql`, `supabase/config.toml`.
 
 Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
 

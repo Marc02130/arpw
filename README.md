@@ -135,7 +135,7 @@ You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file c
 1. Under **Reference Documents**, click the drop zone or drag files. The line `N stored` is the current count.
 2. Use `.pdf`, `.docx`, or `.txt` only. Each file must be larger than 0 bytes and at most 10 MB. `.doc` is rejected before upload.
 3. Wait until the progress row says Completed. The list under the zone should show the file name, size, and date.
-4. Example papers use the same picker with a client-side cap of 10. Only references have a database trigger at 500.
+4. **Example Papers** uses the same types and picker, with a cap of 10 stored rows (client count + `examples_file_cap` trigger).
 
 ### Verification
 
@@ -143,7 +143,8 @@ You will store a PDF, DOCX, or TXT as a reference. It counts toward a 500-file c
 - List: filename in **Reference Documents**.
 - REST `GET /rest/v1/references?select=file_name,file_size` as the signed-in user returns the row.
 - A `.doc` insert fails check `references_file_name_ext`.
-- A 501st insert fails with `Reference cap of 500 files reached`.
+- A 501st reference insert fails with `Reference cap of 500 files reached`.
+- An 11th example insert fails with `Example cap of 10 files reached`.
 
 Constraints and object key: [Reference: uploads](#upload-constraints-srccomponentsuploadzonetsx). Why the cap is on the table: [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table).
 
@@ -316,7 +317,7 @@ Database (`supabase/migrations/20260907010000_reference_upload_cap.sql`):
 | `references_file_size_check` | `file_size > 0 AND file_size <= 10485760` (from init) |
 | `references_file_cap` | `BEFORE INSERT`: if the user already has 500 rows, raise `Reference cap of 500 files reached` |
 
-Examples still use the same component with `maxFiles={10}` (client count only; no DB trigger). Bucket `papers` exists and is unused by the SPA.
+Examples (`maxFiles={EXAMPLE_FILE_CAP}` = 10): same client rules; DB `examples_file_name_ext` and `examples_file_cap` (10). Bucket `papers` exists and is unused by the SPA.
 
 ### npm scripts
 

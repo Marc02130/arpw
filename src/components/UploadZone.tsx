@@ -3,6 +3,11 @@ import { supabase } from '../supabaseClient'
 import { UploadProgress, DocumentType } from '../types'
 import { ACCEPTED_UPLOAD_EXTENSIONS, validateUploadFile } from '../lib/validateFile'
 import { uploadCapError } from '../lib/fileCap'
+import {
+  patchFileProgress,
+  startUploadProgress,
+  uploadStatusText,
+} from '../lib/uploadProgress'
 
 interface UploadZoneProps {
   documentType: DocumentType
@@ -46,14 +51,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     const fileName = `${fileId}_${file.name}`
     
     // Create initial progress entry
-    const progressEntry: UploadProgress = {
-      fileId,
-      fileName: file.name,
-      progress: 0,
-      status: 'uploading',
-    }
-    
-    setUploadProgress(prev => [...prev, progressEntry])
+    setUploadProgress((prev) => [...prev, startUploadProgress(fileId, file.name)])
 
     try {
       // Upload to Supabase Storage
@@ -87,9 +85,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       }
 
       setUploadProgress((prev) =>
-        prev.map((p) =>
-          p.fileId === fileId ? { ...p, progress: 80, status: 'processing' } : p
-        )
+        patchFileProgress(prev, fileId, { progress: 80, status: 'processing' })
       )
 
       try {
@@ -108,21 +104,15 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       }
 
       setUploadProgress((prev) =>
-        prev.map((p) =>
-          p.fileId === fileId ? { ...p, progress: 100, status: 'completed' } : p
-        )
+        patchFileProgress(prev, fileId, { progress: 100, status: 'completed' })
       )
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
       
       // Update progress to error
-      setUploadProgress(prev => 
-        prev.map(p => 
-          p.fileId === fileId 
-            ? { ...p, progress: 0, status: 'error', error: errorMessage }
-            : p
-        )
+      setUploadProgress((prev) =>
+        patchFileProgress(prev, fileId, { progress: 0, status: 'error', error: errorMessage })
       )
       
       onUploadError(errorMessage)
@@ -264,20 +254,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     }
   }
 
-  const getStatusText = (status: UploadProgress['status']) => {
-    switch (status) {
-      case 'uploading':
-        return 'Uploading...'
-      case 'processing':
-        return 'Processing...'
-      case 'completed':
-        return 'Completed'
-      case 'error':
-        return 'Error'
-      default:
-        return ''
-    }
-  }
+  const getStatusText = uploadStatusText
 
   return (
     <div className="space-y-4">

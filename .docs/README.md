@@ -18,4 +18,4 @@ Start with the gap analysis if you are about to write code. For a first-run walk
 ## References
 
 - Local setup: `../README.md`
-- Schema: `../supabase/migrations/20260906133100_init.sql`, `../supabase/migrations/20260907000000_grok_key_storage.sql`, `../supabase/migrations/20260907010000_reference_upload_cap.sql`
+- Schema: `../supabase/migrations/20260906133100_init.sql`, `../supabase/migrations/20260907000000_grok_key_storage.sql`, `../supabase/migrations/20260907010000_reference_upload_cap.sql`, `../supabase/migrations/20260907120000_example_upload_cap.sql`
