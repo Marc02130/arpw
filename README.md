@@ -1,13 +1,13 @@
 # AI Research Paper Writer (ARPW)
 
-A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Preview flags uncited sentences, citation/format issues, and a human-review disclaimer. Markdown/Word export and outline are not built.
+A web app for a single researcher: upload your own papers, then draft a literature-backed paper from that corpus. Today you can retrieve passages, pin them to a paper, ask grounded questions of the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (Grok key required), and save it to the library. Preview flags uncited sentences, citation/format issues, and a human-review disclaimer. Outline is not built.
 
 ## What works today
 
 | You can | You cannot |
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
-| Open dashboard, paper generation, profile, library after confirmation | Outline or Word export |
+| Open dashboard, paper generation, profile, library after confirmation | Outline |
 | Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
 | Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, preview warnings, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see twenty-three files pass, currently 102 tests:
+You should see twenty-four files pass, currently 106 tests:
 
 ```
-Test Files  23 passed (23)
-      Tests  102 passed (102)
+Test Files  24 passed (24)
+      Tests  106 passed (106)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -311,7 +311,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation with the saved prompt. Sources is the `paper_references` count. Delete hits the table after a confirm dialog. Export is not built.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation with the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -350,7 +350,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  23 passed (23)` and `Tests  102 passed (102)` (run 2026-09-07).
+- Unit: `Test Files  24 passed (24)` and `Tests  106 passed (106)` (run 2026-09-07).
 - Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not.
@@ -537,6 +537,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `citationCheck.test.ts` | QUAL-2: `[S#]` in retrieved set and cited files in `paper_references` |
 | `formatCheck.test.ts` | QUAL-3: required `##` section headings present |
 | `draftPreview.test.ts` | QUAL-4: disclaimer text; inline uncited marks; warning list |
+| `exportPaper.test.ts` | LIB-4: Markdown/Word blocks include disclaimer; filename stem |
 | `generatePaper.test.ts` | Section loop strips `[S99]`; ignores client `sourceIds` / `systemPrompt` |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |
@@ -554,7 +555,7 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
 | `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval |
-| `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only |
+| `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only; regenerate inserts version 2 |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
 | `pins.integration.test.ts` | Pin/list/unpin own chunk; unscoped target; cannot see or pin another user’s chunk; example vectors and `Appendix` rejected |
 | `interrogate.integration.test.ts` | `interrogate_corpus` 401 without JWT; missing Grok key. Skips if the function is down |

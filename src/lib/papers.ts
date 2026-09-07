@@ -163,3 +163,42 @@ export const paperSectionsOrDefault = (sections: string[] | null | undefined): s
   if (sections && sections.length > 0) return sections
   return [...DEFAULT_PAPER_SECTIONS]
 }
+
+export const nextVersionForTitle = (versions: number[]): number => {
+  const max = versions.reduce((acc, version) => (version > acc ? version : acc), 0)
+  return max + 1
+}
+
+export const createRegenerateDraft = async (
+  client: SupabaseClient,
+  userId: string,
+  source: Paper
+): Promise<Paper> => {
+  const { data: siblings, error: listError } = await client
+    .from('user_papers')
+    .select('version')
+    .eq('user_id', userId)
+    .eq('title', source.title)
+  if (listError) throw new Error(listError.message)
+  const version = nextVersionForTitle((siblings ?? []).map((row: { version: number }) => row.version))
+  const { data, error } = await client
+    .from('user_papers')
+    .insert({
+      user_id: userId,
+      title: source.title,
+      content: '',
+      sections: paperSectionsOrDefault(source.sections),
+      paper_type: source.paper_type,
+      citation_style: source.citation_style,
+      output_format: source.output_format,
+      version,
+      status: Status.DRAFT,
+      research_prompt: source.research_prompt ?? '',
+    })
+    .select('*')
+    .single()
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Could not create regenerated draft')
+  }
+  return data as Paper
+}

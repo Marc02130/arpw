@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
-import { loadPaperCitedFiles, referenceCountFromEmbed, type CitedFile } from '../lib/papers'
+import { invokeGeneratePaper } from '../lib/generatePaperClient'
+import { previewWarnings } from '../lib/draftPreview'
+import {
+  checksExportBlock,
+  downloadBlob,
+  exportFileName,
+  paperToDocxBlob,
+  paperToMarkdown,
+} from '../lib/exportPaper'
+import {
+  createRegenerateDraft,
+  loadPaperCitedFiles,
+  paperSectionsOrDefault,
+  referenceCountFromEmbed,
+  type CitedFile,
+} from '../lib/papers'
 import { uncitedSentences } from '../lib/attribution'
 import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { runFormatCheck } from '../lib/formatCheck'
@@ -16,6 +31,8 @@ const LibraryPage: React.FC = () => {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
   const [selectedCitedFiles, setSelectedCitedFiles] = useState<CitedFile[]>([])
   const [showVersions, setShowVersions] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPapers()
@@ -120,6 +137,66 @@ const LibraryPage: React.FC = () => {
     setSelectedCitedFiles([])
   }
 
+  const handleRegenerate = async (paper: Paper) => {
+    if (!paper.research_prompt?.trim()) {
+      setActionError('This paper has no research prompt. Continue to add one, then generate.')
+      return
+    }
+    setBusyId(paper.paper_id)
+    setActionError(null)
+    let createdId: string | null = null
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const next = await createRegenerateDraft(supabase, user.id, paper)
+      createdId = next.paper_id
+      await invokeGeneratePaper(supabase, {
+        paperId: next.paper_id,
+        paperType: next.paper_type,
+        sections: paperSectionsOrDefault(next.sections),
+        researchPrompt: next.research_prompt ?? '',
+        citationStyle: next.citation_style,
+        outputFormat: next.output_format,
+      })
+      await fetchPapers()
+    } catch (error) {
+      if (createdId) {
+        await supabase.from('user_papers').delete().eq('paper_id', createdId)
+      }
+      setActionError(error instanceof Error ? error.message : 'Regenerate failed')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleExport = async (paper: Paper, format: 'markdown' | 'word') => {
+    setActionError(null)
+    try {
+      const cited = await loadPaperCitedFiles(supabase, paper.paper_id)
+      const uncited = uncitedSentences(paper.attribution ?? [])
+      const citationCheck = runCitationCheck({
+        content: paper.content ?? '',
+        ...citationInputsFromAttribution(paper.content ?? '', paper.attribution ?? []),
+        paperReferenceFileIds: cited.map((file) => file.file_id),
+      })
+      const formatCheck = runFormatCheck({
+        content: paper.content ?? '',
+        requiredSections: paper.sections ?? [],
+      })
+      const checks = checksExportBlock(previewWarnings({ uncited, citationCheck, formatCheck }))
+      const payload = { title: paper.title, content: paper.content ?? '', version: paper.version }
+      if (format === 'markdown') {
+        const text = paperToMarkdown(payload, { checks })
+        downloadBlob(new Blob([text], { type: 'text/markdown;charset=utf-8' }), exportFileName(paper.title, paper.version, 'md'))
+        return
+      }
+      const blob = await paperToDocxBlob(payload, { checks })
+      downloadBlob(blob, exportFileName(paper.title, paper.version, 'docx'))
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Export failed')
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -145,6 +222,16 @@ const LibraryPage: React.FC = () => {
         <p className="mt-2 text-gray-600">
           Manage your generated research papers and view version history.
         </p>
+        {actionError && (
+          <p className="mt-3 text-sm text-red-700" role="alert">
+            {actionError}{' '}
+            {/Grok API key/i.test(actionError) && (
+              <Link to="/profile" className="font-medium text-primary-600 hover:text-primary-500">
+                Open Profile
+              </Link>
+            )}
+          </p>
+        )}
       </div>
 
       {papers.length === 0 ? (
@@ -225,25 +312,51 @@ const LibraryPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(paper.created_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => void openPreview(paper)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          View
-                        </button>
-                        <Link
-                          to={`/generate?paper=${paper.paper_id}`}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Continue
-                        </Link>
-                        <button
-                          onClick={() => handleDeletePaper(paper.paper_id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
+                      <td className="px-6 py-4 text-sm font-medium">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          <button
+                            type="button"
+                            onClick={() => void openPreview(paper)}
+                            className="text-primary-600 hover:text-primary-900"
+                          >
+                            View
+                          </button>
+                          <Link
+                            to={`/generate?paper=${paper.paper_id}`}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Continue
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => void handleRegenerate(paper)}
+                            disabled={busyId === paper.paper_id}
+                            className="text-primary-600 hover:text-primary-900 disabled:text-gray-400"
+                          >
+                            {busyId === paper.paper_id ? 'Regenerating…' : 'Regenerate'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleExport(paper, 'markdown')}
+                            className="text-gray-700 hover:text-gray-900"
+                          >
+                            Markdown
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleExport(paper, 'word')}
+                            className="text-gray-700 hover:text-gray-900"
+                          >
+                            Word
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePaper(paper.paper_id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -335,7 +448,29 @@ const LibraryPage: React.FC = () => {
               citationCheck={citationCheck}
               formatCheck={formatCheck}
             />
-            <div className="mt-4 flex justify-end space-x-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => void handleExport(selectedPaper, 'markdown')}
+                className="btn-secondary"
+              >
+                Markdown
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExport(selectedPaper, 'word')}
+                className="btn-secondary"
+              >
+                Word
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRegenerate(selectedPaper)}
+                disabled={busyId === selectedPaper.paper_id}
+                className="btn-secondary"
+              >
+                {busyId === selectedPaper.paper_id ? 'Regenerating…' : 'Regenerate'}
+              </button>
               <button
                 onClick={closePreview}
                 className="btn-secondary"

@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. You cannot export Markdown or Word. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors, retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. You cannot use outline mode. MiniLM embeddings are still TARGET.
 
 ### 2. Summary
 
@@ -26,9 +26,9 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | MISSING | No control |
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
-| Library | PARTIAL | Lists saved papers; source count from `paper_references`. Regenerate/export no-ops |
-| Export | MISSING | Button does nothing |
-| Tests | PARTIAL | Unit `npm test` 23 files / 102 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
+| Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
+| Tests | PARTIAL | Unit `npm test` 24 files / 106 tests (2026-09-07). Integration `npm run test:integration` 12 files / 36 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview; export and outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -104,8 +104,8 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 |---|---|---|
 | LIB-1 | DONE | Table UI lists `user_papers` |
 | LIB-2 | DONE | Groups by title in memory |
-| LIB-3 | PARTIAL | View shows saved content; Continue opens generate; delete hits DB. Export still no-op |
-| LIB-4 | MISSING | Export button no handler |
+| LIB-3 | DONE | View, delete (confirm), Continue, Regenerate (next version then `generate_paper`) |
+| LIB-4 | DONE | Markdown and Word export with checks block and `DRAFT_DISCLAIMER` |
 | LIB-5 | DONE | `referenceCountFromEmbed` on `paper_references(count)` |
 
 #### NFR

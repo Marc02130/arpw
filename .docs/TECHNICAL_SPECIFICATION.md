@@ -21,7 +21,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4 |
-| Tests | Vitest 2 | `npm test` unit (23 files / 102); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
+| Tests | Vitest 2 | `npm test` unit (24 files / 106); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins (12 files / 36). No live Grok |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -191,9 +191,7 @@ Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key,
 
 ### 8. Library and export (as-built vs TARGET)
 
-Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. Regenerate and Export buttons are no-ops. Preview (`DraftPreview`) shows the draft with inline ⚠ on uncited sentences, QUAL-2/3 warnings, and footer: “AI-generated draft. Requires human review… This is not a factual-accuracy score.”
-
-TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation library, correct use); upload to `papers/{user_id}/{paper_id}.ext`; disclaimer footer.
+Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. View uses `DraftPreview`. Delete confirms then removes the row. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
 
 ### 9. Security (as-built)
 

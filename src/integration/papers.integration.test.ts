@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { PaperType, Status } from '../types'
 import {
   createDraftPaper,
+  createRegenerateDraft,
   listPapers,
   loadPaper,
   saveGeneratedDraft,
@@ -129,6 +130,32 @@ describe('papers integration (dashboard workspace)', () => {
       await other.client.from('references').delete().eq('user_id', other.id)
       await deleteUser(owner.id)
       await deleteUser(other.id)
+    }
+  })
+
+  it('should insert the next version row when regenerating (LIB-2/3)', async () => {
+    const owner = await createConfirmedUser('paper-regen')
+    try {
+      const first = await createDraftPaper(owner.client, owner.id, {
+        title: 'Citation overlap',
+        paperType: PaperType.EMPIRICAL_STUDY,
+      })
+      await updatePaperConfig(owner.client, first.paper_id, {
+        research_prompt: 'nfr7probe citation overlap',
+        sections: ['Methods', 'Results'],
+      })
+      const source = await loadPaper(owner.client, first.paper_id)
+      const next = await createRegenerateDraft(owner.client, owner.id, source)
+      expect(next.paper_id).not.toBe(first.paper_id)
+      expect(next.title).toBe('Citation overlap')
+      expect(next.version).toBe(2)
+      expect(next.status).toBe(Status.DRAFT)
+      expect(next.research_prompt).toBe('nfr7probe citation overlap')
+      expect(next.sections).toEqual(['Methods', 'Results'])
+      expect(next.content).toBe('')
+    } finally {
+      await owner.client.from('user_papers').delete().eq('user_id', owner.id)
+      await deleteUser(owner.id)
     }
   })
 })

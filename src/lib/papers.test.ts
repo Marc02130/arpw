@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_PAPER_SECTIONS,
   draftTitle,
+  nextVersionForTitle,
   paperSectionsOrDefault,
   parsePaperId,
   referenceCountFromEmbed,
@@ -27,5 +28,11 @@ describe('papers helpers', () => {
     expect(uniqueFileIds(['a', 'a', '', 'b'])).toEqual(['a', 'b'])
     expect(referenceCountFromEmbed([{ count: 3 }])).toBe(3)
     expect(referenceCountFromEmbed([])).toBe(0)
+  })
+
+  it('should increment regenerate version from existing titles (LIB-2)', () => {
+    expect(nextVersionForTitle([])).toBe(1)
+    expect(nextVersionForTitle([1])).toBe(2)
+    expect(nextVersionForTitle([1, 3, 2])).toBe(4)
   })
 })
