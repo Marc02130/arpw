@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see seven files pass, currently 47 tests:
+You should see seven files pass, currently 48 tests:
 
 ```
 Test Files  7 passed (7)
-      Tests  47 passed (47)
+      Tests  48 passed (48)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -219,7 +219,7 @@ The dashboard table shows each stored file’s name, size, upload time, and whet
 
 1. Open `/dashboard`. Under **Reference Documents** or **Example Papers**, read the table (name, size, date, Index).
 2. Index is `Indexed (N chunks)` after ingest, or `Stored (not indexed)` if Edge did not write vectors.
-3. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{fileId}_{originalName}`.
+3. Click **Delete**, confirm. The app deletes vector rows, the metadata row, then the Storage object `{user_id}/{file_id}`.
 
 ### Verification
 
@@ -313,7 +313,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  7 passed (7)` and `Tests  47 passed (47)` (counts as of 2026-09-07).
+- Unit: `Test Files  7 passed (7)` and `Tests  48 passed (48)` (counts as of 2026-09-07).
 - Integration: `Test Files  4 passed (4)` and `Tests  19 passed (19)`, in a few seconds.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
@@ -447,9 +447,9 @@ Client (`UploadZone.tsx`, references zone `maxFiles={500}`):
 | Size | `0 < size <= 10485760` (10 MiB) |
 | Cap | `count(*)` of `"references"` for `auth.uid()` plus this batch must be ≤ 500 |
 | Bucket | `references` |
-| Object key | `{uuid}_{originalFileName}` at bucket root |
+| Object key | `{user_id}/{file_id}` (from `auth.uid()` and the new file id; original name is only on the metadata row) |
 | Metadata | insert `{ file_id, user_id, document_type: 'reference', file_name, file_size }` after Storage succeeds; Storage object is removed if insert fails |
-| Ingest | `upload_processor` is invoked after insert; failure does not roll back the file |
+| Ingest | `upload_processor` is invoked after insert; it downloads `{auth.uid()}/{fileId}` and ignores a client `storagePath`. Failure does not roll back the file |
 
 Database (`supabase/migrations/20260907010000_reference_upload_cap.sql`):
 
@@ -479,10 +479,10 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `validateFile.test.ts` | PDF/DOCX/TXT, empty, >10 MB, `.doc`, no extension |
 | `fileCap.test.ts` | `remainingSlots` / `uploadCapError`; example cap 10 |
 | `uploadProgress.test.ts` | Per-file progress rows and status labels (DOCS-3) |
-| `documentStore.test.ts` | Table/bucket/vector table map, `{fileId}_{name}` key, index labels |
+| `documentStore.test.ts` | Table/bucket/vector table map, `{user_id}/{file_id}` key, index labels |
 | `formatFile.test.ts` | Size, date, icon |
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
-| `ingest.test.ts` | `storageTarget`, `validateIngestFile`, DOCX XML text, chunking, 384-d unit `hashEmbedding` |
+| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `validateIngestFile`, DOCX XML text, chunking, 384-d unit `hashEmbedding` |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
@@ -535,9 +535,9 @@ The key is now a separate table with no client grants, written only through `set
 
 ## Why the reference cap is on the table
 
-A cap of “500 files in this picker batch” lets you upload 500, then 500 more. DOCS-1 is 500 **per user**. The only per-user list the app has is `"references"`: Storage keys are `{uuid}_{name}` at the bucket root, with no `user_id` in the path.
+A cap of “500 files in this picker batch” lets you upload 500, then 500 more. DOCS-1 is 500 **per user**. The product list is the `"references"` table, not a Storage listing.
 
-So upload writes the Storage object, then a metadata row. The picker counts existing rows before it starts. The trigger blocks a 501st insert if two tabs race. Ingest (`upload_processor`) runs after that and can fail without deleting the file; otherwise a broken Edge function would hide files you already paid to store.
+So upload writes `{user_id}/{file_id}` in Storage, then a metadata row (original `file_name` for display). The picker counts existing rows before it starts. The trigger blocks a 501st insert if two tabs race. Ingest (`upload_processor`) runs after that and can fail without deleting the file; otherwise a broken Edge function would hide files you already paid to store.
 
 **Trade-off:** a file can exist in the list with no vectors until DOCS-5 is fixed. Empty or `.doc` names never get a row (`CHECK` on `file_name`).
 

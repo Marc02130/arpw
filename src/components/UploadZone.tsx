@@ -50,21 +50,19 @@ const UploadZone: React.FC<UploadZoneProps> = ({
 
   const uploadFile = async (file: File): Promise<void> => {
     const fileId = crypto.randomUUID()
-    const fileName = storageObjectKey(fileId, file.name)
-    
-    // Create initial progress entry
     setUploadProgress((prev) => [...prev, startUploadProgress(fileId, file.name)])
 
     try {
-      // Upload to Supabase Storage
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         throw new Error('User not authenticated')
       }
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const objectKey = storageObjectKey(user.id, fileId)
+
+      const { error: uploadError } = await supabase.storage
         .from(bucketName)
-        .upload(fileName, file, {
+        .upload(objectKey, file, {
           cacheControl: '3600',
           upsert: false,
         })
@@ -82,7 +80,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       })
 
       if (insertError) {
-        await supabase.storage.from(bucketName).remove([fileName])
+        await supabase.storage.from(bucketName).remove([objectKey])
         throw new Error(`Upload failed: ${insertError.message}`)
       }
 
@@ -97,8 +95,6 @@ const UploadZone: React.FC<UploadZoneProps> = ({
             fileName: file.name,
             fileSize: file.size,
             documentType,
-            storagePath: uploadData.path,
-            userId: user.id,
           },
         })
       } catch (processError) {

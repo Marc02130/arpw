@@ -95,11 +95,11 @@ The function is called automatically when files are uploaded through the UploadZ
   "fileId": "uuid",
   "fileName": "document.pdf",
   "fileSize": 1024000,
-  "documentType": "reference",
-  "storagePath": "references/user-id/file-id_document.pdf",
-  "userId": "user-uuid"
+  "documentType": "reference"
 }
 ```
+
+The function downloads `{auth.uid()}/{fileId}` from the `references` or `examples` bucket. It does not take `storagePath` or `userId` from the client.
 
 ## Error Handling
 

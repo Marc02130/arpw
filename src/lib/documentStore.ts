@@ -1,5 +1,7 @@
 import { DocumentType } from '../types'
 
+export { storageObjectKey } from '../../supabase/functions/upload_processor/ingest'
+
 export type DocumentStore = {
   table: 'references' | 'examples'
   bucket: 'references' | 'examples'
@@ -10,9 +12,6 @@ export const documentStore = (documentType: DocumentType): DocumentStore =>
   documentType === DocumentType.REFERENCE
     ? { table: 'references', bucket: 'references', vectorTable: 'reference_vectors' }
     : { table: 'examples', bucket: 'examples', vectorTable: 'example_vectors' }
-
-export const storageObjectKey = (fileId: string, originalName: string): string =>
-  `${fileId}_${originalName}`
 
 export const vectorCountFromEmbed = (value: unknown): number => {
   if (!Array.isArray(value) || value.length === 0) return 0

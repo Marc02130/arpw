@@ -21,8 +21,6 @@ interface UploadRequest {
   fileName: string
   fileSize: number
   documentType: IngestDocumentType
-  storagePath: string
-  userId?: string
 }
 
 const cors = {
@@ -145,7 +143,7 @@ serve(async (req: Request) => {
     }
 
     const request = (await req.json()) as UploadRequest
-    if (!request.fileId || !request.fileName || !request.documentType || !request.storagePath) {
+    if (!request.fileId || !request.fileName || !request.documentType) {
       return json({ success: false, error: 'Missing required fields' }, 400)
     }
     if (request.documentType !== 'reference' && request.documentType !== 'example') {
@@ -157,7 +155,18 @@ serve(async (req: Request) => {
       return json({ success: false, error: validationError }, 400)
     }
 
-    const { bucket, key } = storageTarget(request.documentType, request.storagePath)
+    let bucket: string
+    let key: string
+    try {
+      const target = storageTarget(request.documentType, user.id, request.fileId)
+      bucket = target.bucket
+      key = target.key
+    } catch (pathError) {
+      return json(
+        { success: false, error: pathError instanceof Error ? pathError.message : 'Invalid storage path' },
+        400
+      )
+    }
     const bytes = await downloadObject(bucket, key)
     const text = await parseFile(bytes, request.fileName)
     if (!text) {

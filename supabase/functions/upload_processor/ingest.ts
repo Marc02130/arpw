@@ -39,18 +39,27 @@ export const validateIngestFile = (fileName: string, fileSize: number): string |
   return null
 }
 
+/** Auth and file ids used in Storage object keys (NFR-2). */
+export const STORAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export const storageObjectKey = (userId: string, fileId: string): string => {
+  const user = userId.trim()
+  const file = fileId.trim()
+  if (!STORAGE_ID_PATTERN.test(user) || !STORAGE_ID_PATTERN.test(file)) {
+    throw new Error('Storage path requires user id and file id')
+  }
+  return `${user}/${file}`
+}
+
 export const storageTarget = (
   documentType: IngestDocumentType,
-  storagePath: string
-): StorageTarget => {
-  const bucket = documentType === 'reference' ? 'references' : 'examples'
-  const trimmed = storagePath.replace(/^\/+/, '').trim()
-  const key = trimmed.includes('/') ? trimmed.slice(trimmed.lastIndexOf('/') + 1) : trimmed
-  if (!key) {
-    throw new Error('Missing storage key')
-  }
-  return { bucket, key }
-}
+  userId: string,
+  fileId: string
+): StorageTarget => ({
+  bucket: documentType === 'reference' ? 'references' : 'examples',
+  key: storageObjectKey(userId, fileId),
+})
 
 export const textFromDocxXml = (xml: string): string =>
   xml

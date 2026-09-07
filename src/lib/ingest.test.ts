@@ -3,32 +3,42 @@ import {
   EMBEDDING_DIMS,
   chunkText,
   hashEmbedding,
+  storageObjectKey,
   storageTarget,
   textFromDocxXml,
   validateIngestFile,
 } from '../../supabase/functions/upload_processor/ingest'
 
-describe('storageTarget (DOCS-5)', () => {
-  it('should take the bucket from document type, not the path', () => {
-    expect(storageTarget('reference', 'abc_paper.pdf')).toEqual({
+describe('storageTarget (NFR-2)', () => {
+  const userId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const fileId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+
+  it('should take the bucket from document type and the key from auth user + file id', () => {
+    expect(storageTarget('reference', userId, fileId)).toEqual({
       bucket: 'references',
-      key: 'abc_paper.pdf',
+      key: `${userId}/${fileId}`,
     })
-    expect(storageTarget('example', 'uuid_style.txt')).toEqual({
+    expect(storageTarget('example', userId, fileId)).toEqual({
       bucket: 'examples',
-      key: 'uuid_style.txt',
+      key: `${userId}/${fileId}`,
     })
+    expect(storageTarget('reference', userId, fileId).key).toBe(storageObjectKey(userId, fileId))
   })
 
-  it('should ignore a client-supplied bucket prefix', () => {
-    expect(storageTarget('reference', 'wrong-bucket/abc_paper.pdf')).toEqual({
-      bucket: 'references',
-      key: 'abc_paper.pdf',
-    })
+  it('should not use a client filename or storage path as the object key', () => {
+    const { key } = storageTarget('reference', userId, fileId)
+    expect(key).not.toContain('paper.pdf')
+    expect(key).not.toContain('wrong-bucket')
+    expect(key.split('/')).toEqual([userId, fileId])
   })
 
-  it('should reject an empty key', () => {
-    expect(() => storageTarget('reference', '/')).toThrow('Missing storage key')
+  it('should reject ids that are not uuids', () => {
+    expect(() => storageTarget('reference', userId, '../secret')).toThrow(
+      'Storage path requires user id and file id'
+    )
+    expect(() => storageTarget('reference', 'not-a-user', fileId)).toThrow(
+      'Storage path requires user id and file id'
+    )
   })
 })
 

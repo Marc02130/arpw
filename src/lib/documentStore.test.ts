@@ -25,9 +25,22 @@ describe('documentStore', () => {
   })
 })
 
-describe('storageObjectKey', () => {
-  it('should match the upload and delete key shape', () => {
-    expect(storageObjectKey('abc-id', 'paper.pdf')).toBe('abc-id_paper.pdf')
+describe('storageObjectKey (NFR-2)', () => {
+  const userId = '11111111-1111-4111-8111-111111111111'
+  const fileId = '22222222-2222-4222-8222-222222222222'
+
+  it('should be {user_id}/{file_id} with no original filename', () => {
+    expect(storageObjectKey(userId, fileId)).toBe(`${userId}/${fileId}`)
+    expect(storageObjectKey(userId, fileId)).not.toContain('paper.pdf')
+  })
+
+  it('should reject non-uuid ids so a client cannot pass a path', () => {
+    expect(() => storageObjectKey('../etc', fileId)).toThrow('Storage path requires user id and file id')
+    expect(() => storageObjectKey(userId, 'paper.pdf')).toThrow('Storage path requires user id and file id')
+    expect(() => storageObjectKey(userId, `${fileId}/extra`)).toThrow(
+      'Storage path requires user id and file id'
+    )
+    expect(() => storageObjectKey('', fileId)).toThrow('Storage path requires user id and file id')
   })
 })
 

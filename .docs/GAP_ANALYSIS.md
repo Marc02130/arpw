@@ -105,7 +105,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | ID | Status | Evidence |
 |---|---|---|
 | NFR-1 | PARTIAL | Table RLS yes; storage policies are bucket-wide for any authenticated user |
-| NFR-2 | PARTIAL | Ingest bucket comes from `documentType`; object key is still the client filename. TARGET: `{user_id}/{file_id}` |
+| NFR-2 | DONE | Object key `{user_id}/{file_id}` from JWT + file id on upload, delete, and ingest. Client `storagePath` is not used. Storage RLS still bucket-wide (NFR-1) |
 | NFR-3 | DONE here | gitignore `.docs/*.pdf`; current history has no PDF blobs |
 | NFR-4 | UNKNOWN | Live ingest E2E unmeasured while Storage is down |
 | NFR-5 | MISSING | |
@@ -120,7 +120,7 @@ You can sign up, confirm email, reset a password, upload files, and ingest them 
 | Generation &lt; 5 min | No generation |
 | Vectors deleted after 24h | Would destroy the corpus; not implemented (good) |
 | Grok key on `user_profile` (plaintext) | Encrypted `user_grok_keys`; SPA sees last4 only |
-| Storage `references/{user_id}/{file_id}` | `{uuid}_{filename}` at bucket root |
+| Storage `references/{user_id}/{file_id}` | As-built object key `{user_id}/{file_id}`; storage policies still bucket-wide |
 | Quality checks, Word export, outline | Unbuilt |
 | 90%+ check pass rate | Not a metric |
 
@@ -147,7 +147,7 @@ Matches engineering, not README order.
 | Phase | Work | Unlocks |
 |---|---|---|
 | 0 | Keep PII out of git; README that matches reality. Auth (confirm + reset) is shipped. | Trust |
-| 1 | Fix ingest: server-derived storage path; real PDF/DOCX extract; embed off-Edge; fixture test | Corpus |
+| 1 | Storage path `{user_id}/{file_id}` is shipped (NFR-2). Remaining: Storage up + fixture ingest E2E | Corpus |
 | 2 | `match_reference_chunks` + dashboard “passages for this prompt” | Retrieval you can debug |
 | 3 | Section-wise `generate_paper` with citation allow-list | Drafts that are not fiction |
 | 4 | Attribution flags + library save/export | MVP cut line |
@@ -162,7 +162,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Sign up (any email); confirm via Mailpit/Inbucket at `:54324`; then the dashboard opens
 - Password reset via the same inbox
 - Dashboard form
-- `npm test` (47 unit tests, no Docker)
+- `npm test` (48 unit tests, no Docker)
 - `npm run test:integration` (19 Auth/REST/RLS tests; Storage may be down)
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Library empty state

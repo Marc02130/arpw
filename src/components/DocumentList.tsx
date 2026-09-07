@@ -117,7 +117,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
 
       const { error: storageError } = await supabase.storage
         .from(store.bucket)
-        .remove([storageObjectKey(fileId, fileName)])
+        .remove([storageObjectKey(user.id, fileId)])
       if (storageError) {
         console.warn('Storage deletion error:', storageError)
       }

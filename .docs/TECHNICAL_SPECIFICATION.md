@@ -112,19 +112,19 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 
 1. Reject empty files, size > 10 MB, and extensions other than `.pdf` / `.docx` / `.txt`.
 2. `count(*)` existing rows for `auth.uid()`; refuse if `existing + batch > maxFiles`.
-3. Upload to bucket `references` or `examples` as `{uuid}_{originalName}`.
+3. Upload to bucket `references` or `examples` as `{user_id}/{file_id}`.
 4. Insert the metadata row. If insert fails, delete the Storage object.
 5. Invoke `upload_processor`. Failure is logged; the file stays stored.
 
 `upload_processor` (`ingest.ts` + `index.ts`):
 
-- Bucket from `documentType` (`storageTarget`); object key is the last path segment. JWT `user.id` owns the row, not `request.userId`.
+- Bucket from `documentType`; object key `{user.id}/{fileId}` via `storageTarget` / `storageObjectKey`. Client `storagePath` and `userId` are not sent. JWT `user.id` owns the row.
 - TXT: `TextDecoder`. DOCX: unzip `word/document.xml` (`fflate`) then `textFromDocxXml`. PDF: `unpdf`.
 - Chunks: 1000/200, min 50 chars, `chunk_index` + `section` (first line).
 - Embeddings: hashing trick, 384-d L2-normalized, `embedding_model = hash-384`. TARGET: MiniLM or hosted embed API (same dimension).
 - Duplicate metadata insert: ignore unique violation `23505`. Failed ingest does **not** delete Storage.
 
-`DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(fileId, originalName)` (same helper as upload).
+`DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(user.id, fileId)` (same helper as upload).
 
 ### 7. Generation (TARGET)
 
