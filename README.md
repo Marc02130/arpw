@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see seven files pass, currently 48 tests:
+You should see eight files pass, currently 53 tests:
 
 ```
 Test Files  7 passed (7)
-      Tests  48 passed (48)
+      Tests  53 passed (53)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -113,7 +113,7 @@ If Docker and `supabase start` are already up from the dashboard tutorial:
 npm run test:integration
 ```
 
-You should see four files pass, currently 19 tests. Storage can be down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
+You should see six files pass. Live Storage and ingest cases skip if those services are down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
 
 ### What you built
 
@@ -313,8 +313,8 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  7 passed (7)` and `Tests  48 passed (48)` (counts as of 2026-09-07).
-- Integration: `Test Files  4 passed (4)` and `Tests  19 passed (19)`, in a few seconds.
+- Unit: `Test Files  8 passed (8)` and `Tests  53 passed (53)` (counts as of 2026-09-07).
+- Integration: live Storage object RLS and fixture-PDF ingest skip if Storage or `upload_processor` is down. Policy-name and Auth/REST tests still run.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 
 ### Troubleshooting
@@ -482,11 +482,12 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `documentStore.test.ts` | Table/bucket/vector table map, `{user_id}/{file_id}` key, index labels |
 | `formatFile.test.ts` | Size, date, icon |
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
-| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `validateIngestFile`, DOCX XML text, chunking, 384-d unit `hashEmbedding` |
+| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, chunking, hash-384 |
+| `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
-Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
+Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
 
 | File | What it locks |
 |---|---|
@@ -494,8 +495,10 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `createConfirmedU
 | `grokKey.integration.test.ts` | set/status/last4; table 403; admin decrypt; clear; key &lt; 10 chars; unauthenticated RPCs |
 | `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500 |
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others |
+| `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
+| `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe`. Skips if Storage or the Edge function is down |
 
-**Not in either suite:** Storage object upload, `upload_processor` HTTP, fixture PDF ingest, retrieval hit, generation refuse-unknown-id (NFR-7 remainder).
+**Not in either suite:** retrieval hit on a known query; generation refuses unknown citation ids (rest of NFR-7).
 
 How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
 

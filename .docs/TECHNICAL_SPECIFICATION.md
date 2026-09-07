@@ -86,7 +86,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **paper_references:** (`paper_id`, `file_id`).
 
-RLS: row owner = `auth.uid()`; vector tables via EXISTS to parent file. Storage policies: authenticated CRUD on the three buckets (loose; TARGET: prefix by `user_id`).
+RLS: row owner = `auth.uid()`; vector tables via EXISTS to parent file. Storage policies: authenticated CRUD only when `split_part(name, '/', 1) = auth.uid()::text` and the key is `{uid}/…` (`20260907150000_storage_object_rls.sql`).
 
 IVFFlat indexes are **not** created at init (empty corpus). TARGET: HNSW after data exists.
 
@@ -158,9 +158,9 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 | Topic | State |
 |---|---|
 | Table RLS | Present |
-| Storage RLS | Authenticated access to whole buckets |
+| Storage RLS | Authenticated users only `{auth.uid()}/*` in references/examples/papers |
 | Grok key | Encrypted `user_grok_keys`; SPA cannot SELECT ciphertext |
-| Edge service role | Bypasses RLS; trusts client path |
+| Edge service role | Bypasses RLS; downloads `{user.id}/{fileId}` |
 | PII in git | Blocked by `.docs/*.pdf` gitignore; history of old public repo deleted |
 | Tests | Unit + Auth/REST/RLS integration. No Storage/ingest E2E |
 
@@ -168,7 +168,7 @@ TARGET: `export_paper` writes Markdown as stored; Word via `docx` (generation li
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,AuthShell,AuthAlert}.tsx`, `src/pages/{DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata, storage object RLS), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 
@@ -210,12 +210,12 @@ Two Vitest suites. `npm test` is the default and must not require Docker.
 
 | Suite | Command | Config | What it is |
 |---|---|---|---|
-| Unit | `npm test` | `vite.config.ts`: include `src/**/*.test.ts`, exclude `*.integration.test.ts` | Pure helpers: validate file/auth, caps, progress, document store, ingest parse/chunk/hash |
-| Integration | `npm run test:integration` | `vitest.integration.config.ts`: include `src/**/*.integration.test.ts`, 30s timeout, no file parallelism | Live local Auth, PostgREST, Postgres: confirmations, Grok RPCs, CHECKs, caps, RLS |
+| Unit | `npm test` | `vite.config.ts`: include `src/**/*.test.ts`, exclude `*.integration.test.ts` | Pure helpers: validate file/auth, caps, progress, document store, ingest parse/chunk/hash, NFR-7 fixture PDF |
+| Integration | `npm run test:integration` | `vitest.integration.config.ts`: include `src/**/*.integration.test.ts`, 30s timeout, no file parallelism | Live local Auth, PostgREST, Postgres: confirmations, Grok RPCs, CHECKs, caps, table RLS, Storage policy names. Live Storage/ingest skip if those services are down |
 
 Integration helper `src/integration/supabaseTest.ts`: health-check `/auth/v1/health`; `signUp` then `admin.updateUserById({ email_confirm: true })` because `enable_confirmations = true`; local demo JWT fallback; `deleteUser` cleanup. Service role is for confirm/admin seed only; user JWTs exercise RLS.
 
-Not as-built: Storage upload tests, `upload_processor` HTTP, NFR-7 fixture PDF / retrieval hit / refuse unknown citation ids.
+Not as-built: live `upload_processor` HTTP while Storage/Edge are down; retrieval hit; generation refuse-unknown-citation-id.
 
 How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. Why the split: `../README.md#why-two-test-suites`.
 
