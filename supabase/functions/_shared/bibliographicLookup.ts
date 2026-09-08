@@ -8,12 +8,36 @@ import {
 
 export type FetchLike = (
   input: string,
-  init?: { headers?: Record<string, string> }
+  init?: { headers?: Record<string, string>; redirect?: 'follow' | 'error' | 'manual' }
 ) => Promise<{
   ok: boolean
   status: number
   json: () => Promise<unknown>
+  text: () => Promise<string>
 }>
+
+export const cslStyleName = (style: string): string => {
+  if (style === 'MLA') return 'modern-language-association'
+  if (style === 'Chicago') return 'chicago-author-date'
+  return 'apa'
+}
+
+export const fetchFormattedCitation = async (
+  doi: string,
+  style: string,
+  fetchImpl: FetchLike
+): Promise<string | null> => {
+  const res = await fetchImpl(`https://doi.org/${doi}`, {
+    headers: {
+      Accept: `text/x-bibliography; style=${cslStyleName(style)}`,
+      'User-Agent': CROSSREF_UA,
+    },
+    redirect: 'follow',
+  })
+  if (!res.ok) return null
+  const text = (await res.text()).replace(/\s+/g, ' ').trim()
+  return text || null
+}
 
 const CROSSREF_UA = 'ARPW/1.0 (https://github.com/Marc02130/arpw; mailto:research@localhost)'
 
@@ -143,6 +167,20 @@ export const fetchPubmedByDoi = async (
   const record = await fetchPubmedSummary(pmid, fetchImpl)
   if (record && !record.doi) record.doi = doi
   return record
+}
+
+export const lookupCitationText = async (
+  frontMatter: string,
+  style: string,
+  fetchImpl: FetchLike
+): Promise<string | null> => {
+  const doi = extractDoi(frontMatter)
+  if (!doi) return null
+  try {
+    return await fetchFormattedCitation(doi, style, fetchImpl)
+  } catch {
+    return null
+  }
 }
 
 export const lookupBibliographicRecord = async (

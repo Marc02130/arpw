@@ -29,6 +29,8 @@ Do not treat a filesystem path as the key. `UAT/.uat-grok-key` and `GROK_API_KEY
 
 Pin from the Interrogate **answer thread** (do not reload first). Continue must restore **Literature Review** after “Working on …”; fail if the type is Empirical Study. Generate must not rewrite `paper_type`.
 
+After upload, open Library **Source citations**. Each literature file has an editable Citation field. Ingest should fill it from the DOI when present. Empty fields: paste the publisher/PubMed cite or Look up from DOI/PMID. Generate **References** must use those strings — fail on PDF filenames, “No retrieved sources”, or publisher `Citation:` boilerplate.
+
 ## Output
 
 Write a short report under `UAT/reports/` using the template in `UAT/README.md`. Do not commit PDFs, `.html` dumps, or long quoted draft text. Commit the report only if it is a PASS/FAIL table with no paper excerpts.

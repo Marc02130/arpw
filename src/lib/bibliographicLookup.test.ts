@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { formatBibliographicCitation } from './bibliographicCitation'
 import {
+  fetchFormattedCitation,
   lookupBibliographicRecord,
   recordFromCrossrefWork,
 } from './bibliographicLookup'
@@ -45,6 +46,7 @@ describe('bibliographicLookup', () => {
         ok: true,
         status: 200,
         json: async () => ({ message: nutrientsWork }),
+        text: async () => '',
       }
     })
     expect(rec.source).toBe('crossref')
@@ -56,13 +58,14 @@ describe('bibliographicLookup', () => {
     const front = 'PMID: 41097131 https://pubmed.ncbi.nlm.nih.gov/41097131/'
     const rec = await lookupBibliographicRecord(front, async (url) => {
       if (url.includes('api.crossref.org')) {
-        return { ok: false, status: 404, json: async () => ({}) }
+        return { ok: false, status: 404, json: async () => ({}), text: async () => '' }
       }
       if (url.includes('esearch.fcgi')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({ esearchresult: { idlist: [] } }),
+          text: async () => '',
         }
       }
       expect(url).toContain('esummary.fcgi')
@@ -89,10 +92,23 @@ describe('bibliographicLookup', () => {
             },
           },
         }),
+        text: async () => '',
       }
     })
     expect(rec.source).toBe('pubmed')
     expect(rec.doi).toBe('10.3390/nu17193053')
     expect(formatBibliographicCitation(rec, 'APA')).toContain('Ochocińska')
+  })
+
+  it('should fetch the publisher preformatted APA citation from the DOI link', async () => {
+    const apa =
+      'Ochocińska, A. M., Podstawka, I., Kępka, A., & Waszkiewicz, N. (2025). Diet as a Modulator of Gut Microbiota May Reduce Alzheimer’s Disease Risk. Nutrients, 17(19), 3053. https://doi.org/10.3390/nu17193053'
+    const text = await fetchFormattedCitation('10.3390/nu17193053', 'APA', async (url, init) => {
+      expect(url).toBe('https://doi.org/10.3390/nu17193053')
+      expect(init?.headers?.Accept).toMatch(/text\/x-bibliography/)
+      expect(init?.headers?.Accept).toMatch(/style=apa/)
+      return { ok: true, status: 200, json: async () => ({}), text: async () => `${apa}\n` }
+    })
+    expect(text).toBe(apa)
   })
 })

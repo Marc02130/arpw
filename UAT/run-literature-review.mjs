@@ -121,6 +121,17 @@ function parsePaperId(note) {
   return m ? m[1] : null
 }
 
+function referencesLooksAcademic(text) {
+  const chunk = String(text || '')
+  const refs = chunk.match(/References[\s\S]{0,4000}/i)?.[0] || chunk
+  if (/No retrieved sources/i.test(refs)) return 'References says no retrieved sources'
+  if (/Citation:\s/i.test(refs)) return 'References dumped publisher Citation: boilerplate'
+  if (/\b1\.\s+\S+\.pdf\b/i.test(refs) || /Works cited from the uploaded corpus/i.test(refs)) {
+    return 'References listed PDF filenames'
+  }
+  return null
+}
+
 function pdfs() {
   const dir = path.join(__dirname, 'papers')
   return fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.pdf')).map((f) => path.join(dir, f)).sort()
@@ -393,7 +404,18 @@ async function main() {
       // try DB via UI text for embedding
       const notIndexed = (body.match(/Stored \(not indexed\)/g) || []).length
       state.filesFailed = notIndexed
-      record(5, 'PASS', `${indexed.length} files show chunk counts; not-indexed=${notIndexed}`)
+      await page.goto(`${BASE}/library`)
+      await page.getByRole('heading', { name: 'Source citations' }).waitFor({ timeout: 20000 })
+      const areas = page.locator('textarea[id^="citation-"]')
+      const n = await areas.count()
+      if (n < 1) throw new Error('Library Source citations has no citation fields')
+      let filled = 0
+      for (let i = 0; i < n; i++) {
+        const v = await areas.nth(i).inputValue()
+        if (v.trim().length > 40 && /doi\.org|doi:|PMID/i.test(v)) filled++
+      }
+      state.notes.push(`Library source citations: ${filled}/${n} look like publisher cites`)
+      record(5, 'PASS', `${indexed.length} files show chunk counts; not-indexed=${notIndexed}; citations filled=${filled}/${n}`)
     } catch (e) {
       await shot(page, 'step5-fail')
       record(5, 'BLOCKED', e.message)
@@ -639,6 +661,8 @@ async function main() {
         const hasHeading = /## Abstract|## Introduction|Abstract\n|Introduction\n|Literature Review/.test(draftText)
         const hasDisclaimer = /AI-generated draft|Requires human review/i.test(draftText)
         if (!hasHeading && !/draft|Generated/i.test(draftText)) throw new Error('draft missing expected headings')
+        const refsErr = referencesLooksAcademic(draftText)
+        if (refsErr) throw new Error(refsErr)
         record(10, hasDisclaimer ? 'PASS' : 'FAIL', `draft shown; disclaimer=${hasDisclaimer}; ${wall}s`)
       }
     } catch (e) {
@@ -657,6 +681,8 @@ async function main() {
       } else if (!cites.length) {
         record(11, 'FAIL', 'no [S#] citations in draft UI')
       } else {
+        const refsErr = referencesLooksAcademic(text)
+        if (refsErr) throw new Error(refsErr)
         record(11, 'PASS', `citations found=${cites.length}; sample=${cites.slice(0, 10).join(',')}`)
       }
     } catch (e) {
@@ -667,6 +693,7 @@ async function main() {
     try {
       if (!blockUnless(12, 10)) throw new Error('__blocked__')
       await page.goto(`${BASE}/library`)
+      await page.getByRole('heading', { name: 'Source citations' }).waitFor({ timeout: 20000 })
       await page.waitForTimeout(1000)
       const row = page.locator('tr', { hasText: /Gut-brain|literature review/i }).first()
       if (!(await row.count())) {

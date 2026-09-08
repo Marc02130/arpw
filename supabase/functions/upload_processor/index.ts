@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { unzipSync, strFromU8 } from 'fflate'
 import { embedTexts } from '../_shared/embedText.ts'
 import { hasUsableBibliographicRecord } from '../_shared/bibliographicCitation.ts'
-import { lookupBibliographicRecord } from '../_shared/bibliographicLookup.ts'
+import { lookupBibliographicRecord, lookupCitationText } from '../_shared/bibliographicLookup.ts'
 import {
   chunkLines,
   linesFromDocxXml,
@@ -217,15 +217,14 @@ serve(async (req: Request) => {
         .map((line) => line.text)
         .join('\n')
       try {
-        const bibliographic = await lookupBibliographicRecord(
-          front || parsedText.slice(0, 4000),
-          fetch
-        )
-        if (hasUsableBibliographicRecord(bibliographic)) {
-          await supabase
-            .from('references')
-            .update({ bibliographic })
-            .eq('file_id', request.fileId)
+        const blob = front || parsedText.slice(0, 4000)
+        const bibliographic = await lookupBibliographicRecord(blob, fetch)
+        const citation_text = await lookupCitationText(blob, 'APA', fetch)
+        const patch: Record<string, unknown> = {}
+        if (hasUsableBibliographicRecord(bibliographic)) patch.bibliographic = bibliographic
+        if (citation_text) patch.citation_text = citation_text
+        if (Object.keys(patch).length > 0) {
+          await supabase.from('references').update(patch).eq('file_id', request.fileId)
         }
       } catch {
         /* catalog lookup is best-effort; ingest still succeeds */

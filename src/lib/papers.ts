@@ -38,6 +38,7 @@ export type CitedFile = {
   file_id: string
   file_name: string
   source_role: string
+  citation_text?: string | null
 }
 
 export type CorpusCounts = {
@@ -72,10 +73,42 @@ export const loadCitedFiles = async (
   if (ids.length === 0) return []
   const { data, error } = await client
     .from('references')
-    .select('file_id, file_name, source_role')
+    .select('file_id, file_name, source_role, citation_text')
     .in('file_id', ids)
   if (error) throw new Error(error.message)
   return (data ?? []) as CitedFile[]
+}
+
+export type SourceCitation = {
+  file_id: string
+  file_name: string
+  source_role: string
+  citation_text: string | null
+}
+
+export const loadSourceCitations = async (
+  client: SupabaseClient,
+  userId: string
+): Promise<SourceCitation[]> => {
+  const { data, error } = await client
+    .from('references')
+    .select('file_id, file_name, source_role, citation_text')
+    .eq('user_id', userId)
+    .order('file_name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as SourceCitation[]
+}
+
+export const saveSourceCitation = async (
+  client: SupabaseClient,
+  fileId: string,
+  citationText: string
+): Promise<void> => {
+  const { error } = await client
+    .from('references')
+    .update({ citation_text: citationText.trim() || null })
+    .eq('file_id', fileId)
+  if (error) throw new Error(error.message)
 }
 
 export const loadPaperCitedFiles = async (

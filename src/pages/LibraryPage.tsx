@@ -13,10 +13,13 @@ import {
 import {
   createRegenerateDraft,
   loadPaperCitedFiles,
+  loadSourceCitations,
   paperSectionsOrDefault,
   referenceCountFromEmbed,
   type CitedFile,
+  type SourceCitation,
 } from '../lib/papers'
+import CitationField from '../components/CitationField'
 import { uncitedSentences } from '../lib/attribution'
 import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { runFormatCheck } from '../lib/formatCheck'
@@ -33,6 +36,7 @@ const LibraryPage: React.FC = () => {
   const [showVersions, setShowVersions] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [sources, setSources] = useState<SourceCitation[]>([])
 
   useEffect(() => {
     fetchPapers()
@@ -43,6 +47,12 @@ const LibraryPage: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      try {
+        setSources(await loadSourceCitations(supabase, user.id))
+      } catch {
+        setSources([])
+      }
 
       const { data, error } = await supabase
         .from('user_papers')
@@ -220,7 +230,7 @@ const LibraryPage: React.FC = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Paper Library</h1>
         <p className="mt-2 text-gray-600">
-          Manage your generated research papers and view version history.
+          Manage generated papers and the preformatted citations stored with each uploaded source.
         </p>
         {actionError && (
           <p className="mt-3 text-sm text-red-700" role="alert">
@@ -233,6 +243,35 @@ const LibraryPage: React.FC = () => {
           </p>
         )}
       </div>
+
+      {sources.length > 0 && (
+        <div className="card mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Source citations</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Academic papers include a ready-to-paste citation (PubMed cite button, journal site, DOI).
+            We fetch it on upload when a DOI is present. You can edit or add it here.
+          </p>
+          <ul className="space-y-5">
+            {sources.map((source) => (
+              <li key={source.file_id} className="border-t border-gray-100 pt-4 first:border-t-0 first:pt-0">
+                <p className="text-sm font-medium text-gray-900 mb-2">{source.file_name}</p>
+                <CitationField
+                  fileId={source.file_id}
+                  fileName={source.file_name}
+                  citationText={source.citation_text}
+                  onSaved={(citationText) =>
+                    setSources((prev) =>
+                      prev.map((row) =>
+                        row.file_id === source.file_id ? { ...row, citation_text: citationText } : row
+                      )
+                    )
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {papers.length === 0 ? (
         <div className="card text-center py-12">
@@ -448,6 +487,29 @@ const LibraryPage: React.FC = () => {
               citationCheck={citationCheck}
               formatCheck={formatCheck}
             />
+            {selectedCitedFiles.length > 0 && (
+              <div className="mt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-800">Cited sources</h4>
+                {selectedCitedFiles.map((file) => (
+                  <div key={file.file_id}>
+                    <p className="text-xs text-gray-500 mb-1">{file.file_name}</p>
+                    <CitationField
+                      fileId={file.file_id}
+                      fileName={file.file_name}
+                      citationText={file.citation_text ?? null}
+                      citationStyle={selectedPaper.citation_style}
+                      onSaved={(citationText) =>
+                        setSelectedCitedFiles((prev) =>
+                          prev.map((row) =>
+                            row.file_id === file.file_id ? { ...row, citation_text: citationText } : row
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 type="button"

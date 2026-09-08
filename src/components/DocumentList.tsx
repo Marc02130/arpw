@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { Fragment, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { DocumentType } from '../types'
 import {
@@ -14,6 +14,7 @@ import {
   parseSourceRole,
   sourceRoleLabel,
 } from '../lib/sourceRole'
+import CitationField from './CitationField'
 
 type ListedDocument = {
   file_id: string
@@ -24,6 +25,7 @@ type ListedDocument = {
   uploaded_at: string
   chunkCount: number
   source_role: SourceRole
+  citation_text: string | null
 }
 
 interface DocumentListProps {
@@ -89,6 +91,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
           uploaded_at: String(row.uploaded_at),
           chunkCount,
           source_role: parseSourceRole(row.source_role),
+          citation_text: typeof row.citation_text === 'string' ? row.citation_text : null,
         }
       })
       setDocuments(rows)
@@ -295,7 +298,8 @@ const DocumentList: React.FC<DocumentListProps> = ({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {documents.map((doc) => (
-                <tr key={doc.file_id} className="hover:bg-gray-50">
+                <Fragment key={doc.file_id}>
+                <tr className="hover:bg-gray-50 align-top">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <span className="text-lg mr-3" role="img" aria-label="File type">
@@ -355,6 +359,25 @@ const DocumentList: React.FC<DocumentListProps> = ({
                     </button>
                   </td>
                 </tr>
+                {showRole && (
+                  <tr className="bg-gray-50">
+                    <td colSpan={showRole ? 6 : 5} className="px-6 py-3">
+                      <CitationField
+                        fileId={doc.file_id}
+                        fileName={doc.file_name}
+                        citationText={doc.citation_text}
+                        onSaved={(citationText) =>
+                          setDocuments((prev) =>
+                            prev.map((row) =>
+                              row.file_id === doc.file_id ? { ...row, citation_text: citationText } : row
+                            )
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

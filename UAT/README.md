@@ -49,7 +49,7 @@ supabase status  # API :54321, Studio :54323, Mailpit :54324
 npm run dev      # http://127.0.0.1:5173
 ```
 
-If `feat/section-aware-chunks` work is on `main`, apply new migrations (`vector page`, `prefer_section`, `filter_embedding_model`, `hybrid_fts_rrf`) and restart `supabase functions serve --network-id supabase_network_arpw` so `upload_processor`, `embed_text`, `generate_paper`, and `interrogate_corpus` are the current code.
+Apply local migrations through `reference_citation_text`. Restart `supabase functions serve --network-id supabase_network_arpw` so `upload_processor`, `embed_text`, `generate_paper`, `interrogate_corpus`, and `lookup_citation` are the current code.
 
 A Grok API key on Profile is required for generate, interrogate, and hosted embeddings. Without a key, ingest still indexes as `hash-384`; generate must refuse with “Save a Grok API key on Profile before generating.”
 
@@ -75,15 +75,15 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 1 | Open `/login`, sign up, confirm email via Mailpit `:54324`, land on Dashboard | Confirmed session; unconfirmed cannot open `/dashboard` |
 | 2 | Profile: save a Grok key | Last4 only; key never shown in full |
 | 3 | Dashboard: **Start paper** with the title and Literature Review | Redirect to `/generate?paper=…` |
-| 4 | Upload tab: **Literature** only. Upload all 20 PDFs as literature. Do not use Original research. | Each file listed; none rejected for type/size |
-| 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min) | At least one file shows a chunk count |
+| 4 | Upload tab: **Literature** only. Upload all 20 PDFs as literature. Do not use Original research. | Each file listed; none rejected for type/size. Each literature row has a **Citation** field |
+| 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min). Open **Library**: **Source citations** | At least one file shows a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
 | 6 | Prompt tab: paste the research prompt. **Query sources** | Passages appear with `literature` (not primary). Section labels and `p.N` may show |
 | 7 | Pin 2–3 literature chunks to Literature Review or unscoped | Pinned list shows them first on the next Query sources |
 | 8 | Interrogate: “What do these papers say about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent |
 | 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Pin appears on Prompt |
-| 10 | Generate Paper | Draft saved; headings for selected sections; inline ⚠ / citation / format warnings; footer disclaimer |
-| 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none) |
-| 12 | Library: paper listed completed. View preview. Export Markdown and Word | Files download; both include the human-review disclaimer |
+| 10 | Generate Paper | Draft saved; headings for selected sections; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer |
+| 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none). References is not “No retrieved sources” and does not dump `Citation:` boilerplate |
+| 12 | Library: **Source citations** still listed. Paper listed completed. View preview (cited sources show the cite field). Export Markdown and Word | Files download; both include the human-review disclaimer |
 | 13 | Continue from library | Prompt tab restores title, **Literature Review**, and the research prompt |
 
 ## Fail the UAT

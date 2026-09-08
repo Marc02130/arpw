@@ -73,7 +73,7 @@ const stripAffiliationDigits = (value: string): string =>
   value.replace(/\d+/g, ' ').replace(/[*†‡§,]+$/g, ' ').replace(/\s+/g, ' ').trim()
 
 const alreadyApaAuthor = (value: string): boolean =>
-  /^[\p{L}][\p{L}'’-]+,\s*[A-Z](?:[.\s-]*[A-Z])*\.?$/u.test(value.trim())
+  /^[\p{L}][\p{L}'’-]+,\s*\p{Lu}(?:[.\s-]*\p{Lu})*\.?$/u.test(value.trim())
 
 const spaceInitials = (initials: string): string =>
   initials

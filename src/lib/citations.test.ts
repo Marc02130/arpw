@@ -38,6 +38,23 @@ describe('citation allow-list (slice 4 / NFR-7)', () => {
     expect(citedSids(cleaned, allowed)).toEqual([])
   })
 
+  it('should prefer a stored preformatted citation over a rebuilt record', () => {
+    const text = formatReferencesList(
+      [
+        {
+          file_id: 'a',
+          file_name: 'nutrients-17-03053.pdf',
+          citation_text:
+            'Ochocińska AM, Podstawka I, Kępka A, Waszkiewicz N. Diet as a Modulator of Gut Microbiota May Reduce Alzheimer\'s Disease Risk. Nutrients. 2025 Sep 24;17(19):3053. doi: 10.3390/nu17193053.',
+        },
+      ],
+      'APA'
+    )
+    expect(text).toContain('Ochocińska AM')
+    expect(text).toContain('doi: 10.3390/nu17193053')
+    expect(text).not.toMatch(/nutrients-17-03053\.pdf/)
+  })
+
   it('should format References as academic citations, not filenames', () => {
     expect(formatReferencesList([])).toBe(EMPTY_REFERENCES)
     const text = formatReferencesList(

@@ -59,6 +59,7 @@ export const fileIdsForSids = (sids: string[], sources: NumberedSource[]): strin
 export type CitedWork = {
   file_id: string
   file_name?: string | null
+  citation_text?: string | null
   bibliographic?: BibliographicRecord | null
 }
 
@@ -70,6 +71,11 @@ export const formatReferencesList = (files: CitedWork[], citationStyle = 'APA'):
   const formatted: string[] = []
   const incomplete: string[] = []
   for (const file of files) {
+    const stored = file.citation_text?.replace(/\s+/g, ' ').trim()
+    if (stored) {
+      formatted.push(stored)
+      continue
+    }
     const rec = file.bibliographic ?? emptyBibliographicRecord()
     const line = formatBibliographicCitation(rec, citationStyle)
     if (line) formatted.push(line)

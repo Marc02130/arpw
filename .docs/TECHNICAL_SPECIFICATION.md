@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (27 files / 133); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (29 files / 146); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -37,6 +37,7 @@ Browser (Vite SPA)
   +--> Edge Function upload_processor  (service role)
   +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
   +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
+  +--> Edge Function lookup_citation    (DOI/PMID → preformatted cite)
 
 TARGET:
   +--> retrieve RPC (cosine ∪ FTS, RRF)
@@ -58,7 +59,7 @@ The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_ap
 | `/generate/upload` | same | Upload tab: literature, original research, examples |
 | `/generate/interrogate` | same | Interrogate tab: grounded Q&A; Pin on passages with optional target section |
 | `/profile` | `src/components/Profile.tsx` | `ProfilePage.tsx` is unused |
-| `/library` | `src/pages/LibraryPage.tsx` | list/view stubs |
+| `/library` | `src/pages/LibraryPage.tsx` | generated papers; **Source citations** (`citation_text` on `"references"`) |
 | `*` | redirect | |
 
 Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `user_profile` row no longer blocks the app; `Layout` falls back to email / `user_metadata.full_name`. Unconfirmed sessions go to `/verify-email`. A recovery session stays on `/reset-password` until the password is updated.
@@ -80,7 +81,7 @@ Source of truth: `supabase/migrations/20260906133100_init.sql`, `20260907000000_
 
 SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx` never `select`s ciphertext. How-to: `../README.md#how-to-save-a-grok-api-key`.
 
-**"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`. Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
+**"references":** `file_id`, `user_id`, `document_type` must be `reference`, `file_name` must match `\.(pdf\|docx\|txt)$`, `file_size` 1..10 MiB, `uploaded_at`, `citation_text` (publisher/PubMed preformatted cite, owner-editable), `bibliographic jsonb` (catalog record). Trigger `references_file_cap`: max 500 rows per `user_id`. How-to: `../README.md#how-to-upload-a-reference`.
 
 `source_role text NOT NULL DEFAULT 'literature' CHECK (source_role IN ('literature', 'primary'))` (`20260907160000_reference_source_role.sql`). `literature` = published work to cite. `primary` = the author’s original research on this paper’s topic. Example papers do **not** have this column. Paper generation Upload tab: two sections, same table. Role select can recategorize.
 
@@ -179,7 +180,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then hybrid RRF. Dedup by `vector_id`.
 3. SQL RPC `match_reference_chunks(..., query_text)`: cosine pool ∪ English FTS on `chunk_tsv`, fused with reciprocal rank fusion (k=60). Matching stored `section` still ranks first. `filter_model` keeps hash and hosted vectors apart. k capped at 20. Interrogate passes the question as `query_text`.
 4. Light rerank is RRF over the hybrid lists (not a cross-encoder). Pins still prepend.
-5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`). **References does not call Grok and does not parse the PDF into a citation.** It reads the DOI or PMID printed on the cited upload, fetches Crossref (`/works/{doi}`) then PubMed if needed, and formats APA/MLA/Chicago from that catalog record. Filenames and publisher “Citation:” boilerplate are not used.
+5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`). **References** uses `references.citation_text` when set (publisher/PubMed preformatted cite, fetched on upload via DOI content negotiation `text/x-bibliography`, editable on Library). Otherwise it looks up DOI/PMID on Crossref/PubMed. Users can paste the cite button text. Filenames are not citations.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
 7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, optional style/format, `status=completed`). **Do not write `paper_type`.** Type is set at create and on the Prompt dropdown (`updatePaperConfig`). Generate must not clobber it with the SPA’s Empirical Study default. Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored. Library **Continue** reloads title, type, sections, and `research_prompt` from that row after the paper has loaded (`Working on …`).
 8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
@@ -190,7 +191,7 @@ Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key,
 
 ### 8. Library and export (as-built vs TARGET)
 
-Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. View uses `DraftPreview`. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, and `research_prompt` once the row is loaded. Delete confirms then removes the row. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
+Library reads `user_papers`, groups by title, shows latest version. **Source citations** lists every uploaded `"references"` row with an editable `citation_text` (preformatted publisher/PubMed cite; `lookup_citation` Edge function, DOI `text/x-bibliography`). Source count on the paper table comes from `paper_references(count)`. View uses `DraftPreview` and the same cite field on cited files. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, and `research_prompt` once the row is loaded. Delete confirms then removes the row. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
 
 ### 9. Security (as-built)
 

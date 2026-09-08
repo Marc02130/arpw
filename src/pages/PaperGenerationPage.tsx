@@ -724,11 +724,18 @@ const PaperGenerationPage: React.FC = () => {
                 {citedFiles.length > 0 && (
                   <div className="mt-3">
                     <h3 className="text-sm font-semibold text-gray-800 mb-2">Cited files</h3>
-                    <ul className="text-sm text-gray-700 space-y-1">
+                    <ul className="text-sm text-gray-700 space-y-2">
                       {citedFiles.map((file) => (
                         <li key={file.file_id}>
-                          {file.file_name}{' '}
+                          <span className="font-medium">{file.file_name}</span>{' '}
                           <span className="text-xs text-gray-500">({file.source_role})</span>
+                          {file.citation_text ? (
+                            <p className="mt-1 text-gray-600">{file.citation_text}</p>
+                          ) : (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Add the publisher citation on Library.
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>

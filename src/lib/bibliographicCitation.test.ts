@@ -95,6 +95,7 @@ describe('bibliographicCitation', () => {
   it('should not invert names that are already Family, Initials', () => {
     expect(apaInvertName('Ochocińska, A.M.')).toBe('Ochocińska, A. M.')
     expect(apaInvertName('Podstawka, I.')).toBe('Podstawka, I.')
+    expect(apaInvertName('Ayten, Ş.')).toBe('Ayten, Ş.')
   })
 
   it('should read an MDPI Citation line when present', () => {

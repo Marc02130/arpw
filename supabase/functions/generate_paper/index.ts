@@ -20,6 +20,7 @@ import {
 import {
   isCatalogRecord,
   lookupBibliographicRecord,
+  lookupCitationText,
 } from '../_shared/bibliographicLookup.ts'
 import { saveGeneratedDraft, uniqueFileIds } from '../_shared/saveGeneratedDraft.ts'
 
@@ -132,18 +133,20 @@ serve(async (req: Request) => {
         if (ids.length === 0) return []
         const { data, error } = await userClient
           .from('references')
-          .select('file_id, file_name, bibliographic')
+          .select('file_id, file_name, bibliographic, citation_text')
           .in('file_id', ids)
         if (error) throw new Error(error.message)
         const rows = (data ?? []) as Array<{
           file_id: string
           file_name: string
           bibliographic: BibliographicRecord | null
+          citation_text: string | null
         }>
         const works = []
         for (const row of rows) {
           let bibliographic = row.bibliographic
-          if (!isCatalogRecord(bibliographic)) {
+          let citation_text = row.citation_text?.trim() || null
+          if (!citation_text || !isCatalogRecord(bibliographic)) {
             const { data: chunks, error: chunkError } = await userClient
               .from('reference_vectors')
               .select('chunk_text')
@@ -154,18 +157,24 @@ serve(async (req: Request) => {
             const front = (chunks ?? [])
               .map((chunk: { chunk_text: string }) => chunk.chunk_text)
               .join('\n')
-            bibliographic = await lookupBibliographicRecord(front, fetch)
-            if (hasUsableBibliographicRecord(bibliographic)) {
-              await userClient
-                .from('references')
-                .update({ bibliographic })
-                .eq('file_id', row.file_id)
+            if (!isCatalogRecord(bibliographic)) {
+              bibliographic = await lookupBibliographicRecord(front, fetch)
+            }
+            if (!citation_text) {
+              citation_text = await lookupCitationText(front, parsed.citationStyle ?? 'APA', fetch)
+            }
+            const patch: Record<string, unknown> = {}
+            if (hasUsableBibliographicRecord(bibliographic)) patch.bibliographic = bibliographic
+            if (citation_text) patch.citation_text = citation_text
+            if (Object.keys(patch).length > 0) {
+              await userClient.from('references').update(patch).eq('file_id', row.file_id)
             }
           }
           works.push({
             file_id: row.file_id,
             file_name: row.file_name,
             bibliographic,
+            citation_text,
           })
         }
         return works

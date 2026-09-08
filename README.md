@@ -313,7 +313,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. **Source citations** are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
