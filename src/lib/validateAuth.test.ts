@@ -76,7 +76,21 @@ describe('validateGrokApiKeyInput', () => {
     expect(validateGrokApiKeyInput('short')).toBe('API key appears to be too short')
   })
 
-  it('should accept a key of 10 or more characters', () => {
+  it('should reject a filesystem path used as a key', () => {
+    expect(validateGrokApiKeyInput('/Users/marcbreneiser/Code/arpw/.env')).toBe(
+      'API key looks like a file path, not an xAI key'
+    )
+    expect(validateGrokApiKeyInput('./.env')).toBe('API key looks like a file path, not an xAI key')
+    expect(validateGrokApiKeyInput('C:\\secrets\\xai.key')).toBe(
+      'API key looks like a file path, not an xAI key'
+    )
+  })
+
+  it('should reject a key that does not start with xai-', () => {
+    expect(validateGrokApiKeyInput('sk-not-an-xai-key-value')).toBe('API key must start with xai-')
+  })
+
+  it('should accept a key of 10 or more characters that starts with xai-', () => {
     expect(validateGrokApiKeyInput('xai-abcdefg')).toBeUndefined()
   })
 })

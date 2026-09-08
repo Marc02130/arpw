@@ -55,6 +55,30 @@ describe('grok key integration', () => {
     }
   })
 
+  it('should reject a filesystem path as a Grok key', async () => {
+    const user = await createConfirmedUser('grok-path')
+    try {
+      const { error } = await user.client.rpc('set_grok_api_key', {
+        api_key: '/Users/example/Code/arpw/.env',
+      })
+      expect(error?.message).toMatch(/file path/i)
+    } finally {
+      await deleteUser(user.id)
+    }
+  })
+
+  it('should reject a key that does not start with xai-', async () => {
+    const user = await createConfirmedUser('grok-prefix')
+    try {
+      const { error } = await user.client.rpc('set_grok_api_key', {
+        api_key: 'not-an-xai-key-value',
+      })
+      expect(error?.message).toMatch(/xai-/i)
+    } finally {
+      await deleteUser(user.id)
+    }
+  })
+
   it('should reject Grok RPCs without a session', async () => {
     const anon = anonClient()
     const { error: setError } = await anon.rpc('set_grok_api_key', {

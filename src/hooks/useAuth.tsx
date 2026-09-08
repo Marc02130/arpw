@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, createContext, useContext, ReactNode 
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../supabaseClient'
 import { GrokKeyStatus, UserProfile } from '../types'
+import { validateGrokApiKeyInput } from '../lib/validateAuth'
 
 export type AuthResult = {
   success: boolean
@@ -365,6 +366,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const setGrokApiKey = useCallback(async (apiKey: string): Promise<AuthResult> => {
     try {
+      const keyError = validateGrokApiKeyInput(apiKey)
+      if (keyError) {
+        setState((prev) => ({ ...prev, error: keyError }))
+        return { success: false, error: keyError }
+      }
       setState((prev) => ({ ...prev, error: null }))
       const { data, error } = await supabase.rpc('set_grok_api_key', { api_key: apiKey })
       if (error) {

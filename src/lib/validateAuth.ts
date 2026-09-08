@@ -59,10 +59,28 @@ export const validateLoginFields = (
   return errors
 }
 
+export const looksLikeFilesystemPath = (value: string): boolean => {
+  const trimmed = value.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../')) return true
+  if (/^file:/i.test(trimmed)) return true
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return true
+  if (trimmed.includes('\\')) return true
+  if (/\.(env|pem|key|txt)$/i.test(trimmed)) return true
+  return false
+}
+
 export const validateGrokApiKeyInput = (apiKey: string): string | undefined => {
   const trimmed = apiKey.trim()
-  if (trimmed && trimmed.length < MIN_GROK_KEY_LENGTH) {
+  if (!trimmed) return undefined
+  if (looksLikeFilesystemPath(trimmed)) {
+    return 'API key looks like a file path, not an xAI key'
+  }
+  if (trimmed.length < MIN_GROK_KEY_LENGTH) {
     return 'API key appears to be too short'
+  }
+  if (!trimmed.startsWith('xai-')) {
+    return 'API key must start with xai-'
   }
   return undefined
 }

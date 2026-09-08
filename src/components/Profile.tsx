@@ -259,7 +259,7 @@ const Profile: React.FC = () => {
                   value={formData.grok_api_key}
                   onChange={handleInputChange}
                   className={`input-field pr-10 ${validationErrors.grok_api_key ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}`}
-                  placeholder={grokKey.set ? 'Paste a new key to replace' : 'Paste your Grok API key'}
+                  placeholder={grokKey.set ? 'Paste a new xai- key to replace' : 'Paste your xai- Grok API key'}
                   aria-describedby={validationErrors.grok_api_key ? 'grok_api_key-error' : 'grok_api_key-help'}
                   aria-invalid={!!validationErrors.grok_api_key}
                 />
@@ -287,6 +287,7 @@ const Profile: React.FC = () => {
                 </p>
               )}
               <p id="grok_api_key-help" className="mt-1 text-sm text-gray-500">
+                Paste the xAI key itself (it starts with xai-), not a path to a file.
                 The key is encrypted in the database. The browser never reads it after you save.
                 Leave this field blank to keep the current key.
               </p>
