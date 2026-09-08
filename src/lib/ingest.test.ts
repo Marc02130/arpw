@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   EMBEDDING_DIMS,
+  OTHER_SECTION,
+  UNKNOWN_SECTION,
+  chunkLines,
+  chunkPages,
   chunkText,
   hashEmbedding,
+  linesFromDocxXml,
+  parseHeading,
   storageObjectKey,
   storageTarget,
   textFromDocxXml,
@@ -79,6 +85,25 @@ describe('textFromDocxXml', () => {
   })
 })
 
+describe('parseHeading', () => {
+  it('should map IMRaD aliases and numbered or markdown headings', () => {
+    expect(parseHeading('Methods')).toBe('Methods')
+    expect(parseHeading('METHODS')).toBe('Methods')
+    expect(parseHeading('Materials and Methods')).toBe('Methods')
+    expect(parseHeading('## Results')).toBe('Results')
+    expect(parseHeading('1. Introduction')).toBe('Introduction')
+    expect(parseHeading('IV. Discussion')).toBe('Discussion')
+    expect(parseHeading('Bibliography')).toBe('References')
+    expect(parseHeading('Works Cited')).toBe('References')
+    expect(parseHeading('Appendix A')).toBe(OTHER_SECTION)
+  })
+
+  it('should not treat a sentence that mentions methods as a heading', () => {
+    expect(parseHeading('In this methods paper we measured overlap.')).toBeNull()
+    expect(parseHeading('Methods were as follows, then we sampled.')).toBeNull()
+  })
+})
+
 describe('chunkText', () => {
   it('should return no chunks for tiny text', () => {
     expect(chunkText('too short')).toEqual([])
@@ -91,7 +116,52 @@ describe('chunkText', () => {
     expect(chunks[0].chunkIndex).toBe(0)
     expect(chunks[1].chunkIndex).toBe(1)
     expect(chunks[0].text.length).toBeGreaterThanOrEqual(50)
-    expect(chunks[0].section.length).toBeGreaterThan(0)
+    expect(chunks[0].section).toBe(UNKNOWN_SECTION)
+    expect(chunks[0].page).toBeNull()
+  })
+
+  it('should not mix bibliography into Methods windows', () => {
+    const methodsBody =
+      'We recruited twelve participants for a citation overlap task and logged every trial. '.repeat(6)
+    const refsBody = 'Smith, A. (2020). Unrelated bibliography on climate policy and trade. '.repeat(6)
+    const chunks = chunkText(`Methods\n\n${methodsBody}\n\nReferences\n\n${refsBody}`, 120, 40)
+    const methods = chunks.filter((chunk) => chunk.section === 'Methods')
+    const refs = chunks.filter((chunk) => chunk.section === 'References')
+    expect(methods.length).toBeGreaterThan(0)
+    expect(refs.length).toBeGreaterThan(0)
+    expect(methods.every((chunk) => !chunk.text.includes('Smith, A. (2020)'))).toBe(true)
+    expect(refs.every((chunk) => !chunk.text.includes('We recruited twelve participants'))).toBe(true)
+  })
+})
+
+describe('chunkPages', () => {
+  it('should keep the PDF page of the section heading', () => {
+    const methods =
+      'We recruited twelve participants for a citation overlap task and logged every trial in a private file.'
+    const refs = 'Smith, A. (2020). Unrelated bibliography entry that must not mix into methods chunks.'
+    const chunks = chunkPages([`Methods\n\n${methods}`, `References\n\n${refs}`])
+    expect(chunks.find((chunk) => chunk.section === 'Methods')?.page).toBe(1)
+    expect(chunks.find((chunk) => chunk.section === 'References')?.page).toBe(2)
+    expect(chunks.find((chunk) => chunk.section === 'Methods')?.text).not.toContain('Smith, A. (2020)')
+  })
+})
+
+describe('linesFromDocxXml', () => {
+  it('should treat Heading styles as section breaks', () => {
+    const xml = [
+      '<w:document>',
+      '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Methods</w:t></w:r></w:p>',
+      '<w:p><w:r><w:t>We recruited twelve participants for a citation overlap task and logged every trial.</w:t></w:r></w:p>',
+      '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>References</w:t></w:r></w:p>',
+      '<w:p><w:r><w:t>Smith, A. (2020). Unrelated bibliography entry that must not mix into methods chunks.</w:t></w:r></w:p>',
+      '</w:document>',
+    ].join('')
+    const lines = linesFromDocxXml(xml)
+    expect(lines[0]).toMatchObject({ text: 'Methods', isHeading: true })
+    const fromDocx = chunkLines(lines)
+    expect(fromDocx.find((chunk) => chunk.section === 'Methods')?.text).toContain('twelve participants')
+    expect(fromDocx.find((chunk) => chunk.section === 'Methods')?.text).not.toContain('Smith, A. (2020)')
+    expect(fromDocx.find((chunk) => chunk.section === 'References')?.text).toContain('Smith, A. (2020)')
   })
 })
 

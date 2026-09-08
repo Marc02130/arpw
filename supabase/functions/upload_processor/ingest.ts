@@ -13,10 +13,34 @@ export type StorageTarget = {
   key: string
 }
 
+export const UNKNOWN_SECTION = 'Unknown'
+export const OTHER_SECTION = 'Other'
+
+export const CANONICAL_SECTIONS = [
+  'Abstract',
+  'Introduction',
+  'Literature Review',
+  'Methods',
+  'Results',
+  'Discussion',
+  'Conclusion',
+  'References',
+] as const
+
+export type CanonicalSection = (typeof CANONICAL_SECTIONS)[number]
+export type ChunkSection = CanonicalSection | typeof UNKNOWN_SECTION | typeof OTHER_SECTION
+
 export type TextChunk = {
   text: string
   chunkIndex: number
-  section: string
+  section: ChunkSection
+  page: number | null
+}
+
+export type SourceLine = {
+  text: string
+  page: number | null
+  isHeading?: boolean
 }
 
 export const ingestFileExtension = (fileName: string): string => {
@@ -84,36 +108,183 @@ export const textFromDocxXml = (xml: string): string =>
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
+const paragraphIsHeading = (xml: string): boolean =>
+  /<w:pStyle\b[^>]*w:val="[^"]*Heading/i.test(xml) || /<w:outlineLvl\b/i.test(xml)
+
+export const linesFromDocxXml = (xml: string): SourceLine[] => {
+  const paragraphs = xml.match(/<w:p\b[\s\S]*?<\/w:p>/gi) ?? []
+  const lines: SourceLine[] = []
+  for (const paragraph of paragraphs) {
+    const text = textFromDocxXml(paragraph).replace(/\n+/g, ' ').trim()
+    const isHeading = paragraphIsHeading(paragraph)
+    if (!text && !isHeading) continue
+    lines.push({ text, page: null, isHeading })
+  }
+  return lines
+}
+
+export const pagesFromExtractText = (text: string | string[] | null | undefined): string[] => {
+  if (Array.isArray(text)) return text.map((page) => String(page ?? ''))
+  if (typeof text === 'string') return [text]
+  return []
+}
+
+const HEADING_ALIASES: Array<[RegExp, CanonicalSection]> = [
+  [/^abstracts?$/, 'Abstract'],
+  [/^intro(duction)?$/, 'Introduction'],
+  [/^background$/, 'Introduction'],
+  [/^related\s+works?$/, 'Literature Review'],
+  [/^literature\s+review$/, 'Literature Review'],
+  [/^prior\s+works?$/, 'Literature Review'],
+  [/^methods?$/, 'Methods'],
+  [/^methodology$/, 'Methods'],
+  [/^materials\s+and\s+methods$/, 'Methods'],
+  [/^experimental(\s+(setup|procedure|methods?))?$/, 'Methods'],
+  [/^results?$/, 'Results'],
+  [/^findings$/, 'Results'],
+  [/^results?\s+and\s+discussions?$/, 'Results'],
+  [/^discussion$/, 'Discussion'],
+  [/^conclusions?$/, 'Conclusion'],
+  [/^concluding\s+remarks$/, 'Conclusion'],
+  [/^references$/, 'References'],
+  [/^bibliography$/, 'References'],
+  [/^works\s+cited$/, 'References'],
+  [/^literature\s+cited$/, 'References'],
+]
+
+const OTHER_HEADING_RES = [
+  /^appendix(\s+[a-z0-9]+)?$/,
+  /^supplementary(\s+materials?)?$/,
+  /^acknowledg(e)?ments?$/,
+  /^funding$/,
+  /^data\s+availability$/,
+  /^author\s+contributions?$/,
+  /^conflicts?\s+of\s+interest/,
+  /^ethics/,
+  /^keywords?$/,
+]
+
+const headingCandidates = (line: string): string[] => {
+  const trimmed = line.trim()
+  if (!trimmed) return []
+  const stripped = [
+    trimmed,
+    trimmed.replace(/^#{1,6}\s+/, ''),
+    trimmed.replace(/^\d+(\.\d+)*\.?\s+/, ''),
+    trimmed.replace(/^[ivxlcdm]{1,6}\.\s+/i, ''),
+    trimmed.replace(/^[A-H]\.\s+/, ''),
+  ]
+  return [...new Set(stripped)]
+}
+
+const normalizeHeading = (value: string): string =>
+  value.replace(/[:.\s]+$/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+export const parseHeading = (line: string): ChunkSection | null => {
+  const trimmed = line.trim()
+  if (trimmed.length < 2 || trimmed.length > 80) return null
+  if (trimmed.split(/\s+/).length > 12) return null
+  if (/[,;]$/.test(trimmed)) return null
+
+  for (const candidate of headingCandidates(trimmed)) {
+    const normalized = normalizeHeading(candidate)
+    if (!normalized) continue
+    for (const [pattern, section] of HEADING_ALIASES) {
+      if (pattern.test(normalized)) return section
+    }
+    for (const pattern of OTHER_HEADING_RES) {
+      if (pattern.test(normalized)) return OTHER_SECTION
+    }
+  }
+  if (/^#{1,6}\s+\S/.test(trimmed)) return OTHER_SECTION
+  return null
+}
+
+export const linesFromText = (text: string, page: number | null = null): SourceLine[] =>
+  text.replace(/\r\n/g, '\n').split('\n').map((line) => ({ text: line, page }))
+
+export const linesFromPages = (pages: string[]): SourceLine[] =>
+  pages.flatMap((pageText, index) => linesFromText(pageText, index + 1))
+
+type SectionRun = {
+  section: ChunkSection
+  page: number | null
+  lines: string[]
+}
+
+export const splitSectionRuns = (lines: SourceLine[]): SectionRun[] => {
+  const runs: SectionRun[] = []
+  let current: SectionRun = { section: UNKNOWN_SECTION, page: null, lines: [] }
+
+  const pushCurrent = () => {
+    if (current.lines.some((line) => line.trim())) runs.push(current)
+  }
+
+  for (const line of lines) {
+    const heading = line.isHeading ? parseHeading(line.text) ?? OTHER_SECTION : parseHeading(line.text)
+    if (heading) {
+      pushCurrent()
+      current = {
+        section: heading,
+        page: line.page,
+        lines: line.text.trim() ? [line.text.trim()] : [],
+      }
+      continue
+    }
+    if (current.page == null && line.page != null) current.page = line.page
+    current.lines.push(line.text)
+  }
+  pushCurrent()
+  return runs
+}
+
+const windowChunks = (text: string, chunkSize: number, overlap: number): string[] => {
+  const cleaned = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (!cleaned) return []
+  const out: string[] = []
+  let offset = 0
+  while (offset < cleaned.length) {
+    const end = Math.min(offset + chunkSize, cleaned.length)
+    const slice = cleaned.slice(offset, end).trim()
+    if (slice.length >= MIN_CHUNK_CHARS) out.push(slice)
+    if (end >= cleaned.length) break
+    offset += Math.max(chunkSize - overlap, 1)
+  }
+  return out
+}
+
+export const chunkLines = (
+  lines: SourceLine[],
+  chunkSize = CHUNK_SIZE,
+  overlap = CHUNK_OVERLAP
+): TextChunk[] => {
+  const chunks: TextChunk[] = []
+  let chunkIndex = 0
+  for (const run of splitSectionRuns(lines)) {
+    for (const text of windowChunks(run.lines.join('\n'), chunkSize, overlap)) {
+      chunks.push({
+        text,
+        chunkIndex,
+        section: run.section,
+        page: run.page,
+      })
+      chunkIndex += 1
+    }
+  }
+  return chunks
+}
+
 export const chunkText = (
   text: string,
   chunkSize = CHUNK_SIZE,
   overlap = CHUNK_OVERLAP
-): TextChunk[] => {
-  const cleaned = text.replace(/\r\n/g, '\n').trim()
-  if (!cleaned) return []
+): TextChunk[] => chunkLines(linesFromText(text), chunkSize, overlap)
 
-  const chunks: TextChunk[] = []
-  let offset = 0
-  let chunkIndex = 0
-
-  while (offset < cleaned.length) {
-    const end = Math.min(offset + chunkSize, cleaned.length)
-    const slice = cleaned.slice(offset, end).trim()
-    if (slice.length >= MIN_CHUNK_CHARS) {
-      const firstLine = slice.split('\n').find((line) => line.trim()) ?? slice
-      chunks.push({
-        text: slice,
-        chunkIndex,
-        section: firstLine.slice(0, 80),
-      })
-      chunkIndex += 1
-    }
-    if (end >= cleaned.length) break
-    offset += Math.max(chunkSize - overlap, 1)
-  }
-
-  return chunks
-}
+export const chunkPages = (
+  pages: string[],
+  chunkSize = CHUNK_SIZE,
+  overlap = CHUNK_OVERLAP
+): TextChunk[] => chunkLines(linesFromPages(pages), chunkSize, overlap)
 
 export const hashEmbedding = (text: string, dims = EMBEDDING_DIMS): number[] => {
   const vec = new Float64Array(dims)

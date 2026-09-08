@@ -5,6 +5,7 @@ import {
   filterPinsForSection,
   formatStyleForPrompt,
   mergePinnedFirst,
+  parseChunkPage,
   parseInterrogateFilter,
   retrievalAttempts,
   unionPrimaryForSection,
@@ -29,6 +30,16 @@ describe('retrievalAttempts (slice 3)', () => {
   })
 })
 
+describe('parseChunkPage', () => {
+  it('should keep positive integer pages and drop junk', () => {
+    expect(parseChunkPage(1)).toBe(1)
+    expect(parseChunkPage('12')).toBe(12)
+    expect(parseChunkPage(0)).toBeNull()
+    expect(parseChunkPage(null)).toBeNull()
+    expect(parseChunkPage('page')).toBeNull()
+  })
+})
+
 describe('parseInterrogateFilter (slice 2)', () => {
   it('should keep literature or primary and default everything else to both', () => {
     expect(parseInterrogateFilter('literature')).toBe('literature')
@@ -45,6 +56,7 @@ describe('pin-first retrieval (PIN-2)', () => {
     file_id: 'pin-file',
     chunk_text: 'pinned methods',
     section: 'methods',
+    page: null,
     source_role: 'primary',
     score: 1,
     paperSection: '',
@@ -77,6 +89,7 @@ describe('pin-first retrieval (PIN-2)', () => {
           file_id: 'pin-file',
           chunk_text: 'same chunk from search',
           section: 'methods',
+          page: null,
           source_role: 'primary',
           score: 0.2,
           paperSection: 'Methods',
@@ -86,6 +99,7 @@ describe('pin-first retrieval (PIN-2)', () => {
           file_id: 'other',
           chunk_text: 'retrieved',
           section: 'methods',
+          page: null,
           source_role: 'literature',
           score: 0.4,
           paperSection: 'Methods',
@@ -95,6 +109,7 @@ describe('pin-first retrieval (PIN-2)', () => {
           file_id: 'example',
           chunk_text: 'style',
           section: 'methods',
+          page: null,
           source_role: 'example',
           score: 0.9,
           paperSection: 'Methods',
@@ -123,6 +138,7 @@ describe('formatStyleForPrompt (GEN-7)', () => {
           file_id: 'f',
           chunk_text: 'Short methods sentences.',
           section: 'methods',
+          page: null,
           source_role: 'example',
           score: 0.1,
           paperSection: 'Methods',

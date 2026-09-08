@@ -21,7 +21,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (26 files / 112); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (26 files / 119); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -87,7 +87,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
-**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section`, `embedding_model` (`hash-384`). TARGET: page/doi/authors; MiniLM or hosted embeddings in the same 384-d column.
+**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384`). TARGET: doi/authors; MiniLM or hosted embeddings in the same 384-d column.
 
 **user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
 
@@ -130,8 +130,8 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 `upload_processor` (`ingest.ts` + `index.ts`):
 
 - Bucket from `documentType`; object key `{user.id}/{fileId}` via `storageTarget` / `storageObjectKey`. Client `storagePath` and `userId` are not sent. JWT `user.id` owns the row.
-- TXT: `TextDecoder`. DOCX: unzip `word/document.xml` (`fflate`) then `textFromDocxXml`. PDF: `unpdf`.
-- Chunks: 1000/200, min 50 chars, `chunk_index` + `section` (first line).
+- TXT: `TextDecoder`. DOCX: unzip `word/document.xml` (`fflate`); Heading/outline paragraphs are section breaks (`linesFromDocxXml`). PDF: `unpdf` per page (`mergePages: false`).
+- Chunks: split on IMRaD headings (and Word Heading styles); 1000/200 windows **inside** a section only, min 50 chars; `section` is canonical (`Methods`, `References`, …) or `Unknown`/`Other`; `page` is the heading’s PDF page when known. Bibliography is not mixed into Methods windows.
 - Embeddings: hashing trick, 384-d L2-normalized, `embedding_model = hash-384`. TARGET: MiniLM or hosted embed API (same dimension).
 - Duplicate metadata insert: ignore unique violation `23505`. Failed ingest does **not** delete Storage.
 
@@ -208,7 +208,7 @@ Library reads `user_papers`, groups by title, shows latest version. Source count
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,DraftPreview,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through `pinned_passages` and `interrogation_turns`), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through `pinned_passages`, `interrogation_turns`, and vector `page`), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 

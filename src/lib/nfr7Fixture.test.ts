@@ -7,7 +7,7 @@ import {
   hashEmbedding,
   validateIngestFile,
 } from '../../supabase/functions/upload_processor/ingest'
-import { NFR7_PROBE, NFR7_TEXT, fixturePdfBytes } from './nfr7Fixture'
+import { NFR7_BIBLIOGRAPHY, NFR7_PROBE, NFR7_TEXT, fixturePdfBytes } from './nfr7Fixture'
 
 const require = createRequire(import.meta.url)
 const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
@@ -39,5 +39,16 @@ describe('NFR-7 fixture ingest (unit)', () => {
     expect(vec).toHaveLength(EMBEDDING_DIMS)
     const norm = Math.sqrt(vec.reduce((sum, n) => sum + n * n, 0))
     expect(norm).toBeCloseTo(1, 5)
+  })
+
+  it('should keep Methods chunks free of the bibliography', () => {
+    const chunks = chunkText(NFR7_TEXT)
+    const methods = chunks.filter((chunk) => chunk.section === 'Methods')
+    const refs = chunks.filter((chunk) => chunk.section === 'References')
+    expect(methods.length).toBeGreaterThan(0)
+    expect(refs.length).toBeGreaterThan(0)
+    expect(methods.every((chunk) => !chunk.text.includes(NFR7_BIBLIOGRAPHY))).toBe(true)
+    expect(refs.every((chunk) => chunk.text.includes(NFR7_BIBLIOGRAPHY))).toBe(true)
+    expect(methods.some((chunk) => chunk.text.includes(NFR7_PROBE))).toBe(true)
   })
 })

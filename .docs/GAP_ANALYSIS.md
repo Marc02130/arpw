@@ -28,7 +28,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 26 files / 112 tests (2026-09-07). Integration `npm run test:integration` 12 files / 37 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 26 files / 119 tests (2026-09-07). Integration `npm run test:integration` 12 files / 37 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -55,7 +55,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | DOCS-2 | DONE | Same types as references; cap 10 vs stored rows + `examples_file_cap` trigger |
 | DOCS-3 | DONE | Drag/drop, picker, per-file progress (`uploadProgress.ts` + tests) |
 | DOCS-4 | DONE | List name/size/date/index status. Delete vectors, metadata row, then Storage key (`documentStore.ts`) |
-| DOCS-5 | DONE | Bucket from `documentType`; TXT/DOCX/PDF parse; chunk+section; `hash-384` vectors. MiniLM still TARGET |
+| DOCS-5 | DONE | Parse TXT/DOCX/PDF; split on IMRaD headings (Word Heading styles too); 1000/200 inside a section; store canonical `section` + PDF `page`. MiniLM still TARGET. Layout/bbox parse still later |
 | DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
 | DOCS-8 | DONE | `source_role` literature/primary; Upload tab splits literature vs original research (author’s work on this paper’s topic) |
@@ -136,7 +136,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 These are not “missing files.” They are product defects if you implement the old tech doc as written.
 
-1. **Character chunking** mixes IMRaD sections and reference lists. Need layout-aware parse + section chunks.
+1. **Character chunking** — **PARTIAL.** Ingest now splits on IMRaD headings (and Word Heading styles) and does not window across `References`. Inside a section still 1000/200 characters. No layout/bbox parse; PDF `section` is from extracted text headings. Retrieval still does not filter on stored `section`.
 2. **MiniLM-L6-v2** is weak for scientific text. Store `embedding_model` on rows so you can migrate.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.

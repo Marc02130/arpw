@@ -59,6 +59,7 @@ describe('interrogateCorpus (slice 2)', () => {
           file_id: 'file-1',
           chunk_text: 'this study methods used nfr7probe',
           section: 'methods',
+          page: null,
           source_role: 'primary',
           score: 0.9,
           paperSection: 'Interrogate',

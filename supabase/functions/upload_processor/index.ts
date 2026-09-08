@@ -3,12 +3,15 @@ import { createClient } from '@supabase/supabase-js'
 import { unzipSync, strFromU8 } from 'fflate'
 import {
   EMBEDDING_MODEL,
-  chunkText,
+  chunkLines,
   hashEmbedding,
+  linesFromDocxXml,
+  linesFromText,
+  pagesFromExtractText,
   storageTarget,
-  textFromDocxXml,
   validateIngestFile,
   type IngestDocumentType,
+  type SourceLine,
   type TextChunk,
 } from './ingest.ts'
 
@@ -43,31 +46,31 @@ const downloadObject = async (bucket: string, key: string): Promise<Uint8Array> 
   return new Uint8Array(await data.arrayBuffer())
 }
 
-const parsePdf = async (fileData: Uint8Array): Promise<string> => {
+const parsePdfLines = async (fileData: Uint8Array): Promise<SourceLine[]> => {
   const { extractText } = await import('unpdf')
-  const result = await extractText(fileData)
-  const text = Array.isArray(result.text) ? result.text.join('\n') : String(result.text ?? '')
-  return text.trim()
+  const result = await extractText(fileData, { mergePages: false })
+  const pages = pagesFromExtractText(result.text)
+  return pages.flatMap((pageText, index) => linesFromText(pageText, index + 1))
 }
 
-const parseDocx = (fileData: Uint8Array): string => {
+const parseDocxLines = (fileData: Uint8Array): SourceLine[] => {
   const files = unzipSync(fileData)
   const xmlBytes = files['word/document.xml']
   if (!xmlBytes) {
     throw new Error('DOCX missing word/document.xml')
   }
-  return textFromDocxXml(strFromU8(xmlBytes))
+  return linesFromDocxXml(strFromU8(xmlBytes))
 }
 
-const parseFile = async (fileData: Uint8Array, fileName: string): Promise<string> => {
+const parseFileLines = async (fileData: Uint8Array, fileName: string): Promise<SourceLine[]> => {
   const extension = fileName.split('.').pop()?.toLowerCase()
   switch (extension) {
     case 'pdf':
-      return await parsePdf(fileData)
+      return await parsePdfLines(fileData)
     case 'docx':
-      return parseDocx(fileData)
+      return parseDocxLines(fileData)
     case 'txt':
-      return new TextDecoder().decode(fileData)
+      return linesFromText(new TextDecoder().decode(fileData))
     default:
       throw new Error(`Unsupported file type: ${extension}`)
   }
@@ -107,6 +110,7 @@ const storeVectors = async (
     chunk_text: chunk.text,
     chunk_index: chunk.chunkIndex,
     section: chunk.section,
+    page: chunk.page,
     embedding_model: EMBEDDING_MODEL,
   }))
 
@@ -168,12 +172,13 @@ serve(async (req: Request) => {
       )
     }
     const bytes = await downloadObject(bucket, key)
-    const text = await parseFile(bytes, request.fileName)
-    if (!text) {
+    const lines = await parseFileLines(bytes, request.fileName)
+    const parsedText = lines.map((line) => line.text).join('\n').trim()
+    if (!parsedText) {
       throw new Error('File appears to be empty or could not be parsed')
     }
 
-    const chunks = chunkText(text)
+    const chunks = chunkLines(lines)
     if (chunks.length === 0) {
       throw new Error('No valid text chunks could be extracted from the file')
     }

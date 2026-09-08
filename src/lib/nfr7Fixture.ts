@@ -2,16 +2,21 @@
 
 export const NFR7_PROBE = 'nfr7probe'
 
+export const NFR7_BIBLIOGRAPHY =
+  'Smith, A. (2020). Unrelated bibliography entry that must not mix into methods chunks.'
+
 export const NFR7_TEXT = [
   'Methods',
   `We indexed a private reference corpus and retrieved passages for a known query token ${NFR7_PROBE}.`,
-  'Each uploaded file was parsed, split into overlapping character chunks, and stored as 384-dimension hash embeddings.',
+  'Each uploaded file was parsed, split on IMRaD headings, then windowed inside a section as 384-dimension hash embeddings.',
+  'Additional methods detail: sampling, inclusion criteria, and how section labels come from headings rather than the first line of a mixed window.',
   'Results',
   `A retrieval hit on ${NFR7_PROBE} must return a chunk from this fixture, not an unrelated document.`,
   'Generation must refuse citation ids that were not in the retrieved set.',
   'This paragraph exists so the fixture is longer than the minimum ingest chunk size used by upload_processor.',
-  'Additional methods detail: sampling, inclusion criteria, and how section labels were taken from the first line of each chunk.',
   'Additional results detail: overlap with the probe token, embedding dimension, and that empty files are rejected before embed.',
+  'References',
+  `${NFR7_BIBLIOGRAPHY} Extra filler so this section exceeds the minimum chunk length used at ingest.`,
 ].join('\n\n')
 
 const pdfEscape = (value: string): string =>

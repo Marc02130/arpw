@@ -524,13 +524,13 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `documentStore.test.ts` | Table/bucket/vector table map, `{user_id}/{file_id}` key, index labels |
 | `formatFile.test.ts` | Size, date, icon |
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
-| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, chunking, hash-384 |
-| `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384 (NFR-7) |
+| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, heading parse, Methods/References isolation, PDF page |
+| `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384; Methods chunks exclude bibliography (NFR-7) |
 | `nfrBudgets.test.ts` | NFR-4 ingest and NFR-5 generate budgets are 120s |
 | `keyboardFlows.test.ts` | NFR-6: Enter/Space activate upload; login/generate control ids wired in UI |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
-| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary |
+| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary; chunk page parse |
 | `pins.test.ts` | Target section parse; `Interrogate` rejected; attach file/chunk; lookup by `vector_id` |
 | `interrogateCorpus.test.ts` | Paper + question required; unknown `[S#]` stripped; no Grok call when nothing matched |
 | `interrogationNotes.test.ts` | user/assistant roles; stored passages are notes, not `reference_vectors` |
@@ -556,7 +556,7 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `documents.integration.test.ts` | Reference and example insert/list/delete + vectors; `.doc` CHECK; `.pdf`/`.docx` OK; empty/oversized/`document_type` CHECK; example cap 10; reference cap 500; `source_role` default/update/CHECK |
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
-| `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe` in under 2 minutes (NFR-4 / NFR-7). Skips if Storage or the Edge function is down |
+| `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe` in under 2 minutes; Methods vs References isolation; page stored (NFR-4 / NFR-7). Skips if Storage or the Edge function is down |
 | `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval |
 | `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only; regenerate inserts version 2 |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |

@@ -49,7 +49,9 @@ const PassageList: React.FC<{
         <div key={row.vector_id} className="text-sm text-gray-700 bg-white border border-gray-200 rounded p-2">
           <div className="flex items-start justify-between gap-2 mb-1">
             <div className="text-xs text-gray-500">
-              [{row.sid}] {row.source_role === 'primary' ? sourceRoleLabel('primary') : sourceRoleLabel('literature')}
+              [{row.sid}] {row.section ? `${row.section} · ` : ''}
+              {row.page ? `p.${row.page} · ` : ''}
+              {row.source_role === 'primary' ? sourceRoleLabel('primary') : sourceRoleLabel('literature')}
               {Number.isFinite(row.score) ? ` · score ${row.score.toFixed(3)}` : ''}
             </div>
             {existing ? (

@@ -33,6 +33,7 @@ export const parseStoredPassages = (value: unknown): InterrogatePassage[] => {
       file_id: rec.file_id,
       chunk_text: typeof rec.chunk_text === 'string' ? rec.chunk_text : '',
       section: rec.section == null ? null : String(rec.section),
+      page: typeof rec.page === 'number' && rec.page >= 1 ? rec.page : null,
       source_role: typeof rec.source_role === 'string' ? rec.source_role : 'literature',
       score: typeof rec.score === 'number' ? rec.score : Number(rec.score) || 0,
       paperSection: typeof rec.paperSection === 'string' ? rec.paperSection : 'Interrogate',

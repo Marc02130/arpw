@@ -622,6 +622,8 @@ const PaperGenerationPage: React.FC = () => {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="text-xs text-gray-500 mb-1">
                                   {row.pinned || isVectorPinned(pins, row.vector_id) ? 'pinned · ' : ''}
+                                  {row.section ? `${row.section} · ` : ''}
+                                  {row.page ? `p.${row.page} · ` : ''}
                                   {row.source_role} · score {row.score.toFixed(3)}
                                 </div>
                                 {existing ? (

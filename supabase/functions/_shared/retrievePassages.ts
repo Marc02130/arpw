@@ -13,6 +13,7 @@ export type RetrievedPassage = {
   file_id: string
   chunk_text: string
   section: string | null
+  page: number | null
   source_role: string
   score: number
   paperSection: string
@@ -28,6 +29,15 @@ export type RetrieveOptions = {
 }
 
 export const PINNED_SCORE = 1
+
+export const parseChunkPage = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    const page = Number(value)
+    return page >= 1 ? page : null
+  }
+  return null
+}
 
 export const isEvidenceRole = (role: string): boolean =>
   role === 'literature' || role === 'primary'
@@ -50,6 +60,7 @@ export const filterPinsForSection = (
       file_id: pin.file_id,
       chunk_text: pin.chunk_text,
       section: pin.section,
+      page: pin.page ?? null,
       source_role: pin.source_role,
       score: PINNED_SCORE,
       paperSection: section,
@@ -118,6 +129,7 @@ const matchChunks = async (
     file_id: String(row.file_id),
     chunk_text: String(row.chunk_text ?? ''),
     section: row.section == null ? null : String(row.section),
+    page: parseChunkPage(row.page),
     source_role: String(row.source_role ?? ''),
     score: typeof row.score === 'number' ? row.score : Number(row.score),
     paperSection: '',
@@ -139,7 +151,7 @@ export const loadEvidencePins = async (
   const vectorIds = [...new Set(pins.map((pin) => String(pin.vector_id)))]
   const fileIds = [...new Set(pins.map((pin) => String(pin.file_id)))]
   const [chunks, files] = await Promise.all([
-    client.from('reference_vectors').select('vector_id, file_id, chunk_text, section').in('vector_id', vectorIds),
+    client.from('reference_vectors').select('vector_id, file_id, chunk_text, section, page').in('vector_id', vectorIds),
     client.from('references').select('file_id, source_role').in('file_id', fileIds),
   ])
   if (chunks.error) throw new Error(chunks.error.message)
@@ -162,6 +174,7 @@ export const loadEvidencePins = async (
       file_id: String(pin.file_id),
       chunk_text: String(chunk.chunk_text ?? ''),
       section: chunk.section == null ? null : String(chunk.section),
+      page: parseChunkPage(chunk.page),
       source_role: sourceRole,
       score: PINNED_SCORE,
       paperSection: '',
@@ -232,6 +245,7 @@ export const retrieveExamplePassages = async (
     file_id: String(row.file_id),
     chunk_text: String(row.chunk_text ?? ''),
     section: row.section == null ? null : String(row.section),
+    page: parseChunkPage(row.page),
     source_role: 'example',
     score: typeof row.score === 'number' ? row.score : Number(row.score),
     paperSection: section,
