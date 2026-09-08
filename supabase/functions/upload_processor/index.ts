@@ -1,10 +1,9 @@
 import { serve } from 'std/http/server.ts'
 import { createClient } from '@supabase/supabase-js'
 import { unzipSync, strFromU8 } from 'fflate'
+import { embedTexts } from '../_shared/embedText.ts'
 import {
-  EMBEDDING_MODEL,
   chunkLines,
-  hashEmbedding,
   linesFromDocxXml,
   linesFromText,
   pagesFromExtractText,
@@ -99,19 +98,25 @@ const storeDocumentMetadata = async (
 const storeVectors = async (
   fileId: string,
   chunks: TextChunk[],
-  documentType: IngestDocumentType
-): Promise<number> => {
+  documentType: IngestDocumentType,
+  apiKey: string | null
+): Promise<{ stored: number; embeddingModel: string }> => {
   const tableName = documentType === 'reference' ? 'reference_vectors' : 'example_vectors'
   await supabase.from(tableName).delete().eq('file_id', fileId)
 
-  const rows = chunks.map((chunk) => ({
+  const embedded = await embedTexts(
+    chunks.map((chunk) => chunk.text),
+    { apiKey, purpose: 'passage', allowHashFallback: true }
+  )
+
+  const rows = chunks.map((chunk, index) => ({
     file_id: fileId,
-    vector: hashEmbedding(chunk.text),
+    vector: embedded.vectors[index],
     chunk_text: chunk.text,
     chunk_index: chunk.chunkIndex,
     section: chunk.section,
     page: chunk.page,
-    embedding_model: EMBEDDING_MODEL,
+    embedding_model: embedded.model,
   }))
 
   const batchSize = 100
@@ -121,7 +126,7 @@ const storeVectors = async (
       throw new Error(`Failed to store vectors: ${error.message}`)
     }
   }
-  return rows.length
+  return { stored: rows.length, embeddingModel: embedded.model }
 }
 
 serve(async (req: Request) => {
@@ -190,15 +195,26 @@ serve(async (req: Request) => {
       request.fileName,
       request.fileSize
     )
-    const stored = await storeVectors(request.fileId, chunks, request.documentType)
+    const { data: apiKey, error: keyError } = await supabase.rpc('read_grok_api_key', {
+      for_user: user.id,
+    })
+    if (keyError) {
+      throw new Error(keyError.message)
+    }
+    const stored = await storeVectors(
+      request.fileId,
+      chunks,
+      request.documentType,
+      typeof apiKey === 'string' ? apiKey : null
+    )
 
     return json({
       success: true,
       message: 'File processed successfully',
       fileId: request.fileId,
       fileName: request.fileName,
-      chunks: stored,
-      embeddingModel: EMBEDDING_MODEL,
+      chunks: stored.stored,
+      embeddingModel: stored.embeddingModel,
     })
   } catch (error) {
     console.error('Upload processor error:', error)

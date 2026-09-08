@@ -18,10 +18,9 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, chunk, `hash-384`. Live E2E needs Storage |
 | Generation | Deno Edge Function `generate_paper` | Section loop, pins first, Grok, citation allow-list, save draft |
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
-| Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
-| Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
+| Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (26 files / 121); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (27 files / 128); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -40,7 +39,7 @@ Browser (Vite SPA)
   +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
 
 TARGET:
-  +--> retrieve RPC (hybrid search / MiniLM)
+  +--> retrieve RPC (hybrid search / rerank)
   +--> QUAL-3/4 polish / export_paper
 ```
 
@@ -87,7 +86,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
-**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384`). TARGET: doi/authors; MiniLM or hosted embeddings in the same 384-d column.
+**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384` or `grok-embedding-small`). TARGET: doi/authors.
 
 **user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
 
@@ -132,7 +131,7 @@ Client: one `createClient` in `src/supabaseClient.ts`, `storageKey: 'arpw-auth'`
 - Bucket from `documentType`; object key `{user.id}/{fileId}` via `storageTarget` / `storageObjectKey`. Client `storagePath` and `userId` are not sent. JWT `user.id` owns the row.
 - TXT: `TextDecoder`. DOCX: unzip `word/document.xml` (`fflate`); Heading/outline paragraphs are section breaks (`linesFromDocxXml`). PDF: `unpdf` per page (`mergePages: false`).
 - Chunks: split on IMRaD headings (and Word Heading styles); 1000/200 windows **inside** a section only, min 50 chars; `section` is canonical (`Methods`, `References`, …) or `Unknown`/`Other`; `page` is the heading’s PDF page when known. Bibliography is not mixed into Methods windows.
-- Embeddings: hashing trick, 384-d L2-normalized, `embedding_model = hash-384`. TARGET: MiniLM or hosted embed API (same dimension).
+- Embeddings: if the user has a Grok key, `grok-embedding-small` via `https://api.x.ai/v1/embeddings` with `dimensions: 384` (`query:` / `passage:` prefixes). Otherwise `hash-384`. Stored `embedding_model` is the model that produced the vector. MiniLM-L6-v2 is not used.
 - Duplicate metadata insert: ignore unique violation `23505`. Failed ingest does **not** delete Storage.
 
 `DocumentList.tsx` lists name, size, date, and index status (`Stored (not indexed)` vs chunk count). Delete order: vector rows, metadata row, Storage object `storageObjectKey(user.id, fileId)` (same helper as upload).
@@ -176,7 +175,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 
 **Pipeline**
 
-1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
+1. Embed the research prompt with the same family as the chunks (`grok-embedding-small` if a Grok key is saved, else `hash-384`). `match_*` filters `embedding_model` so hash and hosted vectors are never compared. If hosted retrieve is empty, fall back to hash-384.
 2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then cosine. Dedup by `vector_id`.
 3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role, prefer_section)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. When `prefer_section` is set (generate), matching `v.section` rows rank first, then cosine fallback. k capped at 20. Interrogate omits `prefer_section`. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
 4. Optional rerank later.
@@ -208,7 +207,7 @@ Library reads `user_papers`, groups by title, shows latest version. Source count
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,DraftPreview,AuthShell,AuthAlert}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through `pinned_passages`, `interrogation_turns`, and vector `page`), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/embed_text/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through vector `page`, prefer_section, and embedding_model filter), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 

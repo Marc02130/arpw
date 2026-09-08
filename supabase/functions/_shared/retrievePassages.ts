@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashEmbedding } from '../upload_processor/ingest.ts'
+import { HASH_EMBEDDING_MODEL, type QueryEmbedFn } from './embedText.ts'
 import {
   type RetrievalRole,
   buildRetrievalQuery,
@@ -26,6 +27,7 @@ export type RetrieveOptions = {
   matchCount?: number
   paperId?: string
   pins?: EvidencePin[]
+  embed?: QueryEmbedFn
 }
 
 export const PINNED_SCORE = 1
@@ -132,13 +134,15 @@ const matchChunks = async (
   embedding: number[],
   filterRole: 'literature' | 'primary' | 'both',
   matchCount: number,
-  preferSection?: string | null
+  preferSection?: string | null,
+  filterModel: string = HASH_EMBEDDING_MODEL
 ): Promise<RetrievedPassage[]> => {
   const { data, error } = await client.rpc('match_reference_chunks', {
     query_embedding: embedding,
     match_count: matchCount,
     filter_role: filterRole,
     prefer_section: preferSection?.trim() ? preferSection.trim() : null,
+    filter_model: filterModel,
   })
   if (error) {
     throw new Error(error.message)
@@ -153,6 +157,44 @@ const matchChunks = async (
     score: typeof row.score === 'number' ? row.score : Number(row.score),
     paperSection: '',
   }))
+}
+
+const embedQueryText = async (
+  text: string,
+  embed?: QueryEmbedFn
+): Promise<{ vector: number[]; model: string; hashVector: number[] }> => {
+  const hashVector = hashEmbedding(text)
+  if (!embed) {
+    return { vector: hashVector, model: HASH_EMBEDDING_MODEL, hashVector }
+  }
+  const result = await embed(text)
+  return { vector: result.vector, model: result.model, hashVector }
+}
+
+const matchWithModelFallback = async (
+  client: SupabaseClient,
+  query: { vector: number[]; model: string; hashVector: number[] },
+  filterRole: 'literature' | 'primary' | 'both',
+  matchCount: number,
+  preferSection?: string | null
+): Promise<RetrievedPassage[]> => {
+  const primary = await matchChunks(
+    client,
+    query.vector,
+    filterRole,
+    matchCount,
+    preferSection,
+    query.model
+  )
+  if (primary.length > 0 || query.model === HASH_EMBEDDING_MODEL) return primary
+  return matchChunks(
+    client,
+    query.hashVector,
+    filterRole,
+    matchCount,
+    preferSection,
+    HASH_EMBEDDING_MODEL
+  )
 }
 
 export const loadEvidencePins = async (
@@ -220,7 +262,7 @@ export const retrieveForSection = async (
   const attempts = retrievalAttempts(template.preferredSourceRole)
   if (attempts.length === 0) return []
 
-  const embedding = hashEmbedding(buildRetrievalQuery(paperType, section, researchPrompt))
+  const query = await embedQueryText(buildRetrievalQuery(paperType, section, researchPrompt), opts.embed)
   const withSection = (rows: RetrievedPassage[]): RetrievedPassage[] =>
     rows.map((row) => ({ ...row, paperSection: section }))
 
@@ -228,7 +270,7 @@ export const retrieveForSection = async (
     const roles: Array<'literature' | 'primary' | 'both'> =
       template.preferredSourceRole === 'both' ? ['both'] : ['literature', 'primary']
     const batches = await Promise.all(
-      roles.map((role) => matchChunks(client, embedding, role, matchCount, section))
+      roles.map((role) => matchWithModelFallback(client, query, role, matchCount, section))
     )
     return mergePinnedFirst(
       pinned,
@@ -237,7 +279,7 @@ export const retrieveForSection = async (
   }
 
   for (const filterRole of attempts) {
-    const rows = await matchChunks(client, embedding, filterRole, matchCount, section)
+    const rows = await matchWithModelFallback(client, query, filterRole, matchCount, section)
     if (rows.length > 0) {
       return mergePinnedFirst(pinned, preferMatchingSection(withSection(rows), section))
     }
@@ -247,37 +289,47 @@ export const retrieveForSection = async (
 
 export const DEFAULT_EXAMPLE_MATCH_COUNT = 4
 
+const mapExampleRows = (
+  data: unknown,
+  section: string
+): RetrievedPassage[] =>
+  (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => ({
+    vector_id: String(row.vector_id),
+    file_id: String(row.file_id),
+    chunk_text: String(row.chunk_text ?? ''),
+    section: row.section == null ? null : String(row.section),
+    page: parseChunkPage(row.page),
+    source_role: 'example',
+    score: typeof row.score === 'number' ? row.score : Number(row.score),
+    paperSection: section,
+  }))
+
 export const retrieveExamplePassages = async (
   client: SupabaseClient,
   paperType: string,
   section: string,
   researchPrompt: string,
-  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT
+  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT,
+  embed?: QueryEmbedFn
 ): Promise<RetrievedPassage[]> => {
   const template = getSectionTemplate(paperType, section)
   if (template.preferredSourceRole === 'none') return []
-  const embedding = hashEmbedding(buildRetrievalQuery(paperType, section, researchPrompt))
-  const { data, error } = await client.rpc('match_example_chunks', {
-    query_embedding: embedding,
-    match_count: matchCount,
-    prefer_section: section,
-  })
-  if (error) {
-    throw new Error(error.message)
+  const query = await embedQueryText(buildRetrievalQuery(paperType, section, researchPrompt), embed)
+  const run = async (vector: number[], model: string) => {
+    const { data, error } = await client.rpc('match_example_chunks', {
+      query_embedding: vector,
+      match_count: matchCount,
+      prefer_section: section,
+      filter_model: model,
+    })
+    if (error) {
+      throw new Error(error.message)
+    }
+    return preferMatchingSection(mapExampleRows(data, section), section)
   }
-  return preferMatchingSection(
-    (data ?? []).map((row: Record<string, unknown>) => ({
-      vector_id: String(row.vector_id),
-      file_id: String(row.file_id),
-      chunk_text: String(row.chunk_text ?? ''),
-      section: row.section == null ? null : String(row.section),
-      page: parseChunkPage(row.page),
-      source_role: 'example',
-      score: typeof row.score === 'number' ? row.score : Number(row.score),
-      paperSection: section,
-    })),
-    section
-  )
+  const primary = await run(query.vector, query.model)
+  if (primary.length > 0 || query.model === HASH_EMBEDDING_MODEL) return primary
+  return run(query.hashVector, HASH_EMBEDDING_MODEL)
 }
 
 export const formatStyleForPrompt = (passages: RetrievedPassage[]): string => {
@@ -297,13 +349,15 @@ export const retrieveForQuestion = async (
   client: SupabaseClient,
   question: string,
   filterRole: InterrogateFilter,
-  matchCount = DEFAULT_MATCH_COUNT
+  matchCount = DEFAULT_MATCH_COUNT,
+  embed?: QueryEmbedFn
 ): Promise<RetrievedPassage[]> => {
   const topic = question.trim()
   if (!topic) {
     throw new Error('Enter a question')
   }
-  const rows = await matchChunks(client, hashEmbedding(topic), filterRole, matchCount)
+  const query = await embedQueryText(topic, embed)
+  const rows = await matchWithModelFallback(client, query, filterRole, matchCount)
   return rows.map((row) => ({ ...row, paperSection: 'Interrogate' }))
 }
 
@@ -327,6 +381,7 @@ export const retrieveForPaper = async (
     const rows = await retrieveForSection(client, paperType, section, topic, {
       matchCount,
       pins,
+      embed: opts.embed,
     })
     out.push(...rows)
   }
@@ -338,7 +393,8 @@ export const retrieveExamplesForPaper = async (
   paperType: string,
   sections: string[],
   researchPrompt: string,
-  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT
+  matchCount = DEFAULT_EXAMPLE_MATCH_COUNT,
+  embed?: QueryEmbedFn
 ): Promise<RetrievedPassage[]> => {
   const topic = researchPrompt.trim()
   if (!topic) {
@@ -347,7 +403,7 @@ export const retrieveExamplesForPaper = async (
   const out: RetrievedPassage[] = []
   const seen = new Set<string>()
   for (const section of sections) {
-    const rows = await retrieveExamplePassages(client, paperType, section, topic, matchCount)
+    const rows = await retrieveExamplePassages(client, paperType, section, topic, matchCount, embed)
     for (const row of rows) {
       if (seen.has(row.vector_id)) continue
       seen.add(row.vector_id)

@@ -6,6 +6,7 @@ import {
   MISSING_GROK_KEY_MESSAGE,
   completeWithGrok,
 } from '../_shared/grokComplete.ts'
+import { grokQueryEmbed } from '../_shared/embedText.ts'
 import { retrieveForQuestion } from '../_shared/retrievePassages.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -96,7 +97,13 @@ serve(async (req: Request) => {
       return json({ success: false, error: 'Paper not found' }, 404)
     }
 
-    const passages = await retrieveForQuestion(userClient, parsed.question, parsed.filterRole)
+    const passages = await retrieveForQuestion(
+      userClient,
+      parsed.question,
+      parsed.filterRole,
+      undefined,
+      grokQueryEmbed(apiKey)
+    )
     const result = await interrogateCorpus({
       question: parsed.question,
       passages,

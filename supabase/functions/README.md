@@ -20,7 +20,7 @@ Processes uploaded documents by:
 - Validating file type and size
 - Parsing content (PDF, DOCX, TXT)
 - Chunking text into manageable pieces
-- Generating embeddings using Hugging Face all-MiniLM-L6-v2
+- Generating embeddings (`grok-embedding-small` when a Grok key is saved, else `hash-384`)
 - Storing metadata and vectors in the database
 
 ## Setup

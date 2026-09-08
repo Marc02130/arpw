@@ -6,7 +6,9 @@ import {
   MISSING_GROK_KEY_MESSAGE,
   completeWithGrok,
 } from '../_shared/grokComplete.ts'
+import { grokQueryEmbed } from '../_shared/embedText.ts'
 import {
+  DEFAULT_EXAMPLE_MATCH_COUNT,
   loadEvidencePins,
   retrieveExamplePassages,
   retrieveForSection,
@@ -99,14 +101,22 @@ serve(async (req: Request) => {
     }
 
     const pins = await loadEvidencePins(userClient, parsed.paperId)
+    const embed = grokQueryEmbed(apiKey)
     const result = await generatePaperDraft({
       paperType: parsed.paperType,
       sections: parsed.sections,
       researchPrompt: parsed.researchPrompt,
       retrieve: (paperType, section, researchPrompt) =>
-        retrieveForSection(userClient, paperType, section, researchPrompt, { pins }),
+        retrieveForSection(userClient, paperType, section, researchPrompt, { pins, embed }),
       retrieveExamples: (paperType, section, researchPrompt) =>
-        retrieveExamplePassages(userClient, paperType, section, researchPrompt),
+        retrieveExamplePassages(
+          userClient,
+          paperType,
+          section,
+          researchPrompt,
+          DEFAULT_EXAMPLE_MATCH_COUNT,
+          embed
+        ),
       complete: (prompt) => completeWithGrok(apiKey, prompt),
     })
 

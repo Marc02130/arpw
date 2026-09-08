@@ -97,14 +97,14 @@ export interface PaperReference {
 export interface ReferenceVector {
   vector_id: string
   file_id: string
-  vector: number[] // 384 dimensions for all-MiniLM-L6-v2
+  vector: number[] // 384-d hash-384 or grok-embedding-small
   chunk_text: string
 }
 
 export interface ExampleVector {
   vector_id: string
   file_id: string
-  vector: number[] // 384 dimensions for all-MiniLM-L6-v2
+  vector: number[] // 384-d hash-384 or grok-embedding-small
   chunk_text: string
 }
 

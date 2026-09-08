@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d hash vectors (fixture PDF chunks visible in under 2 minutes when Storage is up), retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved; one Grok section call aborts after 2 minutes), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. Login, upload, and generate are keyboard-reachable. You cannot use outline mode. MiniLM embeddings are still TARGET.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d vectors (`grok-embedding-small` with a Grok key, else `hash-384`; fixture PDF chunks visible in under 2 minutes when Storage is up), retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved; one Grok section call aborts after 2 minutes), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. Login, upload, and generate are keyboard-reachable. You cannot use outline mode.
 
 ### 2. Summary
 
@@ -20,15 +20,15 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Profile name | DONE | Saves full name |
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
-| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, chunk, hash-384 embed, store when the object exists. Live fixture ingest times chunks visible in &lt; 2 min (NFR-4) when Storage is up; skips if Storage/Edge is down. MiniLM still TARGET |
-| Retrieval | DONE | `match_reference_chunks` + Show passages; hash-384. MiniLM still TARGET |
+| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, heading-aware chunk, `grok-embedding-small` when a Grok key is saved else `hash-384`. Live fixture ingest (no key) is hash-384 in &lt; 2 min when Storage is up |
+| Retrieval | DONE | `match_reference_chunks` + Show passages; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384 |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | MISSING | No control |
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 26 files / 121 tests (2026-09-07). Integration `npm run test:integration` 12 files / 38 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 27 files / 128 tests (2026-09-07). Integration `npm run test:integration` 13 files / 39 tests against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -55,7 +55,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | DOCS-2 | DONE | Same types as references; cap 10 vs stored rows + `examples_file_cap` trigger |
 | DOCS-3 | DONE | Drag/drop, picker, per-file progress (`uploadProgress.ts` + tests) |
 | DOCS-4 | DONE | List name/size/date/index status. Delete vectors, metadata row, then Storage key (`documentStore.ts`) |
-| DOCS-5 | DONE | Parse TXT/DOCX/PDF; split on IMRaD headings (Word Heading styles too); 1000/200 inside a section; store canonical `section` + PDF `page`. MiniLM still TARGET. Layout/bbox parse still later |
+| DOCS-5 | DONE | Parse TXT/DOCX/PDF; split on IMRaD headings; 1000/200 inside a section; store canonical `section` + PDF `page`. Embed `grok-embedding-small` (384-d) when a Grok key is saved, else hash-384. Layout/bbox parse still later |
 | DOCS-6 | DONE | Client `validateUploadFile` + ingest `validateIngestFile` (pdf/docx/txt, 10 MB, not empty) |
 | DOCS-7 | DONE | Client counts existing rows; DB triggers 500 on `"references"` and 10 on `examples` |
 | DOCS-8 | DONE | `source_role` literature/primary; Upload tab splits literature vs original research (author’s work on this paper’s topic) |
@@ -67,7 +67,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-1 | DONE (UI only) | Checkboxes in `PaperGenerationPage.tsx` |
 | GEN-2 | DONE | `PaperType` select; frozen templates in `generationTemplates.ts`; worker uses the same module |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
-| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; prefer matching stored `section` then cosine fallback. Hash-384. MiniLM still TARGET |
+| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; prefer matching stored `section` then cosine; filter by `embedding_model`. Hosted `grok-embedding-small` when a Grok key is saved, else hash-384 |
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
@@ -137,7 +137,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 These are not “missing files.” They are product defects if you implement the old tech doc as written.
 
 1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Generate retrieve prefers matching `section` (Methods-labeled first) then falls back to cosine; Interrogate does not prefer. Inside a section still 1000/200 characters. No layout/bbox parse.
-2. **MiniLM-L6-v2** is weak for scientific text. Store `embedding_model` on rows so you can migrate.
+2. **Embeddings** — **PARTIAL.** Hosted plan is xAI `grok-embedding-small` at 384-d (same Grok key, not MiniLM-L6-v2). Hash-384 remains the fallback when no key or the API fails. Rows store `embedding_model`; retrieve filters by it. Live hosted E2E still needs a real xAI key.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.
 5. **Example papers in the same retriever** will be cited as evidence.
@@ -159,7 +159,7 @@ Matches engineering, not README order.
 | 2–5 | Generate slices in `.docs/GENERATION_SLICES.md` (`source_role`, templates, retrieval, Grok allow-list, save) | Grounded drafts |
 | 6 | Interrogation slices in `.docs/INTERROGATION_SLICES.md` (pins, interrogate, generate uses pins) | Researcher-directed grounding |
 | 7 | Attribution polish, library export | MVP cut line |
-| 8 | Outline, MiniLM, eval harness | After MVP |
+| 8 | Outline, eval harness, hybrid/rerank | After MVP |
 
 Do not start Word export or cosine “accuracy” before phase 3.
 
@@ -175,7 +175,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Generate if `generate_paper` is up and a Grok key is saved; successful generate saves to the library
 
-Does not work: interrogate tab, pins, outline, export. Live ingest E2E fails while Storage is down (code path is hash-384, MiniLM TARGET). Unconfirmed users cannot reach `/dashboard`.
+Does not work: outline. Live hosted `grok-embedding-small` and live Grok completion need a real xAI key. Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 

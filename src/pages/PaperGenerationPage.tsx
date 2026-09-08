@@ -43,6 +43,7 @@ import {
   type RetrievedPassage,
 } from '../lib/retrievePassages'
 import { supabase } from '../supabaseClient'
+import { clientQueryEmbed } from '../lib/embedTextClient'
 import {
   GENERATE_BUTTON_ID,
   GENERATE_CITATION_STYLE_ID,
@@ -260,8 +261,16 @@ const PaperGenerationPage: React.FC = () => {
       const [evidence, examples] = await Promise.all([
         retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt, {
           paperId: paperId ?? undefined,
+          embed: clientQueryEmbed(supabase),
         }),
-        retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveExamplesForPaper(
+          supabase,
+          config.paper_type,
+          config.sections,
+          config.prompt,
+          undefined,
+          clientQueryEmbed(supabase)
+        ),
       ])
       setPassages(evidence)
       setStylePassages(examples)
@@ -311,8 +320,16 @@ const PaperGenerationPage: React.FC = () => {
       const [evidence, examples] = await Promise.all([
         retrieveForPaper(supabase, config.paper_type, config.sections, config.prompt, {
           paperId: paperId ?? undefined,
+          embed: clientQueryEmbed(supabase),
         }),
-        retrieveExamplesForPaper(supabase, config.paper_type, config.sections, config.prompt),
+        retrieveExamplesForPaper(
+          supabase,
+          config.paper_type,
+          config.sections,
+          config.prompt,
+          undefined,
+          clientQueryEmbed(supabase)
+        ),
       ])
       setPassages(evidence)
       setStylePassages(examples)

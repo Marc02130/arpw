@@ -84,7 +84,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 - Merging or wrapping Ragged
 - Importing a chat transcript as a reference file
-- MiniLM / hosted embeddings
+- Hybrid search / rerank
 - Outline (GEN-8), Word export (LIB-4)
 - User-editable system prompts
 
@@ -105,7 +105,7 @@ Integration (`npm run test:integration`, local API): **12 files, 36 passed** wit
 
 ### How to use this file
 
-Slices 1–5 are **DONE**. Remaining product work is outside this tracker (QUAL-2, Markdown export, MiniLM).
+Slices 1–5 are **DONE**. Remaining product work is outside this tracker (outline, hybrid/rerank).
 
 ## References
 

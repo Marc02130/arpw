@@ -9,7 +9,7 @@ Locked product calls (2026-09-07):
 - Server owns **paper type × section** prompt templates. Users do not edit them in this cut.
 - The dashboard **Research prompt** is the only user-written generation text (topic, question, constraints).
 - Each **reference** has `source_role`: `literature` (published work you cite) or `primary` (the author’s original research on this paper’s topic). Upload tab shows two sections writing the same `"references"` table and cap. Example papers stay style-only (GEN-7).
-- QUAL, outline (GEN-8), Word export, MiniLM, and a per-section prompt editor are **out of these slices**.
+- QUAL, outline (GEN-8), Word export, and a per-section prompt editor are **out of these slices**.
 - Interrogation and pins are a **follow-on cut**: `.docs/INTERROGATION_SLICES.md`. Do not import Ragged chats as references.
 
 ## Content
@@ -60,7 +60,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 | References | no retrieval (generated from cited ids) |
 | Literature Review as **paper type** | `literature` only; ignore `primary` |
 
-Hash-384 is acceptable. MiniLM still TARGET.
+Hash-384 is the fallback. Hosted embeddings are `grok-embedding-small` at 384-d, not MiniLM-L6-v2.
 
 **Not in this slice:** writing `user_papers`; QUAL flags.
 
@@ -90,7 +90,7 @@ Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the 
 - QUAL-1–4 (after a real draft exists)
 - LIB-4 export
 - Extra-notes field (append-only; not a template editor)
-- MiniLM / hosted embeddings
+- Hybrid search / rerank
 - Mixing example vectors into evidence
 
 ### How to use this file

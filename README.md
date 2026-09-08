@@ -8,7 +8,7 @@ A web app for a single researcher: upload your own papers, then draft a literatu
 |---|---|
 | Sign up, confirm email, sign in, sign out, reset password | Decrypt the Grok key in the browser |
 | Open dashboard, paper generation, profile, library after confirmation | Outline |
-| Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down; MiniLM is still TARGET |
+| Upload PDF/DOCX/TXT when local Storage is up | Count on ingest E2E while Storage is down |
 | Retrieve passages, pin/unpin them, interrogate the corpus, generate a draft, preview warnings, and save it to the library | Live Grok E2E in `npm test` (unit suite has no network) |
 | Edit your display name; save a Grok key the SPA cannot read back | Storage upload, ingest Edge E2E, or live Grok if those services are down |
 
@@ -177,7 +177,7 @@ The app goes to `/dashboard`. Sign out, sign in with the new password. The old p
 
 ## How to upload a reference
 
-You will store a PDF, DOCX, or TXT. Literature and original research share a 500-file cap. After upload, `upload_processor` chunks the text and stores 384-d hash embeddings (`hash-384`). MiniLM is still TARGET.
+You will store a PDF, DOCX, or TXT. Literature and original research share a 500-file cap. After upload, `upload_processor` chunks the text and stores 384-d vectors: `grok-embedding-small` if you have a Grok key, otherwise `hash-384`.
 
 ### Prerequisites
 
@@ -526,7 +526,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
 | `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, heading parse, Methods/References isolation, PDF page |
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384; Methods chunks exclude bibliography (NFR-7) |
-| `nfrBudgets.test.ts` | NFR-4 ingest and NFR-5 generate budgets are 120s |
+| `embedText.test.ts` | Hosted `grok-embedding-small` 384-d; hash-384 fallback; query/passage prefixes; no MiniLM |
 | `keyboardFlows.test.ts` | NFR-6: Enter/Space activate upload; login/generate control ids wired in UI |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
@@ -547,7 +547,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
-Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `ingestFunctionIsUp`, `generateFunctionIsUp`, `interrogateFunctionIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
+Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `ingestFunctionIsUp`, `generateFunctionIsUp`, `interrogateFunctionIsUp`, `embedFunctionIsUp`, `createConfirmedUser`, `deleteUser`, `anonClient` / `adminClient` / `userClient`). Local demo JWT fallbacks match `supabase start`. Password for created users: `test-pass-123`.
 
 | File | What it locks |
 |---|---|
@@ -562,9 +562,10 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
 | `pins.integration.test.ts` | Pin/list/unpin own chunk; unscoped target; cannot see or pin another user’s chunk; example vectors and `Appendix` rejected |
 | `interrogate.integration.test.ts` | `interrogate_corpus` 401 without JWT; missing Grok key. Skips if the function is down |
+| `embed.integration.test.ts` | `embed_text` returns hash-384 when no Grok key. Skips if the function is down |
 | `interrogationNotes.integration.test.ts` | Save/reload thread; other user cannot see turns; chat text is not returned by `match_reference_chunks` |
 
-**Not in either suite:** live Grok completion (needs a real xAI key). Missing-key paths for generate and interrogate are covered when those Edge functions are up.
+**Not in either suite:** live Grok completion or live `grok-embedding-small` (needs a real xAI key). Missing-key paths use `hash-384` and are covered when those Edge functions are up.
 
 How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-two-test-suites).
 
