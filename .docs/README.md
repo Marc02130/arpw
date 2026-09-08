@@ -14,12 +14,13 @@ Index of product and engineering specs for ARPW. These files are the source of i
 | [GENERATION_SLICES.md](./GENERATION_SLICES.md) | Generate cut | Slice tracker: `source_role`, templates, retrieval, Grok, save (shipped) |
 | [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) | Interrogate + pins | Slice tracker: pin schema, interrogate tab, pin from Q&A, generate uses pins, chat as notes |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Planning | PRD vs code; build order |
-| [../UAT/README.md](../UAT/README.md) | UAT / dogfood | Literature-review playbook for Grok Bots; PDFs stay in `UAT/papers/` (gitignored) |
+| [../UAT/README.md](../UAT/README.md) | UAT / dogfood | Literature-review playbook: Playwright runner, `xai-` key fixture, Source citations, academic References, pin-from-thread, Continue. PDFs stay in `UAT/papers/` (gitignored) |
 | [legacy/](./legacy/) | Superseded | Drafts; ignore where they conflict |
 
 **Which file to open**
 
 - First run, confirm email, upload, Grok key, tests: `../README.md`
+- Literature-review UAT / Grok Bot dogfood: [../UAT/README.md](../UAT/README.md)
 - About to write code: [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)
 - About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
 - About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–5 shipped)

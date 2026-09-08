@@ -19,10 +19,10 @@ Product intent, architecture, and the remaining gap list live in [`.docs/`](.doc
 | Kind | Where |
 |---|---|
 | Tutorial | [Get to the dashboard](#tutorial-get-to-the-dashboard), [Run the unit tests](#tutorial-run-the-unit-tests) |
-| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Interrogate](#how-to-interrogate-the-corpus), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test) |
+| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Interrogate](#how-to-interrogate-the-corpus), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test), [Literature-review UAT](UAT/README.md) |
 | Reference | [Ports and env](#ports-and-env), [Routes](#routes-srcapptsx), [Auth](#auth-behavior-srchooksuseauthts), [Grok RPCs](#grok-key-rpcs), [Uploads](#upload-constraints-srccomponentsuploadzonetsx), [Tests](#tests), [npm scripts](#npm-scripts) |
 | Explanation | [Why email confirmation](#why-email-confirmation), [Why the Grok key is not on the profile](#why-the-grok-key-is-not-on-the-profile), [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table), [Why two test suites](#why-two-test-suites) |
-| Specs | [`.docs/`](.docs/README.md) |
+| Specs | [`.docs/`](.docs/README.md), [Literature-review UAT](UAT/README.md) |
 
 ## Tutorial: get to the dashboard
 
@@ -355,7 +355,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 - Unit: `Test Files  24 passed (24)` and `Tests  106 passed (106)` (run 2026-09-07).
 - Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
-- Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not.
+- Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not. Live Grok dogfood is the [literature-review UAT](UAT/README.md).
 
 ### Troubleshooting
 
