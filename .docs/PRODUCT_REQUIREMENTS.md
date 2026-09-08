@@ -94,7 +94,7 @@ Each item has an ID for the gap analysis.
 | GEN-6 | Citations only from retrieved `source_id`s; drop invented citations. | P0 |
 | GEN-7 | Example papers constrain tone/structure only; they are not evidence. | P1 |
 | GEN-8 | Outline mode: generate an editable outline, then full draft. | P2 |
-| GEN-9 | Save draft to `user_papers` with config, version, status. Generate must not overwrite `paper_type`. Continue restores title, type, sections, and prompt. | P0 |
+| GEN-9 | Save draft to `user_papers` with config, version, status. Generate must not overwrite `paper_type`. Continue restores title, type, sections, and prompt. References uses Crossref/PubMed records for DOIs/PMIDs on cited uploads, formatted in the paper’s citation style. | P0 |
 | GEN-10 | Link cited files in `paper_references`. | P0 |
 
 #### INT (interrogation)

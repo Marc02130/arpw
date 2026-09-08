@@ -110,6 +110,7 @@ describe('generatePaperDraft (slice 4)', () => {
 
   it('should skip retrieval for References', async () => {
     let retrieved = false
+    let completed = false
     const result = await generatePaperDraft({
       paperType: PaperType.EMPIRICAL_STUDY,
       sections: ['References'],
@@ -118,13 +119,66 @@ describe('generatePaperDraft (slice 4)', () => {
         retrieved = true
         return []
       },
-      complete: async (prompt) => {
-        expect(prompt).toMatch(/No retrieved sources|cite only these ids/i)
-        return 'References listed from earlier citations only [S1].'
+      complete: async () => {
+        completed = true
+        return 'should not run'
       },
     })
     expect(retrieved).toBe(false)
+    expect(completed).toBe(false)
+    expect(result.sections[0].text).toMatch(/No works were cited/i)
     expect(result.sections[0].text).not.toContain('[S1]')
+  })
+
+  it('should list cited uploaded files in References after other sections', async () => {
+    let completed = 0
+    const result = await generatePaperDraft({
+      paperType: PaperType.LITERATURE_REVIEW,
+      sections: ['Literature Review', 'References'],
+      researchPrompt: 'gut-brain axis omega-3',
+      retrieve: async () => [
+        {
+          vector_id: 'vec-1',
+          file_id: 'file-1',
+          chunk_text: 'omega-3 and cognition in the uploaded review',
+          section: 'discussion',
+          page: 3,
+          source_role: 'literature',
+          score: 0.9,
+          paperSection: 'Literature Review',
+        },
+      ],
+      complete: async () => {
+        completed += 1
+        return 'Omega-3 tracks with cognition [S1].'
+      },
+      citationStyle: 'APA',
+      lookupCitedFiles: async (fileIds) => {
+        expect(fileIds).toEqual(['file-1'])
+        return [
+          {
+            file_id: 'file-1',
+            file_name: 'aging-12-102930.pdf',
+            bibliographic: {
+              authors: ['Sofia Katsigianni', 'Effrosyni Koutsouraki'],
+              year: '2026',
+              title: 'Gut microbiota dysbiosis and neuroinflammation in Alzheimer’s disease',
+              container: 'Molecular Neurobiology',
+              volume: '63',
+              pages: '623',
+              doi: '10.1007/s12035-026-05914-9',
+            },
+          },
+        ]
+      },
+    })
+    expect(completed).toBe(1)
+    const refs = result.sections.find((section) => section.name === 'References')
+    expect(refs?.text).toContain('Katsigianni, S.')
+    expect(refs?.text).toContain('Molecular Neurobiology')
+    expect(refs?.text).not.toMatch(/aging-12-102930\.pdf/)
+    expect(refs?.text).not.toMatch(/No retrieved sources/i)
+    expect(result.content).toMatch(/## References[\s\S]*Katsigianni/)
   })
 
   it('should put example passages in the prompt as style only (GEN-7)', async () => {

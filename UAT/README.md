@@ -94,6 +94,7 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 - Indexing never produces chunks (Storage/Edge down counts as BLOCKED, not a product fail)
 - Export missing `AI-generated draft. Requires human review…`
 - Continue shows a paper type other than **Literature Review** after “Working on …” (the generate save must not rewrite type)
+- References says “No retrieved sources”, lists PDF filenames as if they were citations, dumps publisher “Citation:” boilerplate, or omits cited works while other sections used `[S#]`
 
 ## Report
 

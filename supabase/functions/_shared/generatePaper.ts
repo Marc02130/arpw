@@ -1,9 +1,11 @@
 import {
   citedSids,
   fileIdsForSids,
+  formatReferencesList,
   formatSourcesForPrompt,
   numberSources,
   stripUnknownCitations,
+  type CitedWork,
 } from './citations.ts'
 import {
   PAPER_SECTIONS,
@@ -22,6 +24,8 @@ export type GenerateRetrieve = (
   section: string,
   researchPrompt: string
 ) => Promise<RetrievedPassage[]>
+
+export type LookupCitedFiles = (fileIds: string[]) => Promise<CitedWork[]>
 
 export type GeneratedSection = {
   name: string
@@ -108,6 +112,25 @@ export const parseGenerateRequest = (body: unknown): GenerateRequest => {
   return { paperId, paperType: rec.paperType, sections, researchPrompt, citationStyle, outputFormat }
 }
 
+const buildReferencesSection = async (
+  fileIds: string[],
+  lookupCitedFiles: LookupCitedFiles | undefined,
+  citationStyle: string
+): Promise<GeneratedSection> => {
+  const uniqueIds = [...new Set(fileIds.filter(Boolean))]
+  const files = lookupCitedFiles && uniqueIds.length > 0 ? await lookupCitedFiles(uniqueIds) : []
+  const byId = new Map(files.map((file) => [file.file_id, file]))
+  const listed = uniqueIds.map((file_id) => byId.get(file_id) ?? { file_id, file_name: file_id })
+  const text = formatReferencesList(listed, citationStyle)
+  return {
+    name: 'References',
+    text,
+    citedSids: [],
+    citedFileIds: uniqueIds,
+    attribution: [],
+  }
+}
+
 export const generatePaperDraft = async (opts: {
   paperType: string
   sections: string[]
@@ -115,6 +138,8 @@ export const generatePaperDraft = async (opts: {
   retrieve: GenerateRetrieve
   complete: GenerateComplete
   retrieveExamples?: GenerateRetrieve
+  lookupCitedFiles?: LookupCitedFiles
+  citationStyle?: string
 }): Promise<{
   sections: GeneratedSection[]
   content: string
@@ -126,20 +151,19 @@ export const generatePaperDraft = async (opts: {
     throw new Error('Enter a research prompt')
   }
 
-  const generated: GeneratedSection[] = []
+  const generatedByName = new Map<string, GeneratedSection>()
   const allFileIds = new Set<string>()
   const attribution: SentenceAttribution[] = []
 
   for (const section of opts.sections) {
     const template = getSectionTemplate(opts.paperType, section)
-    const passages =
-      template.preferredSourceRole === 'none' ? [] : await opts.retrieve(opts.paperType, section, topic)
+    if (template.preferredSourceRole === 'none') continue
+    const passages = await opts.retrieve(opts.paperType, section, topic)
     const sources = numberSources(passages)
     const allowed = new Set(sources.map((source) => source.sid))
-    const examplePassages =
-      template.preferredSourceRole === 'none' || !opts.retrieveExamples
-        ? []
-        : await opts.retrieveExamples(opts.paperType, section, topic)
+    const examplePassages = opts.retrieveExamples
+      ? await opts.retrieveExamples(opts.paperType, section, topic)
+      : []
     const styleBlock = formatStyleForPrompt(examplePassages)
     const prompt = buildSectionPrompt(
       opts.paperType,
@@ -153,10 +177,9 @@ export const generatePaperDraft = async (opts: {
     const sids = citedSids(text, allowed)
     const fileIds = fileIdsForSids(sids, sources)
     fileIds.forEach((id) => allFileIds.add(id))
-    const sectionAttribution =
-      template.preferredSourceRole === 'none' ? [] : attributeSentences(text, section, sources)
+    const sectionAttribution = attributeSentences(text, section, sources)
     attribution.push(...sectionAttribution)
-    generated.push({
+    generatedByName.set(section, {
       name: section,
       text,
       citedSids: sids,
@@ -165,6 +188,20 @@ export const generatePaperDraft = async (opts: {
     })
   }
 
+  if (opts.sections.includes('References')) {
+    generatedByName.set(
+      'References',
+      await buildReferencesSection(
+        [...allFileIds],
+        opts.lookupCitedFiles,
+        opts.citationStyle ?? 'APA'
+      )
+    )
+  }
+
+  const generated = opts.sections
+    .map((section) => generatedByName.get(section))
+    .filter((section): section is GeneratedSection => Boolean(section))
   const content = generated.map((section) => `## ${section.name}\n\n${section.text}`).join('\n\n')
   return { sections: generated, content, citedFileIds: [...allFileIds], attribution }
 }

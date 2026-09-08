@@ -1,3 +1,9 @@
+import {
+  emptyBibliographicRecord,
+  formatBibliographicCitation,
+  type BibliographicRecord,
+} from './bibliographicCitation.ts'
+
 const CITE = /\[S\d+\]/g
 
 export type NumberedSource = {
@@ -48,4 +54,34 @@ export const stripUnknownCitations = (text: string, allowed: Set<string>): strin
 export const fileIdsForSids = (sids: string[], sources: NumberedSource[]): string[] => {
   const wanted = new Set(sids)
   return [...new Set(sources.filter((source) => wanted.has(source.sid)).map((source) => source.file_id))]
+}
+
+export type CitedWork = {
+  file_id: string
+  file_name?: string | null
+  bibliographic?: BibliographicRecord | null
+}
+
+export const EMPTY_REFERENCES =
+  'No works were cited in earlier sections. References are catalog records (Crossref/PubMed) for DOIs or PMIDs on the cited uploads.'
+
+export const formatReferencesList = (files: CitedWork[], citationStyle = 'APA'): string => {
+  if (files.length === 0) return EMPTY_REFERENCES
+  const formatted: string[] = []
+  const incomplete: string[] = []
+  for (const file of files) {
+    const rec = file.bibliographic ?? emptyBibliographicRecord()
+    const line = formatBibliographicCitation(rec, citationStyle)
+    if (line) formatted.push(line)
+    else if (file.file_name || file.file_id) incomplete.push(file.file_name || file.file_id)
+  }
+  formatted.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  if (formatted.length === 0 && incomplete.length === 0) return EMPTY_REFERENCES
+  const parts = [...formatted]
+  if (incomplete.length) {
+    parts.push(
+      `${incomplete.length} cited upload${incomplete.length === 1 ? '' : 's'} had no DOI/PMID catalog record and ${incomplete.length === 1 ? 'is' : 'are'} not formatted as ${citationStyle} references.`
+    )
+  }
+  return parts.join('\n\n')
 }

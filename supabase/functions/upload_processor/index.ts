@@ -2,6 +2,8 @@ import { serve } from 'std/http/server.ts'
 import { createClient } from '@supabase/supabase-js'
 import { unzipSync, strFromU8 } from 'fflate'
 import { embedTexts } from '../_shared/embedText.ts'
+import { hasUsableBibliographicRecord } from '../_shared/bibliographicCitation.ts'
+import { lookupBibliographicRecord } from '../_shared/bibliographicLookup.ts'
 import {
   chunkLines,
   linesFromDocxXml,
@@ -207,6 +209,28 @@ serve(async (req: Request) => {
       request.documentType,
       typeof apiKey === 'string' ? apiKey : null
     )
+
+    if (request.documentType === 'reference') {
+      const front = lines
+        .filter((line) => line.page === 1 || line.page == null)
+        .slice(0, 50)
+        .map((line) => line.text)
+        .join('\n')
+      try {
+        const bibliographic = await lookupBibliographicRecord(
+          front || parsedText.slice(0, 4000),
+          fetch
+        )
+        if (hasUsableBibliographicRecord(bibliographic)) {
+          await supabase
+            .from('references')
+            .update({ bibliographic })
+            .eq('file_id', request.fileId)
+        }
+      } catch {
+        /* catalog lookup is best-effort; ingest still succeeds */
+      }
+    }
 
     return json({
       success: true,

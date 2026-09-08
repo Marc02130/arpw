@@ -13,7 +13,15 @@ import {
   retrieveExamplePassages,
   retrieveForSection,
 } from '../_shared/retrievePassages.ts'
-import { saveGeneratedDraft } from '../_shared/saveGeneratedDraft.ts'
+import {
+  hasUsableBibliographicRecord,
+  type BibliographicRecord,
+} from '../_shared/bibliographicCitation.ts'
+import {
+  isCatalogRecord,
+  lookupBibliographicRecord,
+} from '../_shared/bibliographicLookup.ts'
+import { saveGeneratedDraft, uniqueFileIds } from '../_shared/saveGeneratedDraft.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -118,6 +126,50 @@ serve(async (req: Request) => {
           embed
         ),
       complete: (prompt) => completeWithGrok(apiKey, prompt),
+      citationStyle: parsed.citationStyle ?? 'APA',
+      lookupCitedFiles: async (fileIds) => {
+        const ids = uniqueFileIds(fileIds)
+        if (ids.length === 0) return []
+        const { data, error } = await userClient
+          .from('references')
+          .select('file_id, file_name, bibliographic')
+          .in('file_id', ids)
+        if (error) throw new Error(error.message)
+        const rows = (data ?? []) as Array<{
+          file_id: string
+          file_name: string
+          bibliographic: BibliographicRecord | null
+        }>
+        const works = []
+        for (const row of rows) {
+          let bibliographic = row.bibliographic
+          if (!isCatalogRecord(bibliographic)) {
+            const { data: chunks, error: chunkError } = await userClient
+              .from('reference_vectors')
+              .select('chunk_text')
+              .eq('file_id', row.file_id)
+              .order('chunk_index', { ascending: true })
+              .limit(4)
+            if (chunkError) throw new Error(chunkError.message)
+            const front = (chunks ?? [])
+              .map((chunk: { chunk_text: string }) => chunk.chunk_text)
+              .join('\n')
+            bibliographic = await lookupBibliographicRecord(front, fetch)
+            if (hasUsableBibliographicRecord(bibliographic)) {
+              await userClient
+                .from('references')
+                .update({ bibliographic })
+                .eq('file_id', row.file_id)
+            }
+          }
+          works.push({
+            file_id: row.file_id,
+            file_name: row.file_name,
+            bibliographic,
+          })
+        }
+        return works
+      },
     })
 
     const saved = await saveGeneratedDraft(userClient, {

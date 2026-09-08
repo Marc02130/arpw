@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   citedSids,
+  EMPTY_REFERENCES,
   fileIdsForSids,
+  formatReferencesList,
   formatSourcesForPrompt,
   numberSources,
   stripUnknownCitations,
@@ -34,5 +36,34 @@ describe('citation allow-list (slice 4 / NFR-7)', () => {
     const cleaned = stripUnknownCitations('A claim [S99] and [S100].', allowed)
     expect(cleaned).not.toMatch(/\[S\d+\]/)
     expect(citedSids(cleaned, allowed)).toEqual([])
+  })
+
+  it('should format References as academic citations, not filenames', () => {
+    expect(formatReferencesList([])).toBe(EMPTY_REFERENCES)
+    const text = formatReferencesList(
+      [
+        {
+          file_id: 'a',
+          file_name: 'aging-12-102930.pdf',
+          bibliographic: {
+            authors: ['Sofia Katsigianni', 'Effrosyni Koutsouraki'],
+            year: '2026',
+            title: 'Gut microbiota dysbiosis and neuroinflammation in Alzheimer’s disease',
+            container: 'Molecular Neurobiology',
+            volume: '63',
+            pages: '623',
+            doi: '10.1007/s12035-026-05914-9',
+          },
+        },
+      ],
+      'APA'
+    )
+    expect(text).toContain('Katsigianni, S.')
+    expect(text).toContain('(2026)')
+    expect(text).toContain('Molecular Neurobiology')
+    expect(text).not.toMatch(/aging-12-102930\.pdf/)
+    expect(
+      formatReferencesList([{ file_id: 'x', file_name: 'mystery.pdf' }], 'APA')
+    ).toMatch(/DOI\/PMID catalog record/i)
   })
 })
