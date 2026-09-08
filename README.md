@@ -241,13 +241,13 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 3. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
 4. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
 5. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
-6. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores the prompt. Sources is the number of cited files.
+6. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores title, paper type, sections, and the research prompt. Sources is the number of cited files.
 
 Files live on the **Upload** tab (`/generate/upload`). Interrogate the corpus on **Interrogate** (`/generate/interrogate?paper=…`).
 
 ### Verification
 
-Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper; Continue reopens Prompt with the saved research prompt. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper; Continue reopens Prompt with the saved title, paper type, sections, and research prompt. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
 ### Troubleshooting
 
@@ -289,7 +289,7 @@ A confirmed session. Open [http://127.0.0.1:5173/profile](http://127.0.0.1:5173/
 
 ### Steps
 
-1. Under **Grok API Key**, paste a key at least 10 characters. The field is empty even if a key is already saved.
+1. Under **Grok API Key**, paste the xAI key itself (it starts with `xai-`), not a path to a file. The field is empty even if a key is already saved.
 2. Click **Save Changes**.
 3. The page should say `A key is saved on the server (ends in …)`. The input clears.
 4. To replace, paste a new key and save again. To delete, click **Remove saved key**.
@@ -305,6 +305,7 @@ The status line shows last4. `GET /rest/v1/user_profile?select=*` for your user 
 | What you see | What to do |
 |---|---|
 | “API key appears to be too short” | Client and RPC both require length ≥ 10 after trim. |
+| “API key looks like a file path” / “must start with xai-” | Paste the secret, not a path to `.env`. xAI keys start with `xai-`. |
 | “No key saved” after save | You are not confirmed, or the migration `20260907000000_grok_key_storage.sql` is not applied. |
 | REST still returns `grok_api_key` on the profile | Old schema. Run the migration and `NOTIFY pgrst, 'reload schema';`. |
 
@@ -312,7 +313,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation with the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title. After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 

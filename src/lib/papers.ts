@@ -3,6 +3,7 @@ import { CitationStyle, OutputFormat, PaperType, Status, type Paper } from '../t
 import { uniqueFileIds } from '../../supabase/functions/_shared/saveGeneratedDraft'
 
 export {
+  generatedDraftUpdateFields,
   parsePaperId,
   referenceCountFromEmbed,
   saveGeneratedDraft,
@@ -163,6 +164,11 @@ export const paperSectionsOrDefault = (sections: string[] | null | undefined): s
   if (sections && sections.length > 0) return sections
   return [...DEFAULT_PAPER_SECTIONS]
 }
+
+export const paperConfigIsHydrated = (
+  paper: { paper_id: string } | null,
+  paperId: string | null
+): boolean => Boolean(paperId && paper && paper.paper_id === paperId)
 
 export const nextVersionForTitle = (versions: number[]): number => {
   const max = versions.reduce((acc, version) => (version > acc ? version : acc), 0)

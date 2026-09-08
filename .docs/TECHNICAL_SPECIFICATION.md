@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (27 files / 129); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (27 files / 133); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -73,7 +73,7 @@ Source of truth: `supabase/migrations/20260906133100_init.sql`, `20260907000000_
 
 | RPC | Role | Args | Returns |
 |---|---|---|---|
-| `set_grok_api_key(api_key text)` | authenticated | trimmed, length ≥ 10 | `{ set: true, last4 }` |
+| `set_grok_api_key(api_key text)` | authenticated | trimmed, length ≥ 10, must start with `xai-`, not a file path | `{ set: true, last4 }` |
 | `clear_grok_api_key()` | authenticated | | `{ set: false, last4: null }` |
 | `grok_api_key_status()` | authenticated | | `{ set, last4 }` |
 | `read_grok_api_key(for_user uuid)` | service_role | owner uuid | plaintext or null |
@@ -181,7 +181,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 4. Light rerank is RRF over the hybrid lists (not a cross-encoder). Pins still prepend.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`).
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
-7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
+7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, optional style/format, `status=completed`). **Do not write `paper_type`.** Type is set at create and on the Prompt dropdown (`updatePaperConfig`). Generate must not clobber it with the SPA’s Empirical Study default. Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored. Library **Continue** reloads title, type, sections, and `research_prompt` from that row after the paper has loaded (`Working on …`).
 8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
 9. QUAL-3 `runFormatCheck`: each section stored on the paper (`user_papers.sections`) must appear as a `##` or `###` heading in `content`.
 10. QUAL-4 preview (`DraftPreview`): uncited sentences marked ⚠ inline; citation/format warnings listed; footer disclaimer. Not a cosine accuracy score.
@@ -190,7 +190,7 @@ Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key,
 
 ### 8. Library and export (as-built vs TARGET)
 
-Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. View uses `DraftPreview`. Delete confirms then removes the row. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
+Library reads `user_papers`, groups by title, shows latest version. Source count comes from `paper_references(count)`. View uses `DraftPreview`. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, and `research_prompt` once the row is loaded. Delete confirms then removes the row. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
 
 ### 9. Security (as-built)
 

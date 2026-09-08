@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Paper,
@@ -32,6 +32,7 @@ import {
   loadCorpusCounts,
   loadPaper,
   loadPaperCitedFiles,
+  paperConfigIsHydrated,
   paperSectionsOrDefault,
   updatePaperConfig,
   type CitedFile,
@@ -90,6 +91,11 @@ const PaperGenerationPage: React.FC = () => {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
 
+  const configRef = useRef(config)
+  configRef.current = config
+  const paperRef = useRef(paper)
+  paperRef.current = paper
+  const formHydrated = !paperId || paperConfigIsHydrated(paper, paperId)
   const bumpLists = () => setListTick((tick) => tick + 1)
   const uncited = uncitedSentences(attribution)
   const citationCheck = draft
@@ -166,7 +172,7 @@ const PaperGenerationPage: React.FC = () => {
   }, [listTick, uploadTab])
 
   const persistConfig = async (next: PaperGenerationConfig, title?: string) => {
-    if (!paperId) return
+    if (!paperConfigIsHydrated(paperRef.current, paperId) || !paperId) return
     try {
       await updatePaperConfig(supabase, paperId, {
         title,
@@ -287,7 +293,7 @@ const PaperGenerationPage: React.FC = () => {
   }
 
   const handleGenerate = async () => {
-    if (!paperId) {
+    if (!paperId || !paper) {
       setGenerateError('Start or continue a paper from the Dashboard first')
       return
     }
@@ -414,7 +420,7 @@ const PaperGenerationPage: React.FC = () => {
                     const title = event.target.value
                     setPaper({ ...paper, title })
                   }}
-                  onBlur={() => void persistConfig(config, paper.title)}
+                  onBlur={() => void persistConfig(configRef.current, paper.title)}
                   className="input-field"
                   aria-label="Paper title"
                 />
@@ -429,7 +435,7 @@ const PaperGenerationPage: React.FC = () => {
                 id={GENERATE_PROMPT_ID}
                 value={config.prompt}
                 onChange={(e) => setConfig((prev) => ({ ...prev, prompt: e.target.value }))}
-                onBlur={() => void persistConfig(config, paper?.title)}
+                onBlur={() => void persistConfig(configRef.current, paper?.title)}
                 className="input-field h-32 resize-none"
                 placeholder="Describe your research topic, objectives, and any specific requirements..."
               />
@@ -444,6 +450,7 @@ const PaperGenerationPage: React.FC = () => {
                       type="checkbox"
                       checked={config.sections.includes(section)}
                       onChange={() => handleSectionToggle(section)}
+                      disabled={!formHydrated}
                       className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                     <span className="ml-2 text-sm text-gray-700">{section}</span>
@@ -462,6 +469,7 @@ const PaperGenerationPage: React.FC = () => {
                   <select
                     id={GENERATE_PAPER_TYPE_ID}
                     value={config.paper_type}
+                    disabled={!formHydrated}
                     onChange={(e) => {
                       const paper_type = e.target.value as PaperType
                       setConfig((prev) => {
@@ -530,7 +538,7 @@ const PaperGenerationPage: React.FC = () => {
               type="button"
               id={QUERY_SOURCES_BUTTON_ID}
               onClick={() => void handleRetrievePassages()}
-              disabled={isRetrieving || !config.prompt.trim()}
+              disabled={isRetrieving || !config.prompt.trim() || !formHydrated}
               aria-busy={isRetrieving}
               className="btn-secondary w-full py-3 text-lg"
             >
@@ -550,7 +558,7 @@ const PaperGenerationPage: React.FC = () => {
               type="button"
               id={GENERATE_BUTTON_ID}
               onClick={() => void handleGenerate()}
-              disabled={isGenerating || !config.prompt.trim() || !paperId}
+              disabled={isGenerating || !config.prompt.trim() || !paperId || !formHydrated}
               aria-busy={isGenerating}
               className="btn-primary w-full py-3 text-lg"
             >

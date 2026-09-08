@@ -58,6 +58,7 @@ const PassageList: React.FC<{
               <button
                 type="button"
                 className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                aria-label={`Unpin ${row.sid}`}
                 onClick={() => void onUnpin(existing.pin_id)}
               >
                 Unpin
@@ -66,6 +67,7 @@ const PassageList: React.FC<{
               <button
                 type="button"
                 className="shrink-0 text-xs font-medium text-primary-600 hover:text-primary-500"
+                aria-label={`Pin ${row.sid}`}
                 onClick={() => void onPin(row, target || null)}
                 disabled={!paperId}
               >
@@ -116,6 +118,7 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
   const [question, setQuestion] = useState('')
   const [filterRole, setFilterRole] = useState<InterrogateFilter>('both')
   const [isAsking, setIsAsking] = useState(false)
+  const [isLoadingTurns, setIsLoadingTurns] = useState(Boolean(paperId))
   const [error, setError] = useState<string | null>(null)
   const [turns, setTurns] = useState<InterrogationTurn[]>([])
   const [targets, setTargets] = useState<Record<string, string>>({})
@@ -123,17 +126,28 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
   useEffect(() => {
     if (!paperId) {
       setTurns([])
+      setIsLoadingTurns(false)
       return
     }
+    let cancelled = false
+    setIsLoadingTurns(true)
     void (async () => {
       try {
-        setTurns(await loadInterrogationTurns(supabase, paperId))
+        const loaded = await loadInterrogationTurns(supabase, paperId)
+        if (cancelled) return
+        setTurns(loaded)
         setError(null)
       } catch (err) {
+        if (cancelled) return
         setTurns([])
         setError(err instanceof Error ? err.message : 'Could not load interrogation notes')
+      } finally {
+        if (!cancelled) setIsLoadingTurns(false)
       }
     })()
+    return () => {
+      cancelled = true
+    }
   }, [paperId])
 
   const handleAsk = async () => {
@@ -226,12 +240,15 @@ const InterrogatePanel: React.FC<InterrogatePanelProps> = ({
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Thread</h2>
         <div className="bg-gray-50 rounded-lg p-4 min-h-48 max-h-[36rem] overflow-y-auto space-y-4">
           {isAsking && <p className="text-gray-500 text-center">Retrieving passages and asking Grok...</p>}
-          {!isAsking && turns.length === 0 && (
+          {!isAsking && isLoadingTurns && (
+            <p className="text-gray-500 text-center">Loading saved thread...</p>
+          )}
+          {!isAsking && !isLoadingTurns && turns.length === 0 && (
             <p className="text-gray-500 text-center">
               Ask a question. The thread is saved on this paper and reloads here. Pin passages below each answer.
             </p>
           )}
-          {turns.map((turn) => (
+          {!isLoadingTurns && turns.map((turn) => (
             <div key={turn.turn_id}>
               <p className="text-xs font-medium text-gray-500 mb-1">
                 {turn.role === 'user' ? 'You' : 'Answer'}

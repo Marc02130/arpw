@@ -102,6 +102,7 @@ describe('papers integration (dashboard workspace)', () => {
       expect(reloaded.status).toBe(Status.COMPLETED)
       expect(reloaded.content).toContain('[S1]')
       expect(reloaded.sections).toEqual(['Methods'])
+      expect(reloaded.paper_type).toBe(PaperType.EMPIRICAL_STUDY)
 
       const { data: links } = await owner.client
         .from('paper_references')
@@ -130,6 +131,29 @@ describe('papers integration (dashboard workspace)', () => {
       await other.client.from('references').delete().eq('user_id', other.id)
       await deleteUser(owner.id)
       await deleteUser(other.id)
+    }
+  })
+
+  it('should keep Literature Review when generate saves a draft', async () => {
+    const owner = await createConfirmedUser('paper-type-keep')
+    try {
+      const paper = await createDraftPaper(owner.client, owner.id, {
+        title: 'Gut-brain axis',
+        paperType: PaperType.LITERATURE_REVIEW,
+      })
+      await saveGeneratedDraft(owner.client, {
+        paperId: paper.paper_id,
+        content: '## Literature Review\n\nOmega-3 [S1].',
+        sections: ['Literature Review'],
+        paperType: PaperType.EMPIRICAL_STUDY,
+        citedFileIds: [],
+      })
+      const reloaded = await loadPaper(owner.client, paper.paper_id)
+      expect(reloaded.paper_type).toBe(PaperType.LITERATURE_REVIEW)
+      expect(reloaded.status).toBe(Status.COMPLETED)
+    } finally {
+      await owner.client.from('user_papers').delete().eq('user_id', owner.id)
+      await deleteUser(owner.id)
     }
   })
 

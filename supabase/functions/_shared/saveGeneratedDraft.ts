@@ -32,6 +32,20 @@ export type SaveGeneratedDraftInput = {
   attribution?: unknown
 }
 
+export const generatedDraftUpdateFields = (
+  input: SaveGeneratedDraftInput
+): Record<string, unknown> => {
+  const patch: Record<string, unknown> = {
+    content: input.content,
+    sections: input.sections,
+    status: 'completed',
+  }
+  if (input.citationStyle) patch.citation_style = input.citationStyle
+  if (input.outputFormat) patch.output_format = input.outputFormat
+  if (input.attribution !== undefined) patch.attribution = input.attribution
+  return patch
+}
+
 export const saveGeneratedDraft = async (
   client: SupabaseClient,
   input: SaveGeneratedDraftInput
@@ -45,15 +59,7 @@ export const saveGeneratedDraft = async (
     throw new Error('Generated content was empty')
   }
 
-  const patch: Record<string, unknown> = {
-    content: input.content,
-    sections: input.sections,
-    paper_type: input.paperType,
-    status: 'completed',
-  }
-  if (input.citationStyle) patch.citation_style = input.citationStyle
-  if (input.outputFormat) patch.output_format = input.outputFormat
-  if (input.attribution !== undefined) patch.attribution = input.attribution
+  const patch = generatedDraftUpdateFields(input)
 
   const { data: updated, error: updateError } = await client
     .from('user_papers')
