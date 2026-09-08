@@ -36,3 +36,7 @@ supabase/functions/**/deno.lock
 
 # Local/PII fixtures — never commit
 .docs/*.pdf
+
+# Local UAT corpus (copyrighted PDFs). Playbook stays in git.
+UAT/papers/
+UAT/reports/

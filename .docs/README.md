@@ -14,6 +14,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 | [GENERATION_SLICES.md](./GENERATION_SLICES.md) | Generate cut | Slice tracker: `source_role`, templates, retrieval, Grok, save (shipped) |
 | [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) | Interrogate + pins | Slice tracker: pin schema, interrogate tab, pin from Q&A, generate uses pins, chat as notes |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Planning | PRD vs code; build order |
+| [../UAT/README.md](../UAT/README.md) | UAT / dogfood | Literature-review playbook for Grok Bots; PDFs stay in `UAT/papers/` (gitignored) |
 | [legacy/](./legacy/) | Superseded | Drafts; ignore where they conflict |
 
 **Which file to open**
