@@ -28,7 +28,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 26 files / 119 tests (2026-09-07). Integration `npm run test:integration` 12 files / 37 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 26 files / 121 tests (2026-09-07). Integration `npm run test:integration` 12 files / 38 tests against local API with Storage and Edge up. Live Grok completion is not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -67,7 +67,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-1 | DONE (UI only) | Checkboxes in `PaperGenerationPage.tsx` |
 | GEN-2 | DONE | `PaperType` select; frozen templates in `generationTemplates.ts`; worker uses the same module |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
-| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; hash-384. MiniLM still TARGET |
+| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; prefer matching stored `section` then cosine fallback. Hash-384. MiniLM still TARGET |
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
@@ -136,7 +136,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 These are not “missing files.” They are product defects if you implement the old tech doc as written.
 
-1. **Character chunking** — **PARTIAL.** Ingest now splits on IMRaD headings (and Word Heading styles) and does not window across `References`. Inside a section still 1000/200 characters. No layout/bbox parse; PDF `section` is from extracted text headings. Retrieval still does not filter on stored `section`.
+1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Generate retrieve prefers matching `section` (Methods-labeled first) then falls back to cosine; Interrogate does not prefer. Inside a section still 1000/200 characters. No layout/bbox parse.
 2. **MiniLM-L6-v2** is weak for scientific text. Store `embedding_model` on rows so you can migrate.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.

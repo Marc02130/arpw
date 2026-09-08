@@ -68,6 +68,23 @@ export const filterPinsForSection = (
     }))
 }
 
+/** Prefer chunks whose stored section matches the paper section; keep cosine order within each group. */
+export const preferMatchingSection = <T extends { section: string | null }>(
+  rows: T[],
+  section: string
+): T[] => {
+  const wanted = section.trim().toLowerCase()
+  if (!wanted || wanted === 'references') return rows
+  const preferred: T[] = []
+  const rest: T[] = []
+  for (const row of rows) {
+    if ((row.section ?? '').trim().toLowerCase() === wanted) preferred.push(row)
+    else rest.push(row)
+  }
+  if (preferred.length === 0) return rows
+  return [...preferred, ...rest]
+}
+
 export const mergePinnedFirst = (
   pinned: RetrievedPassage[],
   retrieved: RetrievedPassage[]
@@ -114,12 +131,14 @@ const matchChunks = async (
   client: SupabaseClient,
   embedding: number[],
   filterRole: 'literature' | 'primary' | 'both',
-  matchCount: number
+  matchCount: number,
+  preferSection?: string | null
 ): Promise<RetrievedPassage[]> => {
   const { data, error } = await client.rpc('match_reference_chunks', {
     query_embedding: embedding,
     match_count: matchCount,
     filter_role: filterRole,
+    prefer_section: preferSection?.trim() ? preferSection.trim() : null,
   })
   if (error) {
     throw new Error(error.message)
@@ -208,14 +227,19 @@ export const retrieveForSection = async (
   if (template.preferredSourceRole === 'both' || unionPrimaryForSection(paperType, section)) {
     const roles: Array<'literature' | 'primary' | 'both'> =
       template.preferredSourceRole === 'both' ? ['both'] : ['literature', 'primary']
-    const batches = await Promise.all(roles.map((role) => matchChunks(client, embedding, role, matchCount)))
-    return mergePinnedFirst(pinned, uniqueByVector(withSection(batches.flat())))
+    const batches = await Promise.all(
+      roles.map((role) => matchChunks(client, embedding, role, matchCount, section))
+    )
+    return mergePinnedFirst(
+      pinned,
+      preferMatchingSection(uniqueByVector(withSection(batches.flat())), section)
+    )
   }
 
   for (const filterRole of attempts) {
-    const rows = await matchChunks(client, embedding, filterRole, matchCount)
+    const rows = await matchChunks(client, embedding, filterRole, matchCount, section)
     if (rows.length > 0) {
-      return mergePinnedFirst(pinned, withSection(rows))
+      return mergePinnedFirst(pinned, preferMatchingSection(withSection(rows), section))
     }
   }
   return pinned
@@ -236,20 +260,24 @@ export const retrieveExamplePassages = async (
   const { data, error } = await client.rpc('match_example_chunks', {
     query_embedding: embedding,
     match_count: matchCount,
+    prefer_section: section,
   })
   if (error) {
     throw new Error(error.message)
   }
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    vector_id: String(row.vector_id),
-    file_id: String(row.file_id),
-    chunk_text: String(row.chunk_text ?? ''),
-    section: row.section == null ? null : String(row.section),
-    page: parseChunkPage(row.page),
-    source_role: 'example',
-    score: typeof row.score === 'number' ? row.score : Number(row.score),
-    paperSection: section,
-  }))
+  return preferMatchingSection(
+    (data ?? []).map((row: Record<string, unknown>) => ({
+      vector_id: String(row.vector_id),
+      file_id: String(row.file_id),
+      chunk_text: String(row.chunk_text ?? ''),
+      section: row.section == null ? null : String(row.section),
+      page: parseChunkPage(row.page),
+      source_role: 'example',
+      score: typeof row.score === 'number' ? row.score : Number(row.score),
+      paperSection: section,
+    })),
+    section
+  )
 }
 
 export const formatStyleForPrompt = (passages: RetrievedPassage[]): string => {

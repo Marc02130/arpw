@@ -7,9 +7,11 @@ import {
   mergePinnedFirst,
   parseChunkPage,
   parseInterrogateFilter,
+  preferMatchingSection,
   retrievalAttempts,
   unionPrimaryForSection,
   type EvidencePin,
+  type RetrievedPassage,
 } from './retrievePassages'
 
 describe('retrievalAttempts (slice 3)', () => {
@@ -125,6 +127,33 @@ describe('pin-first retrieval (PIN-2)', () => {
     expect(unionPrimaryForSection(PaperType.EMPIRICAL_STUDY, 'Introduction')).toBe(true)
     expect(unionPrimaryForSection(PaperType.EMPIRICAL_STUDY, 'Methods')).toBe(false)
     expect(unionPrimaryForSection(PaperType.LITERATURE_REVIEW, 'Abstract')).toBe(false)
+  })
+})
+
+describe('preferMatchingSection', () => {
+  const row = (id: string, section: string | null): RetrievedPassage => ({
+    vector_id: id,
+    file_id: id,
+    chunk_text: id,
+    section,
+    page: null,
+    source_role: 'literature',
+    score: 0.5,
+    paperSection: 'Methods',
+  })
+
+  it('should put Methods-labeled chunks ahead of bibliography and keep order within groups', () => {
+    const ranked = preferMatchingSection(
+      [row('refs', 'References'), row('m1', 'Methods'), row('other', 'Results'), row('m2', 'methods')],
+      'Methods'
+    )
+    expect(ranked.map((item) => item.vector_id)).toEqual(['m1', 'm2', 'refs', 'other'])
+  })
+
+  it('should leave order unchanged when nothing matches the paper section', () => {
+    const rows = [row('a', 'References'), row('b', 'Unknown')]
+    expect(preferMatchingSection(rows, 'Methods')).toEqual(rows)
+    expect(preferMatchingSection(rows, 'References')).toEqual(rows)
   })
 })
 

@@ -217,4 +217,93 @@ describe('retrieval integration (slice 3 / NFR-7)', () => {
       await deleteUser(owner.id)
     }
   })
+
+  it('should prefer Methods-labeled chunks over bibliography that shares query tokens', async () => {
+    const user = await createConfirmedUser('ret-sec')
+    const methodsId = randomUUID()
+    const refsId = randomUUID()
+    try {
+      expect(
+        (
+          await user.client.from('references').insert([
+            {
+              file_id: methodsId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'study.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+            {
+              file_id: refsId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'refs.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const methodsText = 'this study used twelve participants and a citation overlap task'
+      const refsText =
+        'methods methods methods methods methods methods citation overlap Smith 2020 bibliography'
+      expect(
+        (
+          await user.client.from('reference_vectors').insert([
+            {
+              file_id: methodsId,
+              vector: hashEmbedding(methodsText),
+              chunk_text: methodsText,
+              chunk_index: 0,
+              section: 'Methods',
+              embedding_model: 'hash-384',
+            },
+            {
+              file_id: refsId,
+              vector: hashEmbedding(refsText),
+              chunk_text: refsText,
+              chunk_index: 0,
+              section: 'References',
+              embedding_model: 'hash-384',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const query = hashEmbedding('methods methods methods methods bibliography Smith 2020')
+      const { data: cosineFirst, error: cosineError } = await user.client.rpc('match_reference_chunks', {
+        query_embedding: query,
+        match_count: 8,
+        filter_role: 'literature',
+      })
+      expect(cosineError).toBeNull()
+      expect(cosineFirst?.[0]?.file_id).toBe(refsId)
+
+      const { data: preferred, error: preferError } = await user.client.rpc('match_reference_chunks', {
+        query_embedding: query,
+        match_count: 8,
+        filter_role: 'literature',
+        prefer_section: 'Methods',
+      })
+      expect(preferError).toBeNull()
+      expect(preferred?.[0]?.file_id).toBe(methodsId)
+      expect(preferred?.some((row: { file_id: string }) => row.file_id === refsId)).toBe(true)
+
+      const methods = await retrieveForSection(
+        user.client,
+        PaperType.LITERATURE_REVIEW,
+        'Methods',
+        'participants citation overlap',
+        8
+      )
+      expect(methods[0]?.file_id).toBe(methodsId)
+      expect(methods[0]?.section).toBe('Methods')
+      expect(methods.some((row) => row.file_id === refsId)).toBe(true)
+    } finally {
+      await user.client.from('references').delete().eq('user_id', user.id)
+      await deleteUser(user.id)
+    }
+  })
 })

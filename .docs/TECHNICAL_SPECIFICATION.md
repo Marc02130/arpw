@@ -21,7 +21,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Embeddings (as-built) | Hashing trick, 384-d L2-normalized | `ingest.ts` `hashEmbedding`; column `embedding_model = hash-384` |
 | Embeddings (TARGET) | MiniLM or hosted embed API | Same 384-d column; swap model id |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (26 files / 119); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (26 files / 121); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -177,8 +177,8 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 **Pipeline**
 
 1. Embed the research prompt (same model as chunks; store model id on rows). Hash-384 is acceptable until MiniLM.
-2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Dedup by `vector_id`.
-3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. k capped at 20. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
+2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then cosine. Dedup by `vector_id`.
+3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role, prefer_section)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. When `prefer_section` is set (generate), matching `v.section` rows rank first, then cosine fallback. k capped at 20. Interrogate omits `prefer_section`. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
 4. Optional rerank later.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`).
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).

@@ -530,7 +530,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `keyboardFlows.test.ts` | NFR-6: Enter/Space activate upload; login/generate control ids wired in UI |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
-| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary; chunk page parse |
+| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; example pins dropped; Abstract/Intro unions primary; Methods-labeled chunks rank first; chunk page parse |
 | `pins.test.ts` | Target section parse; `Interrogate` rejected; attach file/chunk; lookup by `vector_id` |
 | `interrogateCorpus.test.ts` | Paper + question required; unknown `[S#]` stripped; no Grok call when nothing matched |
 | `interrogationNotes.test.ts` | user/assistant roles; stored passages are notes, not `reference_vectors` |
@@ -557,7 +557,7 @@ Helper: `src/integration/supabaseTest.ts` (`assertSupabaseUp`, `storageIsUp`, `i
 | `rls.integration.test.ts` | Other user cannot see references/examples/profile/papers; cannot insert as someone else; cannot read/write others’ vectors; cannot rename others; cannot change `source_role` |
 | `storage.integration.test.ts` | Postgres has prefix Storage policies. Live upload/download/delete isolation skips if Storage is down |
 | `ingest.integration.test.ts` | Fixture PDF → `upload_processor` → `hash-384` chunks containing `nfr7probe` in under 2 minutes; Methods vs References isolation; page stored (NFR-4 / NFR-7). Skips if Storage or the Edge function is down |
-| `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval |
+| `retrieval.integration.test.ts` | `nfr7probe` query hits the fixture chunk; RLS; `source_role` filter; empirical Methods prefers primary; pinned literature chunk leads Methods retrieval; Methods-labeled chunks beat bibliography token overlap |
 | `papers.integration.test.ts` | Create draft, list, RLS hide from other user, update title; save content and owned `paper_references` only; regenerate inserts version 2 |
 | `generate.integration.test.ts` | `generate_paper` 401 without JWT; missing Grok key; extra `sourceIds` ignored. Skips if the function is down |
 | `pins.integration.test.ts` | Pin/list/unpin own chunk; unscoped target; cannot see or pin another user’s chunk; example vectors and `Appendix` rejected |
