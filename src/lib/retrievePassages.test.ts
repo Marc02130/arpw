@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
 import { getSectionTemplate } from './generationTemplates'
 import {
+  RRF_K,
   filterPinsForSection,
   formatStyleForPrompt,
   mergePinnedFirst,
@@ -9,6 +10,7 @@ import {
   parseInterrogateFilter,
   preferMatchingSection,
   retrievalAttempts,
+  rrfMerge,
   unionPrimaryForSection,
   type EvidencePin,
   type RetrievedPassage,
@@ -127,6 +129,16 @@ describe('pin-first retrieval (PIN-2)', () => {
     expect(unionPrimaryForSection(PaperType.EMPIRICAL_STUDY, 'Introduction')).toBe(true)
     expect(unionPrimaryForSection(PaperType.EMPIRICAL_STUDY, 'Methods')).toBe(false)
     expect(unionPrimaryForSection(PaperType.LITERATURE_REVIEW, 'Abstract')).toBe(false)
+  })
+})
+
+describe('rrfMerge', () => {
+  it('should fuse two ranked lists and keep the first copy of a duplicate id', () => {
+    const vector = [{ vector_id: 'a' }, { vector_id: 'b' }, { vector_id: 'c' }]
+    const fts = [{ vector_id: 'c' }, { vector_id: 'a' }]
+    const merged = rrfMerge([vector, fts], 3)
+    expect(merged.map((row) => row.vector_id)).toEqual(['a', 'c', 'b'])
+    expect(1 / (RRF_K + 1) + 1 / (RRF_K + 2)).toBeGreaterThan(1 / (RRF_K + 1))
   })
 })
 

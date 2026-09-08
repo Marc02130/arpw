@@ -31,6 +31,27 @@ export type RetrieveOptions = {
 }
 
 export const PINNED_SCORE = 1
+/** Reciprocal rank fusion constant (Cormack et al.). */
+export const RRF_K = 60
+
+export const rrfMerge = <T extends { vector_id: string }>(
+  lists: T[][],
+  limit: number,
+  k = RRF_K
+): T[] => {
+  const scores = new Map<string, number>()
+  const byId = new Map<string, T>()
+  for (const list of lists) {
+    list.forEach((row, index) => {
+      if (!row.vector_id) return
+      byId.set(row.vector_id, byId.get(row.vector_id) ?? row)
+      scores.set(row.vector_id, (scores.get(row.vector_id) ?? 0) + 1 / (k + index + 1))
+    })
+  }
+  return [...byId.values()]
+    .sort((a, b) => (scores.get(b.vector_id) ?? 0) - (scores.get(a.vector_id) ?? 0))
+    .slice(0, Math.max(limit, 0))
+}
 
 export const parseChunkPage = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value
@@ -135,7 +156,8 @@ const matchChunks = async (
   filterRole: 'literature' | 'primary' | 'both',
   matchCount: number,
   preferSection?: string | null,
-  filterModel: string = HASH_EMBEDDING_MODEL
+  filterModel: string = HASH_EMBEDDING_MODEL,
+  queryText?: string | null
 ): Promise<RetrievedPassage[]> => {
   const { data, error } = await client.rpc('match_reference_chunks', {
     query_embedding: embedding,
@@ -143,6 +165,7 @@ const matchChunks = async (
     filter_role: filterRole,
     prefer_section: preferSection?.trim() ? preferSection.trim() : null,
     filter_model: filterModel,
+    query_text: queryText?.trim() ? queryText.trim() : null,
   })
   if (error) {
     throw new Error(error.message)
@@ -176,7 +199,8 @@ const matchWithModelFallback = async (
   query: { vector: number[]; model: string; hashVector: number[] },
   filterRole: 'literature' | 'primary' | 'both',
   matchCount: number,
-  preferSection?: string | null
+  preferSection?: string | null,
+  queryText?: string | null
 ): Promise<RetrievedPassage[]> => {
   const primary = await matchChunks(
     client,
@@ -184,7 +208,8 @@ const matchWithModelFallback = async (
     filterRole,
     matchCount,
     preferSection,
-    query.model
+    query.model,
+    queryText
   )
   if (primary.length > 0 || query.model === HASH_EMBEDDING_MODEL) return primary
   return matchChunks(
@@ -193,7 +218,8 @@ const matchWithModelFallback = async (
     filterRole,
     matchCount,
     preferSection,
-    HASH_EMBEDDING_MODEL
+    HASH_EMBEDDING_MODEL,
+    queryText
   )
 }
 
@@ -262,7 +288,8 @@ export const retrieveForSection = async (
   const attempts = retrievalAttempts(template.preferredSourceRole)
   if (attempts.length === 0) return []
 
-  const query = await embedQueryText(buildRetrievalQuery(paperType, section, researchPrompt), opts.embed)
+  const queryText = buildRetrievalQuery(paperType, section, researchPrompt)
+  const query = await embedQueryText(queryText, opts.embed)
   const withSection = (rows: RetrievedPassage[]): RetrievedPassage[] =>
     rows.map((row) => ({ ...row, paperSection: section }))
 
@@ -270,7 +297,7 @@ export const retrieveForSection = async (
     const roles: Array<'literature' | 'primary' | 'both'> =
       template.preferredSourceRole === 'both' ? ['both'] : ['literature', 'primary']
     const batches = await Promise.all(
-      roles.map((role) => matchWithModelFallback(client, query, role, matchCount, section))
+      roles.map((role) => matchWithModelFallback(client, query, role, matchCount, section, queryText))
     )
     return mergePinnedFirst(
       pinned,
@@ -279,7 +306,7 @@ export const retrieveForSection = async (
   }
 
   for (const filterRole of attempts) {
-    const rows = await matchWithModelFallback(client, query, filterRole, matchCount, section)
+    const rows = await matchWithModelFallback(client, query, filterRole, matchCount, section, queryText)
     if (rows.length > 0) {
       return mergePinnedFirst(pinned, preferMatchingSection(withSection(rows), section))
     }
@@ -314,13 +341,15 @@ export const retrieveExamplePassages = async (
 ): Promise<RetrievedPassage[]> => {
   const template = getSectionTemplate(paperType, section)
   if (template.preferredSourceRole === 'none') return []
-  const query = await embedQueryText(buildRetrievalQuery(paperType, section, researchPrompt), embed)
+  const queryText = buildRetrievalQuery(paperType, section, researchPrompt)
+  const query = await embedQueryText(queryText, embed)
   const run = async (vector: number[], model: string) => {
     const { data, error } = await client.rpc('match_example_chunks', {
       query_embedding: vector,
       match_count: matchCount,
       prefer_section: section,
       filter_model: model,
+      query_text: queryText,
     })
     if (error) {
       throw new Error(error.message)
@@ -357,7 +386,7 @@ export const retrieveForQuestion = async (
     throw new Error('Enter a question')
   }
   const query = await embedQueryText(topic, embed)
-  const rows = await matchWithModelFallback(client, query, filterRole, matchCount)
+  const rows = await matchWithModelFallback(client, query, filterRole, matchCount, null, topic)
   return rows.map((row) => ({ ...row, paperSection: 'Interrogate' }))
 }
 

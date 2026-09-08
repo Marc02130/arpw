@@ -84,7 +84,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 - Merging or wrapping Ragged
 - Importing a chat transcript as a reference file
-- Hybrid search / rerank
+- Eval harness / paraphrase retrieval
 - Outline (GEN-8), Word export (LIB-4)
 - User-editable system prompts
 

@@ -306,4 +306,86 @@ describe('retrieval integration (slice 3 / NFR-7)', () => {
       await deleteUser(user.id)
     }
   })
+
+  it('should fuse a stemmed FTS hit with vector ranks (hybrid RRF)', async () => {
+    const user = await createConfirmedUser('ret-fts')
+    const stemId = randomUUID()
+    const overlapId = randomUUID()
+    try {
+      expect(
+        (
+          await user.client.from('references').insert([
+            {
+              file_id: stemId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'stem.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+            {
+              file_id: overlapId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'overlap.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const stemText = 'The team retrieved documents from the screened archive for this study.'
+      const overlapText = 'documents documents documents documents protocol methods sampling'
+      expect(
+        (
+          await user.client.from('reference_vectors').insert([
+            {
+              file_id: stemId,
+              vector: hashEmbedding(stemText),
+              chunk_text: stemText,
+              chunk_index: 0,
+              section: 'Methods',
+              embedding_model: 'hash-384',
+            },
+            {
+              file_id: overlapId,
+              vector: hashEmbedding(overlapText),
+              chunk_text: overlapText,
+              chunk_index: 0,
+              section: 'Methods',
+              embedding_model: 'hash-384',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const query = 'retrieving documents'
+      const embedding = hashEmbedding(query)
+      const { data: vectorOnly, error: vectorError } = await user.client.rpc('match_reference_chunks', {
+        query_embedding: embedding,
+        match_count: 8,
+        filter_role: 'literature',
+      })
+      expect(vectorError).toBeNull()
+
+      const { data: hybrid, error: hybridError } = await user.client.rpc('match_reference_chunks', {
+        query_embedding: embedding,
+        match_count: 8,
+        filter_role: 'literature',
+        query_text: query,
+      })
+      expect(hybridError).toBeNull()
+      expect(hybrid?.some((row: { file_id: string }) => row.file_id === stemId)).toBe(true)
+      expect(hybrid?.some((row: { file_id: string }) => row.file_id === overlapId)).toBe(true)
+      const stemRank = hybrid?.findIndex((row: { file_id: string }) => row.file_id === stemId) ?? -1
+      const vectorStemRank = vectorOnly?.findIndex((row: { file_id: string }) => row.file_id === stemId) ?? -1
+      if (vectorStemRank >= 0) {
+        expect(stemRank).toBeLessThanOrEqual(vectorStemRank)
+      }
+    } finally {
+      await user.client.from('references').delete().eq('user_id', user.id)
+      await deleteUser(user.id)
+    }
+  })
 })

@@ -28,7 +28,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 27 files / 128 tests (2026-09-07). Integration `npm run test:integration` 13 files / 39 tests against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 27 files / 129 tests (2026-09-07). Integration `npm run test:integration` 13 files / 40 tests against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -67,7 +67,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-1 | DONE (UI only) | Checkboxes in `PaperGenerationPage.tsx` |
 | GEN-2 | DONE | `PaperType` select; frozen templates in `generationTemplates.ts`; worker uses the same module |
 | GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
-| GEN-4 | DONE | `match_reference_chunks` + Prompt tab Show passages; prefer matching stored `section` then cosine; filter by `embedding_model`. Hosted `grok-embedding-small` when a Grok key is saved, else hash-384 |
+| GEN-4 | DONE | `match_reference_chunks`: prefer stored `section`, cosine ∪ FTS fused with RRF, filter by `embedding_model`. Hosted `grok-embedding-small` when a Grok key is saved, else hash-384 |
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
@@ -136,7 +136,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 These are not “missing files.” They are product defects if you implement the old tech doc as written.
 
-1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Generate retrieve prefers matching `section` (Methods-labeled first) then falls back to cosine; Interrogate does not prefer. Inside a section still 1000/200 characters. No layout/bbox parse.
+1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Generate retrieve prefers matching `section` then hybrid cosine+FTS (RRF). Inside a section still 1000/200 characters. No layout/bbox parse.
 2. **Embeddings** — **PARTIAL.** Hosted plan is xAI `grok-embedding-small` at 384-d (same Grok key, not MiniLM-L6-v2). Hash-384 remains the fallback when no key or the API fails. Rows store `embedding_model`; retrieve filters by it. Live hosted E2E still needs a real xAI key.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.
@@ -159,7 +159,7 @@ Matches engineering, not README order.
 | 2–5 | Generate slices in `.docs/GENERATION_SLICES.md` (`source_role`, templates, retrieval, Grok allow-list, save) | Grounded drafts |
 | 6 | Interrogation slices in `.docs/INTERROGATION_SLICES.md` (pins, interrogate, generate uses pins) | Researcher-directed grounding |
 | 7 | Attribution polish, library export | MVP cut line |
-| 8 | Outline, eval harness, hybrid/rerank | After MVP |
+| 8 | Outline, eval harness | After MVP |
 
 Do not start Word export or cosine “accuracy” before phase 3.
 

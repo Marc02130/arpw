@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (27 files / 128); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (27 files / 129); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -39,7 +39,7 @@ Browser (Vite SPA)
   +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
 
 TARGET:
-  +--> retrieve RPC (hybrid search / rerank)
+  +--> retrieve RPC (cosine ∪ FTS, RRF)
   +--> QUAL-3/4 polish / export_paper
 ```
 
@@ -176,9 +176,9 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 **Pipeline**
 
 1. Embed the research prompt with the same family as the chunks (`grok-embedding-small` if a Grok key is saved, else `hash-384`). `match_*` filters `embedding_model` so hash and hosted vectors are never compared. If hosted retrieve is empty, fall back to hash-384.
-2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then cosine. Dedup by `vector_id`.
-3. SQL RPC `match_reference_chunks(query_embedding, match_count, filter_role, prefer_section)`: cosine on `reference_vectors`, `auth.uid()`, optional `source_role`. When `prefer_section` is set (generate), matching `v.section` rows rank first, then cosine fallback. k capped at 20. Interrogate omits `prefer_section`. As-built: hash-384 query embedding from `buildRetrievalQuery`. Full-text/rerank later.
-4. Optional rerank later.
+2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then hybrid RRF. Dedup by `vector_id`.
+3. SQL RPC `match_reference_chunks(..., query_text)`: cosine pool ∪ English FTS on `chunk_tsv`, fused with reciprocal rank fusion (k=60). Matching stored `section` still ranks first. `filter_model` keeps hash and hosted vectors apart. k capped at 20. Interrogate passes the question as `query_text`.
+4. Light rerank is RRF over the hybrid lists (not a cross-encoder). Pins still prepend.
 5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`).
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
 7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, type, optional style/format, `status=completed`). Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored.
