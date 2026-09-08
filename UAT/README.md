@@ -53,6 +53,8 @@ If `feat/section-aware-chunks` work is on `main`, apply new migrations (`vector 
 
 A Grok API key on Profile is required for generate, interrogate, and hosted embeddings. Without a key, ingest still indexes as `hash-384`; generate must refuse with “Save a Grok API key on Profile before generating.”
 
+The value must be a real xAI secret that starts with `xai-`. A filesystem path (for example to `.env`) is not a key. For the Playwright runner, put that secret in `GROK_API_KEY` or gitignored `UAT/.uat-grok-key` — never commit it. If a prior run indexed the corpus, resume steps 8–13 with `node UAT/run-literature-review.mjs --resume` after replacing the fixture.
+
 ## Paper to start
 
 - Title: `Gut-brain axis in Alzheimer’s disease: a literature review`
@@ -78,11 +80,11 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 6 | Prompt tab: paste the research prompt. **Query sources** | Passages appear with `literature` (not primary). Section labels and `p.N` may show |
 | 7 | Pin 2–3 literature chunks to Literature Review or unscoped | Pinned list shows them first on the next Query sources |
 | 8 | Interrogate: “What do these papers say about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent |
-| 9 | Interrogate: pin one passage from the answer | Pin appears on Prompt |
+| 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Pin appears on Prompt |
 | 10 | Generate Paper | Draft saved; headings for selected sections; inline ⚠ / citation / format warnings; footer disclaimer |
 | 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none) |
 | 12 | Library: paper listed completed. View preview. Export Markdown and Word | Files download; both include the human-review disclaimer |
-| 13 | Continue from library | Prompt tab restores title, type, prompt |
+| 13 | Continue from library | Prompt tab restores title, **Literature Review**, and the research prompt |
 
 ## Fail the UAT
 
@@ -91,6 +93,7 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 - Original-research upload was used for this literature-review paper
 - Indexing never produces chunks (Storage/Edge down counts as BLOCKED, not a product fail)
 - Export missing `AI-generated draft. Requires human review…`
+- Continue shows a paper type other than **Literature Review** after “Working on …” (the generate save must not rewrite type)
 
 ## Report
 

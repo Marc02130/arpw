@@ -25,6 +25,10 @@ Upload files from the local path `UAT/papers/*.pdf` as **literature** on `/gener
 
 If generate asks for a Grok key, stop and tell the operator to save one on Profile (you never paste secrets). Then resume from the Generate step.
 
+Do not treat a filesystem path as the key. `UAT/.uat-grok-key` and `GROK_API_KEY` must contain a value that starts with `xai-`. If a saved report failed on HTTP 500 / last4 `.env`, replace the fixture and resume with `node UAT/run-literature-review.mjs --resume` — do not re-upload the 20 PDFs.
+
+Pin from the Interrogate **answer thread** (do not reload first). Continue must restore **Literature Review** after “Working on …”; fail if the type is Empirical Study. Generate must not rewrite `paper_type`.
+
 ## Output
 
 Write a short report under `UAT/reports/` using the template in `UAT/README.md`. Do not commit PDFs, `.html` dumps, or long quoted draft text. Commit the report only if it is a PASS/FAIL table with no paper excerpts.
