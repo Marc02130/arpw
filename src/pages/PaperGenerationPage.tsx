@@ -86,6 +86,7 @@ const PaperGenerationPage: React.FC = () => {
   const [citedFiles, setCitedFiles] = useState<CitedFile[]>([])
   const [corpus, setCorpus] = useState<CorpusCounts>({ literature: 0, primary: 0, examples: 0 })
   const [pins, setPins] = useState<PinnedPassage[]>([])
+  const [pinsReady, setPinsReady] = useState(!paperId)
   const [pinError, setPinError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
@@ -122,9 +123,11 @@ const PaperGenerationPage: React.FC = () => {
       setStylePassages([])
       setCitedFiles([])
       setPins([])
+      setPinsReady(true)
       setPinError(null)
       return
     }
+    setPinsReady(false)
     void (async () => {
       try {
         const loaded = await loadPaper(supabase, paperId)
@@ -151,10 +154,13 @@ const PaperGenerationPage: React.FC = () => {
         } catch (err) {
           setPins([])
           setPinError(err instanceof Error ? err.message : 'Could not load pins')
+        } finally {
+          setPinsReady(true)
         }
       } catch (err) {
         setPaper(null)
         setPaperError(err instanceof Error ? err.message : 'Paper not found')
+        setPinsReady(true)
       }
     })()
   }, [paperId])
@@ -585,7 +591,10 @@ const PaperGenerationPage: React.FC = () => {
             {!paperId && (
               <p className="text-sm text-gray-500 mb-4">Pick a paper on the Dashboard to pin passages.</p>
             )}
-            {paperId && pins.length === 0 && (
+            {paperId && !pinsReady && (
+              <p className="text-sm text-gray-500 mb-4">Loading pins...</p>
+            )}
+            {paperId && pinsReady && pins.length === 0 && (
               <p className="text-sm text-gray-500 mb-4">
                 No pins yet. Query sources or Interrogate, then pin a literature or original-research chunk.
               </p>

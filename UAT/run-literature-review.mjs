@@ -575,11 +575,17 @@ async function main() {
       }
       await pinBtn().waitFor({ timeout: 15000 })
       await pinBtn().click()
-      await page.waitForTimeout(800)
+      await page.getByRole('button', { name: /^Unpin(\s|$)/ }).first().waitFor({ timeout: 15000 })
       await page.goto(`${BASE}/generate?paper=${paperId}`)
-      await page.waitForSelector('#research-prompt', { timeout: 15000 })
-      const body = await page.locator('body').innerText()
-      if (/No pins yet/i.test(body)) throw new Error('pin did not appear on Prompt')
+      await page.getByText(/Working on/i).waitFor({ timeout: 15000 })
+      await page.waitForFunction(
+        () => {
+          const t = document.body.innerText
+          return /Pinned passages/i.test(t) && !/Loading pins/i.test(t) && !/No pins yet/i.test(t)
+        },
+        null,
+        { timeout: 15000 }
+      )
       record(9, 'PASS', 'pin visible on Prompt')
     } catch (e) {
       if (e && e.message === '__blocked__') {
