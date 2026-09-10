@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
-import { buildSectionPrompt, generatePaperDraft, parseGenerateRequest } from './generatePaper'
+import {
+  buildSectionPrompt,
+  buildUncitedRepairPrompt,
+  generatePaperDraft,
+  parseGenerateRequest,
+  sectionNeedsUncitedRepair,
+} from './generatePaper'
 import { GROK_SECTION_TIMEOUT_MS } from './grokComplete'
 
 const PAPER_ID = '11111111-1111-4111-8111-111111111111'
@@ -73,6 +79,85 @@ describe('buildSectionPrompt outline (GEN-8)', () => {
     expect(withOutline).toContain('Approved outline')
     expect(withOutline).toContain('- Gap [S2]')
     expect(withOutline).not.toContain('- Limits')
+    expect(without).toMatch(/omit that sentence/i)
+  })
+})
+
+describe('uncited sentence repair (QUAL-1)', () => {
+  it('should repair only when sources exist and a sentence has no [S#]', () => {
+    expect(sectionNeedsUncitedRepair([], 1)).toBe(false)
+    expect(
+      sectionNeedsUncitedRepair(
+        [{ sentence: 'A claim.', section: 'Methods', citedSids: [], vectorIds: [], fileIds: [], quoteSpans: [], uncited: true }],
+        0
+      )
+    ).toBe(false)
+    expect(
+      sectionNeedsUncitedRepair(
+        [{ sentence: 'A claim.', section: 'Methods', citedSids: [], vectorIds: [], fileIds: [], quoteSpans: [], uncited: true }],
+        1
+      )
+    ).toBe(true)
+    expect(buildUncitedRepairPrompt('Methods', 'A claim.', ['A claim.'], '[S1] nfr7probe')).toMatch(
+      /cite only these retrieved sources/i
+    )
+  })
+
+  it('should run one repair pass and still drop invented ids', async () => {
+    const prompts: string[] = []
+    const result = await generatePaperDraft({
+      paperType: PaperType.EMPIRICAL_STUDY,
+      sections: ['Methods'],
+      researchPrompt: 'nfr7probe citation overlap',
+      retrieve: async () => [
+        {
+          vector_id: 'vec-1',
+          file_id: 'file-1',
+          chunk_text: 'this study methods used nfr7probe',
+          section: 'methods',
+          page: null,
+          source_role: 'primary',
+          score: 0.9,
+          paperSection: 'Methods',
+        },
+      ],
+      complete: async (prompt) => {
+        prompts.push(prompt)
+        if (prompts.length === 1) return 'We measured overlap. A second claim has no source.'
+        expect(prompt).toMatch(/Uncited sentences/)
+        return 'We measured overlap [S1]. A second claim also used nfr7probe [S1] unlike a fake paper [S99].'
+      },
+    })
+    expect(prompts).toHaveLength(2)
+    expect(result.sections[0].text).toContain('[S1]')
+    expect(result.sections[0].text).not.toContain('[S99]')
+    expect(result.attribution.every((row) => !row.uncited)).toBe(true)
+  })
+
+  it('should not repair when every sentence already cites a retrieved id', async () => {
+    let calls = 0
+    await generatePaperDraft({
+      paperType: PaperType.EMPIRICAL_STUDY,
+      sections: ['Methods'],
+      researchPrompt: 'nfr7probe citation overlap',
+      retrieve: async () => [
+        {
+          vector_id: 'vec-1',
+          file_id: 'file-1',
+          chunk_text: 'this study methods used nfr7probe',
+          section: 'methods',
+          page: null,
+          source_role: 'primary',
+          score: 0.9,
+          paperSection: 'Methods',
+        },
+      ],
+      complete: async () => {
+        calls += 1
+        return 'We measured overlap [S1].'
+      },
+    })
+    expect(calls).toBe(1)
   })
 })
 

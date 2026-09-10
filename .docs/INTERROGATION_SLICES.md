@@ -84,7 +84,7 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 - Merging or wrapping Ragged
 - Importing a chat transcript as a reference file
-- Eval harness / paraphrase retrieval
+- Eval harness / paraphrase retrieval (PRD §6 recall@k holdout; not UAT)
 - Outline (GEN-8), Word export (LIB-4)
 - User-editable system prompts
 

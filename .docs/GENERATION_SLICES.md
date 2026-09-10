@@ -90,7 +90,7 @@ Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the 
 - QUAL-1–4 (after a real draft exists)
 - LIB-4 export
 - Extra-notes field (append-only; not a template editor)
-- Eval harness / paraphrase retrieval
+- Eval harness / paraphrase retrieval (PRD §6: recall@k on a ~20-question holdout; not the literature-review UAT)
 - Mixing example vectors into evidence
 
 ### How to use this file

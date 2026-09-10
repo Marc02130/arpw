@@ -263,7 +263,7 @@ Do not paste long draft excerpts that quote the PDFs into git. Do not commit a P
 - Continue restores no outline after a successful Generate outline
 - References says “No retrieved sources”, lists PDF filenames as if they were citations, dumps publisher “Citation:” boilerplate, or omits cited works while other sections used `[S#]`
 
-Do not fail solely because the draft body has ⚠ uncited sentences. That is QUAL-2. Do fail if the References section is not an academic list of the cited uploads.
+Do not fail solely because the draft body still has ⚠ uncited sentences after generate’s one repair pass (QUAL-1). Do fail if the References section is not an academic list of the cited uploads (that list quality is GEN-9 / catalog cites, not QUAL-2). QUAL-2 is: every `[S#]` in the draft was in the retrieved set.
 
 ## Why these gates exist
 

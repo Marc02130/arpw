@@ -26,7 +26,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 - About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
 - About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–5 shipped)
 - About to implement outline: [OUTLINE_SLICES.md](./OUTLINE_SLICES.md) (slices 1–3 shipped)
-- Remaining after generate: eval harness; QUAL-2 uncited prose is a quality note. Outline (GEN-8) shipped.
+- Remaining after generate: eval harness (recall@k holdout / paraphrase retrieval — not UAT). Outline (GEN-8) shipped. Uncited ⚠ after one repair pass is QUAL-1 leftover, not a missing check.
 - Schema, RPCs, embeddings, test commands: [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)
 - What “MVP” still means: [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)
 

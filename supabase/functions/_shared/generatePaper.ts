@@ -14,7 +14,11 @@ import {
   isKnownPaperType,
 } from './generationTemplates.ts'
 import { formatStyleForPrompt, type RetrievedPassage } from './retrievePassages.ts'
-import { attributeSentences, type SentenceAttribution } from './attribution.ts'
+import {
+  attributeSentences,
+  uncitedSentences,
+  type SentenceAttribution,
+} from './attribution.ts'
 import { outlineForSection } from './outline.ts'
 import { parsePaperId } from './saveGeneratedDraft.ts'
 
@@ -63,7 +67,32 @@ ${style}${outlineNote}
 Retrieved sources (cite only these ids, like [S1]):
 ${sourceBlock}
 
+Every sentence that states a finding, method, or claim must include a retrieved [S#]. If you cannot cite it from the retrieved set, omit that sentence. Do not write uncited claims.
 If you cite a source, use the [S#] id exactly. Do not invent ids. Do not cite style examples.`
+}
+
+export const sectionNeedsUncitedRepair = (
+  rows: SentenceAttribution[],
+  sourceCount: number
+): boolean => sourceCount > 0 && uncitedSentences(rows).length > 0
+
+export const buildUncitedRepairPrompt = (
+  section: string,
+  draft: string,
+  uncited: string[],
+  sourceBlock: string
+): string => {
+  const list = uncited.map((sentence, index) => `${index + 1}. ${sentence}`).join('\n')
+  return `Rewrite only the ${section} section so every finding, method, or claim includes a retrieved [S#].
+Uncited sentences that must be cited from the retrieved set or removed:
+${list}
+
+Keep the same meaning. Do not add studies, n, or outcomes that are not in retrieved sources.
+Do not invent [S#] ids. Cite only these retrieved sources:
+${sourceBlock}
+
+Section draft:
+${draft}`
 }
 
 const CITATION_STYLES = new Set(['APA', 'MLA', 'Chicago'])
@@ -185,11 +214,23 @@ export const generatePaperDraft = async (opts: {
       opts.outline ?? ''
     )
     const raw = await opts.complete(prompt)
-    const text = stripUnknownCitations(raw, allowed)
+    let text = stripUnknownCitations(raw, allowed)
+    let sectionAttribution = attributeSentences(text, section, sources)
+    if (sectionNeedsUncitedRepair(sectionAttribution, sources.length)) {
+      const repaired = await opts.complete(
+        buildUncitedRepairPrompt(
+          section,
+          text,
+          uncitedSentences(sectionAttribution).map((row) => row.sentence),
+          formatSourcesForPrompt(sources)
+        )
+      )
+      text = stripUnknownCitations(repaired, allowed)
+      sectionAttribution = attributeSentences(text, section, sources)
+    }
     const sids = citedSids(text, allowed)
     const fileIds = fileIdsForSids(sids, sources)
     fileIds.forEach((id) => allFileIds.add(id))
-    const sectionAttribution = attributeSentences(text, section, sources)
     attribution.push(...sectionAttribution)
     generatedByName.set(section, {
       name: section,

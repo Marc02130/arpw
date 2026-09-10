@@ -92,7 +92,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 | ID | Status | Evidence |
 |---|---|---|
-| QUAL-1 | DONE | `attributeSentences`: [S#] or quote span → chunk id; else uncited. Stored on `user_papers.attribution`. Not cosine. |
+| QUAL-1 | DONE | `attributeSentences`: [S#] or quote span → chunk id; else uncited. Generate instructs cite-or-omit and runs one uncited repair pass per section. Remaining ⚠ stay honest. |
 | QUAL-2 | DONE | `runCitationCheck`: every `[S#]` in the draft is in the retrieved/attributed set; cited file ids are in `paper_references`. Shown on generate draft and library preview. |
 | QUAL-3 | DONE | `runFormatCheck`: each selected section has a `##` / `###` heading in the draft. Shown on generate and library preview. |
 | QUAL-4 | DONE | `DraftPreview`: inline ⚠ on uncited sentences, warning list, footer disclaimer |
