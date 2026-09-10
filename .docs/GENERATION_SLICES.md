@@ -9,7 +9,7 @@ Locked product calls (2026-09-07):
 - Server owns **paper type × section** prompt templates. Users do not edit them in this cut.
 - The dashboard **Research prompt** is the only user-written generation text (topic, question, constraints).
 - Each **reference** has `source_role`: `literature` (published work you cite) or `primary` (the author’s original research on this paper’s topic). Upload tab shows two sections writing the same `"references"` table and cap. Example papers stay style-only (GEN-7).
-- QUAL, outline (GEN-8), Word export, and a per-section prompt editor are **out of these slices**.
+- QUAL, Word export, and a per-section prompt editor are **out of these slices**. Outline (GEN-8) is `.docs/OUTLINE_SLICES.md`.
 - Interrogation and pins are a **follow-on cut**: `.docs/INTERROGATION_SLICES.md`. Do not import Ragged chats as references.
 
 ## Content
@@ -86,7 +86,7 @@ Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the 
 
 ### Out of these slices
 
-- GEN-8 outline
+- GEN-8 outline (`.docs/OUTLINE_SLICES.md`)
 - QUAL-1–4 (after a real draft exists)
 - LIB-4 export
 - Extra-notes field (append-only; not a template editor)

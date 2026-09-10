@@ -4,6 +4,8 @@ export const isActivateKey = (key: string): boolean => key === 'Enter' || key ==
 
 export const LOGIN_FIELD_IDS = ['email', 'password'] as const
 export const GENERATE_PROMPT_ID = 'research-prompt'
+export const PAPER_OUTLINE_ID = 'paper-outline'
+export const GENERATE_OUTLINE_BUTTON_ID = 'generate-outline'
 export const GENERATE_PAPER_TYPE_ID = 'paper-type'
 export const GENERATE_CITATION_STYLE_ID = 'citation-style'
 export const GENERATE_OUTPUT_FORMAT_ID = 'output-format'

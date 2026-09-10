@@ -15,6 +15,7 @@ import {
 } from './generationTemplates.ts'
 import { formatStyleForPrompt, type RetrievedPassage } from './retrievePassages.ts'
 import { attributeSentences, type SentenceAttribution } from './attribution.ts'
+import { outlineForSection } from './outline.ts'
 import { parsePaperId } from './saveGeneratedDraft.ts'
 
 export type GenerateComplete = (prompt: string) => Promise<string>
@@ -40,7 +41,8 @@ export const buildSectionPrompt = (
   section: string,
   researchPrompt: string,
   sourceBlock: string,
-  styleBlock = ''
+  styleBlock = '',
+  outline = ''
 ): string => {
   const style = styleBlock.trim()
     ? `
@@ -48,8 +50,16 @@ export const buildSectionPrompt = (
 ${styleBlock.trim()}
 `
     : ''
+  const outlineBlock = outlineForSection(outline, section)
+  const outlineNote = outlineBlock
+    ? `
+
+Approved outline (follow the bullets for this section; do not add studies, n, or outcomes that are not in retrieved sources):
+${outlineBlock}
+`
+    : ''
   return `${buildGenerationPrompt(paperType, section, researchPrompt)}
-${style}
+${style}${outlineNote}
 Retrieved sources (cite only these ids, like [S1]):
 ${sourceBlock}
 
@@ -140,6 +150,7 @@ export const generatePaperDraft = async (opts: {
   retrieveExamples?: GenerateRetrieve
   lookupCitedFiles?: LookupCitedFiles
   citationStyle?: string
+  outline?: string
 }): Promise<{
   sections: GeneratedSection[]
   content: string
@@ -170,7 +181,8 @@ export const generatePaperDraft = async (opts: {
       section,
       topic,
       formatSourcesForPrompt(sources),
-      styleBlock
+      styleBlock,
+      opts.outline ?? ''
     )
     const raw = await opts.complete(prompt)
     const text = stripUnknownCitations(raw, allowed)

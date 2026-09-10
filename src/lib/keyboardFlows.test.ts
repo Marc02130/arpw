@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   GENERATE_BUTTON_ID,
+  GENERATE_OUTLINE_BUTTON_ID,
   GENERATE_PROMPT_ID,
   LOGIN_FIELD_IDS,
+  PAPER_OUTLINE_ID,
   MAIN_CONTENT_ID,
   SKIP_TO_CONTENT_HREF,
   UPLOAD_ZONE_ROLE,
@@ -25,6 +27,8 @@ describe('keyboard primary flows (NFR-6)', () => {
   it('should name labeled login fields and generate controls', () => {
     expect(LOGIN_FIELD_IDS).toEqual(['email', 'password'])
     expect(GENERATE_PROMPT_ID).toBe('research-prompt')
+    expect(PAPER_OUTLINE_ID).toBe('paper-outline')
+    expect(GENERATE_OUTLINE_BUTTON_ID).toBe('generate-outline')
     expect(GENERATE_BUTTON_ID).toBe('generate-paper')
     expect(SKIP_TO_CONTENT_HREF).toBe(`#${MAIN_CONTENT_ID}`)
   })
@@ -42,6 +46,8 @@ describe('keyboard primary flows (NFR-6)', () => {
 
     const generate = readSrc('../pages/PaperGenerationPage.tsx')
     expect(generate).toContain(`htmlFor={GENERATE_PROMPT_ID}`)
+    expect(generate).toContain(`htmlFor={PAPER_OUTLINE_ID}`)
+    expect(generate).toContain(`id={GENERATE_OUTLINE_BUTTON_ID}`)
     expect(generate).toContain(`id={GENERATE_BUTTON_ID}`)
     expect(generate).toContain('type="button"')
 

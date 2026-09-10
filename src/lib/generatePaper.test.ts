@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PaperType } from '../types'
-import { generatePaperDraft, parseGenerateRequest } from './generatePaper'
+import { buildSectionPrompt, generatePaperDraft, parseGenerateRequest } from './generatePaper'
 import { GROK_SECTION_TIMEOUT_MS } from './grokComplete'
 
 const PAPER_ID = '11111111-1111-4111-8111-111111111111'
@@ -53,7 +53,58 @@ describe('parseGenerateRequest (slice 4)', () => {
   })
 })
 
+describe('buildSectionPrompt outline (GEN-8)', () => {
+  it('should omit the outline block when empty and include the section bullets when present', () => {
+    const without = buildSectionPrompt(
+      PaperType.LITERATURE_REVIEW,
+      'Introduction',
+      'gut-brain',
+      '[S1] omega-3'
+    )
+    expect(without).not.toContain('Approved outline')
+    const withOutline = buildSectionPrompt(
+      PaperType.LITERATURE_REVIEW,
+      'Introduction',
+      'gut-brain',
+      '[S1] omega-3',
+      '',
+      '## Introduction\n- Gap [S2]\n\n## Discussion\n- Limits'
+    )
+    expect(withOutline).toContain('Approved outline')
+    expect(withOutline).toContain('- Gap [S2]')
+    expect(withOutline).not.toContain('- Limits')
+  })
+})
+
 describe('generatePaperDraft (slice 4)', () => {
+  it('should pass the outline into the section complete prompt', async () => {
+    let seen = ''
+    await generatePaperDraft({
+      paperType: PaperType.LITERATURE_REVIEW,
+      sections: ['Introduction'],
+      researchPrompt: 'gut-brain axis',
+      outline: '## Introduction\n- Microbiome [S1]',
+      retrieve: async () => [
+        {
+          vector_id: 'vec-1',
+          file_id: 'file-1',
+          chunk_text: 'microbiome in AD',
+          section: 'intro',
+          page: 1,
+          source_role: 'literature',
+          score: 0.9,
+          paperSection: 'Introduction',
+        },
+      ],
+      complete: async (prompt) => {
+        seen = prompt
+        return 'The microbiome is implicated [S1].'
+      },
+    })
+    expect(seen).toContain('Approved outline')
+    expect(seen).toContain('- Microbiome [S1]')
+  })
+
   it('should drop unknown citation ids from a section (NFR-7)', async () => {
     const result = await generatePaperDraft({
       paperType: PaperType.EMPIRICAL_STUDY,

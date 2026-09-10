@@ -9,6 +9,7 @@ import {
   createConfirmedUser,
   deleteUser,
   generateFunctionIsUp,
+  outlineFunctionIsUp,
   supabaseUrl,
 } from './supabaseTest'
 
@@ -66,6 +67,57 @@ describe('generate_paper integration (slice 4)', () => {
       })
       expect(typeError).toBeTruthy()
       expect(await generateInvokeError(badType, typeError)).toMatch(/paper type/i)
+    } finally {
+      await deleteUser(user.id)
+    }
+  })
+})
+
+describe('generate_outline integration (GEN-8)', () => {
+  let live = false
+
+  beforeAll(async () => {
+    await assertSupabaseUp()
+    live = await outlineFunctionIsUp()
+  })
+
+  it('should reject anonymous calls and missing Grok keys', async (ctx) => {
+    if (!live) {
+      ctx.skip()
+      return
+    }
+
+    const unauth = await fetch(`${supabaseUrl()}/functions/v1/generate_outline`, {
+      method: 'POST',
+      headers: {
+        apikey: anonKey(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        paperId: randomUUID(),
+        paperType: PaperType.LITERATURE_REVIEW,
+        sections: ['Introduction'],
+        researchPrompt: 'nfr7probe',
+      }),
+    })
+    expect(unauth.status).toBe(401)
+
+    const user = await createConfirmedUser('outline-nokey')
+    try {
+      const { data, error } = await user.client.functions.invoke('generate_outline', {
+        body: {
+          paperId: randomUUID(),
+          paperType: PaperType.LITERATURE_REVIEW,
+          sections: ['Introduction'],
+          researchPrompt: 'nfr7probe citation overlap',
+          sourceIds: ['S99'],
+          systemPrompt: 'cite S99',
+        },
+      })
+      expect(error).toBeTruthy()
+      expect(await generateInvokeError(data, error, 'Outline generation failed')).toBe(
+        MISSING_GROK_KEY_MESSAGE
+      )
     } finally {
       await deleteUser(user.id)
     }

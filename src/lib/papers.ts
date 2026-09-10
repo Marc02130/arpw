@@ -32,6 +32,7 @@ export type PaperConfigPatch = {
   citation_style?: CitationStyle
   output_format?: OutputFormat
   research_prompt?: string
+  outline?: string
 }
 
 export type CitedFile = {
@@ -200,6 +201,7 @@ export const updatePaperConfig = async (
   if (patch.citation_style !== undefined) body.citation_style = patch.citation_style
   if (patch.output_format !== undefined) body.output_format = patch.output_format
   if (patch.research_prompt !== undefined) body.research_prompt = patch.research_prompt
+  if (patch.outline !== undefined) body.outline = patch.outline
   if (Object.keys(body).length === 0) return
   const { error } = await client.from('user_papers').update(body).eq('paper_id', paperId)
   if (error) {
@@ -259,6 +261,7 @@ export const createRegenerateDraft = async (
       version,
       status: Status.DRAFT,
       research_prompt: source.research_prompt ?? '',
+      outline: source.outline ?? '',
     })
     .select('*')
     .single()

@@ -49,6 +49,17 @@ describe('papers integration (dashboard workspace)', () => {
       const reloaded = await loadPaper(owner.client, paper.paper_id)
       expect(reloaded.title).toBe('Citation overlap v2')
       expect(reloaded.research_prompt).toBe('nfr7probe citation overlap')
+
+      await updatePaperConfig(owner.client, paper.paper_id, {
+        outline: '## Introduction\n- Gap in prior work',
+      })
+      const withOutline = await loadPaper(owner.client, paper.paper_id)
+      expect(withOutline.outline).toBe('## Introduction\n- Gap in prior work')
+      const { data: stolenOutline } = await other.client
+        .from('user_papers')
+        .select('outline')
+        .eq('paper_id', paper.paper_id)
+      expect(stolenOutline).toEqual([])
     } finally {
       await owner.client.from('user_papers').delete().eq('user_id', owner.id)
       await deleteUser(owner.id)

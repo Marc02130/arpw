@@ -77,6 +77,7 @@ export interface Paper {
   created_at: string
   status: Status
   research_prompt?: string
+  outline?: string
   attribution?: Array<{
     sentence: string
     section: string
@@ -111,6 +112,7 @@ export interface ExampleVector {
 // UI State interfaces
 export interface PaperGenerationConfig {
   prompt: string
+  outline: string
   sections: string[]
   paper_type: PaperType
   citation_style: CitationStyle

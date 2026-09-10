@@ -73,7 +73,7 @@ describe('papers helpers', () => {
     ).toBe(true)
   })
 
-  it('should not let generate overwrite the stored paper type', () => {
+  it('should not let generate overwrite outline or paper type', () => {
     const patch = generatedDraftUpdateFields({
       paperId: '11111111-1111-4111-8111-111111111111',
       content: '## Abstract\n\nDraft [S1].',
@@ -91,6 +91,7 @@ describe('papers helpers', () => {
       output_format: 'markdown',
     })
     expect(patch).not.toHaveProperty('paper_type')
+    expect(patch).not.toHaveProperty('outline')
   })
 
   it('should increment regenerate version from existing titles (LIB-2)', () => {

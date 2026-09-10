@@ -111,15 +111,15 @@ supabase status  # API :54321, Studio :54323, Mailpit :54324
 
 If Storage is down, this UAT is **BLOCKED**. Do not treat ingest as passable while Storage is down.
 
-Apply local migrations through `20260907290000_reference_citation_text.sql` (also `grok_key_shape` and `reference_bibliographic`). `supabase db push --local` can miss history on this repo. If Studio or REST does not show `references.citation_text`, apply the SQL with `psql` against local Postgres `:54322`, insert the version into `supabase_migrations.schema_migrations`, then `NOTIFY pgrst, 'reload schema';`.
+Apply local migrations through `20260910010000_paper_outline.sql` (also `reference_citation_text`, `grok_key_shape`, `reference_bibliographic`). `supabase db push --local` can miss history on this repo. If Studio or REST does not show `user_papers.outline` or `references.citation_text`, apply the SQL with `psql` against local Postgres `:54322`, insert the version into `supabase_migrations.schema_migrations`, then `NOTIFY pgrst, 'reload schema';`.
 
-Serve Edge functions so ingest, generate, interrogate, and citation lookup use current code. The Docker network name is the local project’s network:
+Serve Edge functions so ingest, generate, outline, interrogate, and citation lookup use current code. The Docker network name is the local project’s network:
 
 ```bash
 supabase functions serve --network-id supabase_network_arpw
 ```
 
-You need all of: `upload_processor`, `embed_text`, `generate_paper`, `interrogate_corpus`, `lookup_citation`. Restart this process after pulling Edge changes. Catalog lookup (Crossref, PubMed, doi.org) needs that network id; without it, Library citation fields stay empty.
+You need all of: `upload_processor`, `embed_text`, `generate_paper`, `generate_outline`, `interrogate_corpus`, `lookup_citation`. Restart this process after pulling Edge changes. Catalog lookup (Crossref, PubMed, doi.org) needs that network id; without it, Library citation fields stay empty.
 
 ```bash
 npm run dev      # http://127.0.0.1:5173  (strictPort)
@@ -129,7 +129,7 @@ Auth confirmations stay on. The UAT confirms via Mailpit like a real user. Do no
 
 ## How to set the Grok key fixture
 
-Generate, interrogate, and hosted embeddings need a Grok API key on Profile. Without a key, ingest still indexes as `hash-384`; generate must refuse with “Save a Grok API key on Profile before generating.”
+Generate, outline, interrogate, and hosted embeddings need a Grok API key on Profile. Without a key, ingest still indexes as `hash-384`; generate and outline must refuse with “Save a Grok API key on Profile before generating.”
 
 The value must be a real xAI secret that starts with `xai-`. A filesystem path (for example `/Users/…/.env`) is not a key. Profile last4 of `.env` means the fixture was a path; that run is **FAIL**.
 
@@ -190,14 +190,14 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 3 | Dashboard: **Start paper** with the title and Literature Review | Redirect to `/generate?paper=…` |
 | 4 | Upload tab: **Literature** only. Upload all 20 PDFs as literature. Do not use Original research. | Each file listed; none rejected for type/size. Each literature row has a **Citation** field |
 | 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min). Open **Library**: **Source citations** | At least one file shows a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
-| 6 | Prompt tab: wait for “Working on …”, paste the research prompt. **Query sources** | Passages appear with `literature` (not primary). Section labels and `p.N` may show. Query sources is enabled once the prompt is non-empty |
+| 6 | Prompt tab: wait for “Working on …”, paste the research prompt. **Generate outline**, then **Query sources** | Outline textarea has `##` headings for selected sections (not PDF filenames). Passages appear with `literature` (not primary). Section labels and `p.N` may show |
 | 7 | Pin 2–3 literature chunks to Literature Review or unscoped. If you re-open Prompt, wait for “Working on …” and the saved prompt before Query sources | Pinned list shows them first on the next Query sources. Fail if Query sources stays disabled after the paper has loaded |
 | 8 | Interrogate: “What do these papers say about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent. HTTP 2xx. A missing key must refuse before you re-save |
 | 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Wait for Unpin on the thread. Prompt shows **Pinned passages**, not “No pins yet” while pins are loading |
-| 10 | Generate Paper | Draft saved; headings for selected sections; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer. Wall clock is not instant |
+| 10 | Generate Paper | Draft saved; headings for selected sections; draft follows the outline where headings match; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer. Wall clock is not instant |
 | 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none). References is not “No retrieved sources” and does not dump `Citation:` boilerplate |
 | 12 | Library: **Your Papers** listed first (25 per page) with **Delete**. **Source citations** still listed (25 per page). Paper listed completed. View preview (cited sources show the cite field). Export Markdown and Word | Files download; both include the human-review disclaimer. Delete confirms and removes the paper |
-| 13 | Continue from library | Wait for “Working on …”, then Prompt restores title, **Literature Review**, and the research prompt |
+| 13 | Continue from library | Wait for “Working on …”, then Prompt restores title, **Literature Review**, the research prompt, and the outline (`##` headings) |
 
 The runner also clears the Profile key between step 2 and step 8 and checks that Interrogate refuses without a key (`step 2b`). That is a QA extra, not a numbered playbook step. Re-save the fixture key before Ask.
 
@@ -227,9 +227,11 @@ Step 7 waits for “Working on …” and a non-empty `#research-prompt` (or an 
 
 Step 9 stays on the Interrogate thread, clicks Pin, waits for Unpin, then opens Prompt and waits until **Pinned passages** is visible and **No pins yet** / **Loading pins** are gone.
 
+Step 6 clicks **Generate outline** after the prompt is saved (`#generate-outline`), requires HTTP 2xx from `generate_outline`, and checks `#paper-outline` for `## Abstract` / `## Introduction` / `## Literature Review`.
+
 Step 10 fails if References says “No retrieved sources”, lists `Something.pdf` as a numbered work, or dumps publisher `Citation:` boilerplate (`referencesLooksAcademic` in the runner).
 
-Step 13 waits for “Working on …” and `#paper-type === 'Literature Review'` before reading the prompt. Generate save must not write `paper_type`.
+Step 13 waits for “Working on …” and `#paper-type === 'Literature Review'` before reading the prompt and `#paper-outline`. Generate save must not write `paper_type` or clobber outline.
 
 ## Reference: reports
 
@@ -257,6 +259,8 @@ Do not paste long draft excerpts that quote the PDFs into git. Do not commit a P
 - Export missing `AI-generated draft. Requires human review…`
 - Continue shows a paper type other than **Literature Review** after “Working on …” (the generate save must not rewrite type)
 - Query sources stays disabled after “Working on …” while the paper has a saved research prompt (QA-2026-09-09-1)
+- Generate outline succeeds with no Grok key, returns empty, lists PDF filenames as the outline, or 404s because `generate_outline` is not served
+- Continue restores no outline after a successful Generate outline
 - References says “No retrieved sources”, lists PDF filenames as if they were citations, dumps publisher “Citation:” boilerplate, or omits cited works while other sections used `[S#]`
 
 Do not fail solely because the draft body has ⚠ uncited sentences. That is QUAL-2. Do fail if the References section is not an academic list of the cited uploads.
@@ -275,6 +279,8 @@ Do not fail solely because the draft body has ⚠ uncited sentences. That is QUA
 
 **Query sources waits for the saved prompt.** `#query-sources` is disabled until the paper row is loaded and the research prompt is non-empty. A 2026-09-09 dogfood at `7a5f17a` failed step 7: the runner re-opened Prompt, filled before hydrate, and clicked a disabled button for 60s while the DB still had the prompt (QA-2026-09-09-1). The Prompt tab shows “Loading saved paper…” or “Enter a research prompt to query sources.” Step 7 waits for “Working on …” and an enabled Query sources.
 
+**Outline then draft.** Generate outline is optional in the product and required in this playbook. It uses the same Grok key and retrieve allow-list as generate. The draft reads `user_papers.outline` from the row, not from a client-supplied system prompt. Continue must restore the outline textarea.
+
 ## Troubleshooting
 
 | What you see | What to do |
@@ -291,7 +297,9 @@ Do not fail solely because the draft body has ⚠ uncited sentences. That is QUA
 | Garbled author (`Ş., A.`) or `Citation:` boilerplate | Stale title-page jsonb without catalog `source`. Look up from DOI/PMID on Library, save, regenerate. |
 | Library has no Source citations heading | No `references` rows for this user, or `citation_text` migration not applied / PostgREST schema not reloaded. |
 | Index stuck on “Stored (not indexed)” | Storage or `upload_processor` down. **BLOCKED**. Bring Storage up; do not pass ingest. |
-| `functions serve` 404 on `lookup_citation` | Restart serve so the new function registers. |
+| `functions serve` 404 on `lookup_citation` or `generate_outline` | Restart serve so the new function registers. Apply `paper_outline` if the Outline card will not save. |
+| Generate outline stays disabled | Wait for “Working on …” and a non-empty research prompt, same as Query sources. |
+| Outline empty after Generate outline | FAIL if HTTP was 2xx. Check functions logs. |
 | `--resume` throws | Missing `.uat-state.json`, or step 1/3 notes lack email / `paper=` uuid. Start a new run. |
 | Expected 20 PDFs, found N | Restore `UAT/papers/`. **BLOCKED**. |
 | Vite `strictPort` failure | Something else is on 5173. Stop it; the runner hard-codes that origin. |

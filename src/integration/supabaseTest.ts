@@ -71,6 +71,18 @@ export async function ingestFunctionIsUp(): Promise<boolean> {
   }
 }
 
+export async function outlineFunctionIsUp(): Promise<boolean> {
+  try {
+    const response = await fetch(`${supabaseUrl()}/functions/v1/generate_outline`, {
+      method: 'OPTIONS',
+      headers: { apikey: anonKey() },
+    })
+    return response.ok || response.status === 204
+  } catch {
+    return false
+  }
+}
+
 export async function generateFunctionIsUp(): Promise<boolean> {
   try {
     const response = await fetch(`${supabaseUrl()}/functions/v1/generate_paper`, {

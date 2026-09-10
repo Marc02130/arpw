@@ -99,7 +99,7 @@ serve(async (req: Request) => {
 
     const { data: paper, error: paperError } = await userClient
       .from('user_papers')
-      .select('paper_id')
+      .select('paper_id, outline')
       .eq('paper_id', parsed.paperId)
       .maybeSingle()
     if (paperError) {
@@ -128,6 +128,7 @@ serve(async (req: Request) => {
         ),
       complete: (prompt) => completeWithGrok(apiKey, prompt),
       citationStyle: parsed.citationStyle ?? 'APA',
+      outline: typeof paper.outline === 'string' ? paper.outline : '',
       lookupCitedFiles: async (fileIds) => {
         const ids = uniqueFileIds(fileIds)
         if (ids.length === 0) return []

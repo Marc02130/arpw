@@ -18,6 +18,7 @@ import { uncitedSentences, type SentenceAttribution } from '../lib/attribution'
 import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { runFormatCheck } from '../lib/formatCheck'
 import { invokeGeneratePaper } from '../lib/generatePaperClient'
+import { invokeGenerateOutline } from '../lib/generateOutlineClient'
 import { PAPER_SECTIONS } from '../lib/generationTemplates'
 import {
   isVectorPinned,
@@ -50,8 +51,10 @@ import {
   GENERATE_BUTTON_ID,
   GENERATE_CITATION_STYLE_ID,
   GENERATE_OUTPUT_FORMAT_ID,
+  GENERATE_OUTLINE_BUTTON_ID,
   GENERATE_PAPER_TYPE_ID,
   GENERATE_PROMPT_ID,
+  PAPER_OUTLINE_ID,
   QUERY_SOURCES_BUTTON_ID,
 } from '../lib/keyboardFlows'
 
@@ -71,12 +74,14 @@ const PaperGenerationPage: React.FC = () => {
   const [paperError, setPaperError] = useState<string | null>(null)
   const [config, setConfig] = useState<PaperGenerationConfig>({
     prompt: '',
+    outline: '',
     sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion', 'Conclusion'],
     paper_type: PaperType.EMPIRICAL_STUDY,
     citation_style: CitationStyle.APA,
     output_format: OutputFormat.MARKDOWN,
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isOutlining, setIsOutlining] = useState(false)
   const [isRetrieving, setIsRetrieving] = useState(false)
   const [retrieveError, setRetrieveError] = useState<string | null>(null)
   const [generateError, setGenerateError] = useState<string | null>(null)
@@ -144,6 +149,7 @@ const PaperGenerationPage: React.FC = () => {
         setConfig((prev) => ({
           ...prev,
           prompt: loaded.research_prompt ?? '',
+          outline: loaded.outline ?? '',
           sections: paperSectionsOrDefault(loaded.sections),
           paper_type: loaded.paper_type,
           citation_style: loaded.citation_style,
@@ -193,6 +199,7 @@ const PaperGenerationPage: React.FC = () => {
         citation_style: next.citation_style,
         output_format: next.output_format,
         research_prompt: next.prompt,
+        outline: next.outline,
       })
     } catch (err) {
       setPaperError(err instanceof Error ? err.message : 'Could not save paper')
@@ -301,6 +308,37 @@ const PaperGenerationPage: React.FC = () => {
       setRetrieveError(error instanceof Error ? error.message : 'Retrieval failed')
     } finally {
       setIsRetrieving(false)
+    }
+  }
+
+  const handleGenerateOutline = async () => {
+    if (!paperId || !paper) {
+      setGenerateError('Start or continue a paper from the Dashboard first')
+      return
+    }
+    if (!config.prompt.trim()) {
+      setGenerateError('Enter a research prompt')
+      return
+    }
+    if (config.sections.length === 0) {
+      setGenerateError('Select at least one section')
+      return
+    }
+    setIsOutlining(true)
+    setGenerateError(null)
+    try {
+      await persistConfig(config, paper.title)
+      const result = await invokeGenerateOutline(supabase, {
+        paperId,
+        paperType: config.paper_type,
+        sections: config.sections,
+        researchPrompt: config.prompt,
+      })
+      setConfig((prev) => ({ ...prev, outline: result.outline }))
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : 'Outline generation failed')
+    } finally {
+      setIsOutlining(false)
     }
   }
 
@@ -456,6 +494,44 @@ const PaperGenerationPage: React.FC = () => {
                     : 'Loading saved prompt…'
                 }
               />
+            </div>
+
+            <div className="card">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                <label htmlFor={PAPER_OUTLINE_ID}>Outline</label>
+              </h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Optional. Generate a grounded skeleton, edit it, then generate the draft. Frozen
+                section templates do not change. Leave empty to generate without an outline.
+              </p>
+              <textarea
+                id={PAPER_OUTLINE_ID}
+                value={config.outline}
+                onChange={(e) => setConfig((prev) => ({ ...prev, outline: e.target.value }))}
+                onBlur={() => void persistConfig(configRef.current, paper?.title)}
+                disabled={!formHydrated}
+                className="input-field h-40 resize-none font-mono text-sm"
+                placeholder={
+                  formHydrated
+                    ? '## Introduction\n- …'
+                    : 'Loading saved outline…'
+                }
+              />
+              <button
+                type="button"
+                id={GENERATE_OUTLINE_BUTTON_ID}
+                onClick={() => void handleGenerateOutline()}
+                disabled={isOutlining || isGenerating || !config.prompt.trim() || !formHydrated}
+                aria-busy={isOutlining}
+                className="btn-secondary w-full py-2 mt-3"
+              >
+                {isOutlining ? 'Generating outline…' : 'Generate outline'}
+              </button>
+              {queryDisabledReason && (
+                <p className="text-sm text-gray-600 mt-2" role="status">
+                  {queryDisabledReason}
+                </p>
+              )}
             </div>
 
             <div className="card">

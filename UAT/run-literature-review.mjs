@@ -121,6 +121,18 @@ function parsePaperId(note) {
   return m ? m[1] : null
 }
 
+function outlineLooksGrounded(text) {
+  const chunk = String(text || '').trim()
+  if (chunk.length < 40) return 'outline too short'
+  if (!/##\s+(Abstract|Introduction|Literature Review)/i.test(chunk)) {
+    return 'outline missing ## section headings'
+  }
+  if (/\b1\.\s+\S+\.pdf\b/i.test(chunk) || /Works cited from the uploaded corpus/i.test(chunk)) {
+    return 'outline listed PDF filenames'
+  }
+  return null
+}
+
 function referencesLooksAcademic(text) {
   const chunk = String(text || '')
   const refs = chunk.match(/References[\s\S]{0,4000}/i)?.[0] || chunk
@@ -442,6 +454,32 @@ async function main() {
       await page.selectOption('#output-format', 'markdown')
       await page.fill('#research-prompt', PROMPT)
       await page.locator('#research-prompt').blur()
+      await page.waitForFunction(
+        () => {
+          const btn = document.querySelector('#generate-outline')
+          return btn instanceof HTMLButtonElement && !btn.disabled
+        },
+        null,
+        { timeout: 15000 }
+      )
+      const outlineResp = page.waitForResponse(
+        (r) => r.url().includes('generate_outline') || r.url().includes('/functions/v1/generate_outline'),
+        { timeout: 180000 }
+      ).catch(() => null)
+      await page.click('#generate-outline')
+      await page.waitForFunction(() => document.body.innerText.includes('Generating outline'), null, { timeout: 15000 }).catch(() => {})
+      const oresp = await outlineResp
+      await page.waitForFunction(() => !document.body.innerText.includes('Generating outline'), null, { timeout: 180000 })
+      const outlineVal = await page.inputValue('#paper-outline').catch(() => '')
+      if (/Save a Grok API key/i.test(await page.locator('body').innerText())) {
+        throw new Error('outline refused: missing Grok key')
+      }
+      if (!oresp || oresp.status() < 200 || oresp.status() >= 300) {
+        throw new Error('generate_outline HTTP ' + (oresp ? oresp.status() : 'none'))
+      }
+      const outlineErr = outlineLooksGrounded(outlineVal)
+      if (outlineErr) throw new Error(outlineErr)
+      state.notes.push('outline chars=' + outlineVal.trim().length)
       await page.click('#query-sources')
       await page.waitForTimeout(1000)
       await page.waitForFunction(() => !document.body.innerText.includes('Querying...'), null, { timeout: 120000 }).catch(() => {})
@@ -458,7 +496,7 @@ async function main() {
       if (!/literature · score|literature ·/i.test(body) && !/literature/i.test(body)) {
         throw new Error('passages missing literature role')
       }
-      record(6, 'PASS', `passages present; sample sids=${[...passageSids].slice(0, 5).join(',')}`)
+      record(6, 'PASS', `outline+passages; sample sids=${[...passageSids].slice(0, 5).join(',')}`)
     } catch (e) {
       await shot(page, 'step6-fail')
       record(6, 'FAIL', e.message)
@@ -780,7 +818,17 @@ async function main() {
         if (!promptVal) throw new Error('prompt empty after Continue')
       }
       if (typeVal !== 'Literature Review') throw new Error(`type=${typeVal}`)
-      record(13, 'PASS', 'title/type/prompt restored')
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('#paper-outline')
+          return el instanceof HTMLTextAreaElement && !el.disabled
+        },
+        null,
+        { timeout: 15000 }
+      )
+      const outlineVal = await page.inputValue('#paper-outline')
+      if (!/##\s+/.test(outlineVal)) throw new Error('outline empty after Continue')
+      record(13, 'PASS', 'title/type/prompt/outline restored')
     } catch (e) {
       if (e && e.message === '__blocked__') {
         /* already recorded BLOCKED */

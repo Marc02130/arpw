@@ -10,7 +10,7 @@ This is the document to use for planning work. The old `.docs/legacy/*.markdown`
 
 ### 1. One-line verdict
 
-You can sign up, confirm email, reset a password, upload files, ingest them into 384-d vectors (`grok-embedding-small` with a Grok key, else `hash-384`; fixture PDF chunks visible in under 2 minutes when Storage is up), retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved; one Grok section call aborts after 2 minutes), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. Login, upload, and generate are keyboard-reachable. You cannot use outline mode.
+You can sign up, confirm email, reset a password, upload files, ingest them into 384-d vectors (`grok-embedding-small` with a Grok key, else `hash-384`; fixture PDF chunks visible in under 2 minutes when Storage is up), retrieve passages, pin them, interrogate the corpus (thread saved as notes), generate a section-by-section draft that prefers pins (if a Grok key is saved; one Grok section call aborts after 2 minutes), save it to the library, and preview with citation/format/uncited warnings plus a human-review disclaimer. Login, upload, and generate are keyboard-reachable. Outline (GEN-8) is an optional Prompt-tab skeleton: generate from the corpus, edit, then generate the draft.
 
 ### 2. Summary
 
@@ -24,12 +24,12 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Retrieval | DONE | `match_reference_chunks` + Show passages; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384 |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
-| Outline mode | MISSING | No control |
+| Outline mode | DONE | Prompt tab Outline card; `generate_outline`; draft generate reads `user_papers.outline` |
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
 | Tests | PARTIAL | Unit `npm test` 27 files / 129 tests (2026-09-07). Integration `npm run test:integration` 13 files / 40 tests against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
-| Docs vs product | DONE | README matches generate/interrogate/pins/preview/export; outline still unbuilt |
+| Docs vs product | DONE | README matches generate/interrogate/pins/preview/export/outline |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
 ### 3. Requirement trace
@@ -71,7 +71,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
-| GEN-8 | MISSING | No outline button |
+| GEN-8 | DONE | `user_papers.outline`; Prompt Generate outline; `generate_paper` injects `outlineForSection` |
 | GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
 | GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
 | GEN-4 pins | DONE | Pins first (section or unscoped), then role-filtered vectors; examples rejected |

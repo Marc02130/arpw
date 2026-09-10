@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (30 files / 150); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (32 files / 159); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -36,6 +36,7 @@ Browser (Vite SPA)
   +--> Storage buckets: references, examples, papers
   +--> Edge Function upload_processor  (service role)
   +--> Edge Function generate_paper     (JWT retrieve + service_role key read)
+  +--> Edge Function generate_outline   (JWT retrieve + service_role key read)
   +--> Edge Function interrogate_corpus (JWT retrieve + service_role key read)
   +--> Edge Function lookup_citation    (DOI/PMID → preformatted cite)
 
@@ -180,9 +181,9 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then hybrid RRF. Dedup by `vector_id`.
 3. SQL RPC `match_reference_chunks(..., query_text)`: cosine pool ∪ English FTS on `chunk_tsv`, fused with reciprocal rank fusion (k=60). Matching stored `section` still ranks first. `filter_model` keeps hash and hosted vectors apart. k capped at 20. Interrogate passes the question as `query_text`.
 4. Light rerank is RRF over the hybrid lists (not a cross-encoder). Pins still prepend.
-5. Prompt Grok with the section template, research prompt, and retrieved passages. Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`). **References** uses `references.citation_text` when set (publisher/PubMed preformatted cite, fetched on upload via DOI content negotiation `text/x-bibliography`, editable on Library). Otherwise it looks up DOI/PMID on Crossref/PubMed. Users can paste the cite button text. Filenames are not citations.
+5. Prompt Grok with the section template, research prompt, retrieved passages, and (if set) the paper’s `outline` block for that section (`outlineForSection`). Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`). **Generate outline** is Edge `generate_outline`: one retrieve, Grok markdown headings, strip unknown `[S#]`, save `user_papers.outline`. **References** uses `references.citation_text` when set (publisher/PubMed preformatted cite, fetched on upload via DOI content negotiation `text/x-bibliography`, editable on Library). Otherwise it looks up DOI/PMID on Crossref/PubMed. Users can paste the cite button text. Filenames are not citations.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7).
-7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, optional style/format, `status=completed`). **Do not write `paper_type`.** Type is set at create and on the Prompt dropdown (`updatePaperConfig`). Generate must not clobber it with the SPA’s Empirical Study default. Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored. Library **Continue** reloads title, type, sections, and `research_prompt` from that row after the paper has loaded (`Working on …`). Query sources stays disabled until that hydrate finishes and the prompt is non-empty; the Prompt tab states why (`querySourcesDisabledReason`).
+7. Concatenate sections. Update the existing `user_papers` row (`content`, sections, optional style/format, `status=completed`). **Do not write `paper_type`.** Type is set at create and on the Prompt dropdown (`updatePaperConfig`). Generate must not clobber it with the SPA’s Empirical Study default. Replace `paper_references` with cited `file_id`s that exist in the user’s `"references"` table. Client-supplied source ids are ignored. Library **Continue** reloads title, type, sections, `research_prompt`, and `outline` from that row after the paper has loaded (`Working on …`). Query sources stays disabled until that hydrate finishes and the prompt is non-empty; the Prompt tab states why (`querySourcesDisabledReason`).
 8. QUAL-2 `runCitationCheck`: remaining `[S#]` must be in the attributed/retrieved set; cited file ids must be in `paper_references`. Shown on the Prompt draft and library preview. Not a cosine accuracy score.
 9. QUAL-3 `runFormatCheck`: each section stored on the paper (`user_papers.sections`) must appear as a `##` or `###` heading in `content`.
 10. QUAL-4 preview (`DraftPreview`): uncited sentences marked ⚠ inline; citation/format warnings listed; footer disclaimer. Not a cosine accuracy score.
@@ -208,7 +209,7 @@ Library reads `user_papers`, groups by title, shows latest version, **25 titles 
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,DraftPreview,AuthShell,AuthAlert,CitationField,PaginationBar}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/embed_text/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through vector `page`, prefer_section, and embedding_model filter), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/generate_outline/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/embed_text/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through paper `outline`), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 
