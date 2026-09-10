@@ -7,6 +7,7 @@ import {
   paperConfigIsHydrated,
   paperSectionsOrDefault,
   parsePaperId,
+  querySourcesDisabledReason,
   referenceCountFromEmbed,
   uniqueFileIds,
 } from './papers'
@@ -30,6 +31,27 @@ describe('papers helpers', () => {
     expect(uniqueFileIds(['a', 'a', '', 'b'])).toEqual(['a', 'b'])
     expect(referenceCountFromEmbed([{ count: 3 }])).toBe(3)
     expect(referenceCountFromEmbed([])).toBe(0)
+  })
+
+  it('should explain why Query sources stays disabled until hydrate (QA-2026-09-09-1)', () => {
+    expect(
+      querySourcesDisabledReason({
+        hydrated: false,
+        prompt: '',
+      })
+    ).toBe('Loading saved paper…')
+    expect(
+      querySourcesDisabledReason({
+        hydrated: true,
+        prompt: '',
+      })
+    ).toBe('Enter a research prompt to query sources.')
+    expect(
+      querySourcesDisabledReason({
+        hydrated: true,
+        prompt: '  gut-brain  ',
+      })
+    ).toBeNull()
   })
 
   it('should not persist generate config until the paper row is loaded', () => {

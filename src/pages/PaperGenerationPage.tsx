@@ -34,6 +34,7 @@ import {
   loadPaperCitedFiles,
   paperConfigIsHydrated,
   paperSectionsOrDefault,
+  querySourcesDisabledReason,
   updatePaperConfig,
   type CitedFile,
   type CorpusCounts,
@@ -97,6 +98,11 @@ const PaperGenerationPage: React.FC = () => {
   const paperRef = useRef(paper)
   paperRef.current = paper
   const formHydrated = !paperId || paperConfigIsHydrated(paper, paperId)
+  const queryDisabledReason = querySourcesDisabledReason({
+    hydrated: formHydrated,
+    prompt: config.prompt,
+    retrieving: isRetrieving,
+  })
   const bumpLists = () => setListTick((tick) => tick + 1)
   const uncited = uncitedSentences(attribution)
   const citationCheck = draft
@@ -442,8 +448,13 @@ const PaperGenerationPage: React.FC = () => {
                 value={config.prompt}
                 onChange={(e) => setConfig((prev) => ({ ...prev, prompt: e.target.value }))}
                 onBlur={() => void persistConfig(configRef.current, paper?.title)}
+                disabled={!formHydrated}
                 className="input-field h-32 resize-none"
-                placeholder="Describe your research topic, objectives, and any specific requirements..."
+                placeholder={
+                  formHydrated
+                    ? 'Describe your research topic, objectives, and any specific requirements...'
+                    : 'Loading saved prompt…'
+                }
               />
             </div>
 
@@ -550,6 +561,11 @@ const PaperGenerationPage: React.FC = () => {
             >
               {isRetrieving ? 'Querying...' : 'Query sources'}
             </button>
+            {queryDisabledReason && (
+              <p className="text-sm text-gray-600" role="status">
+                {queryDisabledReason}
+              </p>
+            )}
             {generateError && (
               <p className="text-sm text-red-700" role="alert">
                 {generateError}{' '}

@@ -126,7 +126,7 @@ Each item has an ID for the gap analysis.
 
 | ID | Requirement | Priority |
 |---|---|---|
-| LIB-1 | Library table: title, type, status, date, version. | P0 |
+| LIB-1 | Library table: title, type, status, date, version. Paginate 25 latest-title rows per page. Source citations paginate 25 per page. | P0 |
 | LIB-2 | Version history grouped by title; increment version on regenerate. | P1 |
 | LIB-3 | View, delete (confirm), regenerate. | P0 |
 | LIB-4 | Export Markdown and Word with disclaimer. | P1 |

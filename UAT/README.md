@@ -190,13 +190,13 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 3 | Dashboard: **Start paper** with the title and Literature Review | Redirect to `/generate?paper=…` |
 | 4 | Upload tab: **Literature** only. Upload all 20 PDFs as literature. Do not use Original research. | Each file listed; none rejected for type/size. Each literature row has a **Citation** field |
 | 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min). Open **Library**: **Source citations** | At least one file shows a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
-| 6 | Prompt tab: paste the research prompt. **Query sources** | Passages appear with `literature` (not primary). Section labels and `p.N` may show |
-| 7 | Pin 2–3 literature chunks to Literature Review or unscoped | Pinned list shows them first on the next Query sources |
+| 6 | Prompt tab: wait for “Working on …”, paste the research prompt. **Query sources** | Passages appear with `literature` (not primary). Section labels and `p.N` may show. Query sources is enabled once the prompt is non-empty |
+| 7 | Pin 2–3 literature chunks to Literature Review or unscoped. If you re-open Prompt, wait for “Working on …” and the saved prompt before Query sources | Pinned list shows them first on the next Query sources. Fail if Query sources stays disabled after the paper has loaded |
 | 8 | Interrogate: “What do these papers say about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent. HTTP 2xx. A missing key must refuse before you re-save |
 | 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Wait for Unpin on the thread. Prompt shows **Pinned passages**, not “No pins yet” while pins are loading |
 | 10 | Generate Paper | Draft saved; headings for selected sections; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer. Wall clock is not instant |
 | 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none). References is not “No retrieved sources” and does not dump `Citation:` boilerplate |
-| 12 | Library: **Source citations** still listed. Paper listed completed. View preview (cited sources show the cite field). Export Markdown and Word | Files download; both include the human-review disclaimer |
+| 12 | Library: **Your Papers** listed first (25 per page) with **Delete**. **Source citations** still listed (25 per page). Paper listed completed. View preview (cited sources show the cite field). Export Markdown and Word | Files download; both include the human-review disclaimer. Delete confirms and removes the paper |
 | 13 | Continue from library | Wait for “Working on …”, then Prompt restores title, **Literature Review**, and the research prompt |
 
 The runner also clears the Profile key between step 2 and step 8 and checks that Interrogate refuses without a key (`step 2b`). That is a QA extra, not a numbered playbook step. Re-save the fixture key before Ask.
@@ -222,6 +222,8 @@ node UAT/run-literature-review.mjs --resume
 Fail-fast on a bad key fixture: step 2 FAIL (or BLOCKED if missing), steps 8–13 BLOCKED, process exits before signup.
 
 Step 8 requires a 2xx from `interrogate_corpus` **and** at least one `[S#]` in the UI. A 500 with empty body is FAIL, not a skip.
+
+Step 7 waits for “Working on …” and a non-empty `#research-prompt` (or an enabled Query sources) before clicking Query sources. Do not fill the prompt before the paper row hydrates (QA-2026-09-09-1).
 
 Step 9 stays on the Interrogate thread, clicks Pin, waits for Unpin, then opens Prompt and waits until **Pinned passages** is visible and **No pins yet** / **Loading pins** are gone.
 
@@ -254,6 +256,7 @@ Do not paste long draft excerpts that quote the PDFs into git. Do not commit a P
 - Indexing never produces chunks (Storage/Edge down counts as **BLOCKED**, not a product fail)
 - Export missing `AI-generated draft. Requires human review…`
 - Continue shows a paper type other than **Literature Review** after “Working on …” (the generate save must not rewrite type)
+- Query sources stays disabled after “Working on …” while the paper has a saved research prompt (QA-2026-09-09-1)
 - References says “No retrieved sources”, lists PDF filenames as if they were citations, dumps publisher “Citation:” boilerplate, or omits cited works while other sections used `[S#]`
 
 Do not fail solely because the draft body has ⚠ uncited sentences. That is QUAL-2. Do fail if the References section is not an academic list of the cited uploads.
@@ -270,6 +273,8 @@ Do not fail solely because the draft body has ⚠ uncited sentences. That is QUA
 
 **Continue keeps Literature Review.** Opening Prompt before the paper row hydrated wrote the default Empirical Study. Generate save used to persist `paper_type` and could clobber Literature Review. Persist no-ops until hydrated; generate save omits `paper_type`. Step 13 waits for “Working on …” before reading the select.
 
+**Query sources waits for the saved prompt.** `#query-sources` is disabled until the paper row is loaded and the research prompt is non-empty. A 2026-09-09 dogfood at `7a5f17a` failed step 7: the runner re-opened Prompt, filled before hydrate, and clicked a disabled button for 60s while the DB still had the prompt (QA-2026-09-09-1). The Prompt tab shows “Loading saved paper…” or “Enter a research prompt to query sources.” Step 7 waits for “Working on …” and an enabled Query sources.
+
 ## Troubleshooting
 
 | What you see | What to do |
@@ -279,6 +284,8 @@ Do not fail solely because the draft body has ⚠ uncited sentences. That is QUA
 | Interrogate/generate HTTP 500, no `[S#]` | Usually a bad key or functions not serving current code. Check `functions serve` logs. Do not mark step 8 PASS. |
 | “No pins yet” on Prompt after a successful pin | Wait for the pin list; do not treat the loading empty state as FAIL. If it stays empty, you left the Interrogate thread too early. |
 | Continue shows Empirical Study | FAIL. Hydrate/persist bug or generate wrote `paper_type`. Confirm migrations and current SPA. |
+| Query sources disabled; “Loading saved paper…” | Wait for “Working on …”. Fail if it lasts past a few seconds. |
+| Query sources disabled; “Enter a research prompt to query sources.” | Saved prompt did not hydrate, or it is empty. Paste the playbook prompt, blur, then Query sources. If the DB row has `research_prompt` and the textarea stays blank, FAIL (QA-2026-09-09-1). |
 | References is “No retrieved sources” | `lookup_citation` / catalog path missing, or generate still retrieving for References. Restart `functions serve` with current code. |
 | References is a numbered list of `.pdf` names | FAIL. Stored `citation_text` was empty and the formatter fell back to filenames (that fallback is gone; empty cites must not be faked). Fill Source citations and regenerate. |
 | Garbled author (`Ş., A.`) or `Citation:` boilerplate | Stale title-page jsonb without catalog `source`. Look up from DOI/PMID on Library, save, regenerate. |

@@ -174,6 +174,20 @@ export const loadPaper = async (client: SupabaseClient, paperId: string): Promis
   return data as Paper
 }
 
+export const deletePaper = async (client: SupabaseClient, paperId: string): Promise<void> => {
+  const { data, error } = await client
+    .from('user_papers')
+    .delete()
+    .eq('paper_id', paperId)
+    .select('paper_id')
+  if (error) {
+    throw new Error(error.message)
+  }
+  if (!data || data.length === 0) {
+    throw new Error('Paper not found')
+  }
+}
+
 export const updatePaperConfig = async (
   client: SupabaseClient,
   paperId: string,
@@ -202,6 +216,18 @@ export const paperConfigIsHydrated = (
   paper: { paper_id: string } | null,
   paperId: string | null
 ): boolean => Boolean(paperId && paper && paper.paper_id === paperId)
+
+/** Why Query sources / Generate stay disabled. Null means the control may run. */
+export const querySourcesDisabledReason = (opts: {
+  hydrated: boolean
+  prompt: string
+  retrieving?: boolean
+}): string | null => {
+  if (opts.retrieving) return null
+  if (!opts.hydrated) return 'Loading saved paper…'
+  if (!opts.prompt.trim()) return 'Enter a research prompt to query sources.'
+  return null
+}
 
 export const nextVersionForTitle = (versions: number[]): number => {
   const max = versions.reduce((acc, version) => (version > acc ? version : acc), 0)

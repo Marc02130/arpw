@@ -102,7 +102,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 | ID | Status | Evidence |
 |---|---|---|
-| LIB-1 | DONE | Table UI lists `user_papers` |
+| LIB-1 | DONE | Table UI lists `user_papers`; 25 latest-title rows per page; source citations 25 per page |
 | LIB-2 | DONE | Groups by title in memory |
 | LIB-3 | DONE | View, delete (confirm), Continue, Regenerate (next version then `generate_paper`) |
 | LIB-4 | DONE | Markdown and Word export with checks block and `DRAFT_DISCLAIMER` |

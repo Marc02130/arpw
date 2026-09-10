@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Paper, PaperType, Status } from '../types'
 import { supabase } from '../supabaseClient'
-import { createDraftPaper, listPapers } from '../lib/papers'
+import { createDraftPaper, deletePaper, listPapers } from '../lib/papers'
 
 type Counts = {
   literature: number
@@ -23,6 +23,7 @@ const HomePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [newType, setNewType] = useState<PaperType>(PaperType.EMPIRICAL_STUDY)
 
@@ -62,6 +63,22 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     void load()
   }, [load])
+
+  const handleDeletePaper = async (paper: Paper) => {
+    if (!confirm('Are you sure you want to delete this paper? This action cannot be undone.')) {
+      return
+    }
+    setDeletingId(paper.paper_id)
+    setError(null)
+    try {
+      await deletePaper(supabase, paper.paper_id)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete paper')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const handleNewPaper = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -160,39 +177,37 @@ const HomePage: React.FC = () => {
             {papers.length === 0 ? (
               <p className="text-sm text-gray-500">No papers yet. Start one above.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
-                      <th className="px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {papers.map((paper) => (
-                      <tr key={paper.paper_id}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{paper.title}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{paper.paper_type}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{statusLabel(paper.status)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {new Date(paper.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            to={`/generate?paper=${paper.paper_id}`}
-                            className="text-sm font-medium text-primary-600 hover:text-primary-500"
-                          >
-                            Continue
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ul className="divide-y divide-gray-200">
+                {papers.map((paper) => (
+                  <li key={paper.paper_id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{paper.title}</p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {paper.paper_type} · {statusLabel(paper.status)} · {new Date(paper.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                        <Link
+                          to={`/generate?paper=${paper.paper_id}`}
+                          className="btn-primary text-center"
+                        >
+                          Continue
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeletePaper(paper)}
+                          disabled={deletingId === paper.paper_id}
+                          aria-label={`Delete ${paper.title}`}
+                          className="btn-danger"
+                        >
+                          {deletingId === paper.paper_id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </>

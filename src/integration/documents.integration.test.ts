@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { hashEmbedding } from '../../supabase/functions/upload_processor/ingest'
+import { deleteOwnedDocument } from '../lib/documentStore'
+import { DocumentType } from '../types'
 import {
   adminClient,
   assertSupabaseUp,
@@ -45,14 +47,7 @@ describe('document metadata integration', () => {
       expect(list?.uploaded_at).toBeTruthy()
       expect(list?.source_role).toBe('literature')
 
-      const { error: vecDel } = await user.client.from('reference_vectors').delete().eq('file_id', fileId)
-      expect(vecDel).toBeNull()
-      const { error: rowDel } = await user.client
-        .from('references')
-        .delete()
-        .eq('file_id', fileId)
-        .eq('user_id', user.id)
-      expect(rowDel).toBeNull()
+      await deleteOwnedDocument(user.client, user.id, DocumentType.REFERENCE, fileId)
 
       const { data: gone } = await user.client.from('references').select('file_id').eq('file_id', fileId)
       expect(gone).toEqual([])

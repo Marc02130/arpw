@@ -12,6 +12,7 @@ import {
 } from '../lib/exportPaper'
 import {
   createRegenerateDraft,
+  deletePaper,
   loadPaperCitedFiles,
   loadSourceCitations,
   paperSectionsOrDefault,
@@ -19,12 +20,21 @@ import {
   type CitedFile,
   type SourceCitation,
 } from '../lib/papers'
+import {
+  LIBRARY_PAGE_SIZE,
+  clampPage,
+  groupPapersByTitle,
+  pageCount,
+  slicePage,
+} from '../lib/libraryPage'
 import CitationField from '../components/CitationField'
+import PaginationBar from '../components/PaginationBar'
 import { uncitedSentences } from '../lib/attribution'
 import { citationInputsFromAttribution, runCitationCheck } from '../lib/citationCheck'
 import { runFormatCheck } from '../lib/formatCheck'
 import DraftPreview from '../components/DraftPreview'
-import { Paper, LibraryPaper, VersionHistory } from '../types'
+import { DocumentType, Paper, LibraryPaper, VersionHistory } from '../types'
+import { deleteOwnedDocument } from '../lib/documentStore'
 
 const LibraryPage: React.FC = () => {
   const navigate = useNavigate()
@@ -37,13 +47,16 @@ const LibraryPage: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [sources, setSources] = useState<SourceCitation[]>([])
+  const [papersPage, setPapersPage] = useState(1)
+  const [sourcesPage, setSourcesPage] = useState(1)
+  const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchPapers()
   }, [])
 
-  const fetchPapers = async () => {
-    setLoading(true)
+  const fetchPapers = async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -68,23 +81,9 @@ const LibraryPage: React.FC = () => {
         return
       }
 
-      // Group papers by title for version history
-      const groupedPapers = data.reduce((acc: { [key: string]: Paper[] }, paper) => {
-        if (!acc[paper.title]) {
-          acc[paper.title] = []
-        }
-        acc[paper.title].push(paper)
-        return acc
-      }, {})
-
-      const versionHistory: VersionHistory[] = Object.entries(groupedPapers).map(([title, versions]) => ({
-        title,
-        versions: versions.sort((a, b) => b.version - a.version)
-      }))
-
+      const versionHistory = groupPapersByTitle((data ?? []) as Paper[])
       setVersionHistory(versionHistory)
 
-      // Create library papers (latest version of each title)
       const libraryPapers: LibraryPaper[] = versionHistory.map(({ versions }) => {
         const latestVersion = versions[0]
         return {
@@ -109,23 +108,37 @@ const LibraryPage: React.FC = () => {
       return
     }
 
+    setBusyId(paperId)
+    setActionError(null)
     try {
-      const { error } = await supabase
-        .from('user_papers')
-        .delete()
-        .eq('paper_id', paperId)
-
-      if (error) {
-        console.error('Error deleting paper:', error)
-        alert('Error deleting paper')
-        return
+      await deletePaper(supabase, paperId)
+      if (selectedPaper?.paper_id === paperId) {
+        setSelectedPaper(null)
+        setSelectedCitedFiles([])
       }
-
-      // Refresh the papers list
-      fetchPapers()
+      await fetchPapers({ quiet: true })
     } catch (error) {
-      console.error('Error deleting paper:', error)
-      alert('Error deleting paper')
+      setActionError(error instanceof Error ? error.message : 'Could not delete paper')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleDeleteSource = async (fileId: string, fileName: string) => {
+    if (!confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
+      return
+    }
+    setDeletingSourceId(fileId)
+    setActionError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+      await deleteOwnedDocument(supabase, user.id, DocumentType.REFERENCE, fileId)
+      setSources((prev) => prev.filter((row) => row.file_id !== fileId))
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not delete source')
+    } finally {
+      setDeletingSourceId(null)
     }
   }
 
@@ -168,7 +181,7 @@ const LibraryPage: React.FC = () => {
         citationStyle: next.citation_style,
         outputFormat: next.output_format,
       })
-      await fetchPapers()
+      await fetchPapers({ quiet: true })
     } catch (error) {
       if (createdId) {
         await supabase.from('user_papers').delete().eq('paper_id', createdId)
@@ -217,6 +230,13 @@ const LibraryPage: React.FC = () => {
     })
   }
 
+  const papersPageSafe = clampPage(papersPage, pageCount(papers.length))
+  const papersOnPage = slicePage(papers, papersPageSafe)
+  const titlesOnPage = new Set(papersOnPage.map((row) => row.paper.title))
+  const versionsOnPage = versionHistory.filter((row) => titlesOnPage.has(row.title))
+  const sourcesPageSafe = clampPage(sourcesPage, pageCount(sources.length))
+  const sourcesOnPage = slicePage(sources, sourcesPageSafe)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -244,37 +264,8 @@ const LibraryPage: React.FC = () => {
         )}
       </div>
 
-      {sources.length > 0 && (
-        <div className="card mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Source citations</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Academic papers include a ready-to-paste citation (PubMed cite button, journal site, DOI).
-            We fetch it on upload when a DOI is present. You can edit or add it here.
-          </p>
-          <ul className="space-y-5">
-            {sources.map((source) => (
-              <li key={source.file_id} className="border-t border-gray-100 pt-4 first:border-t-0 first:pt-0">
-                <p className="text-sm font-medium text-gray-900 mb-2">{source.file_name}</p>
-                <CitationField
-                  fileId={source.file_id}
-                  fileName={source.file_name}
-                  citationText={source.citation_text}
-                  onSaved={(citationText) =>
-                    setSources((prev) =>
-                      prev.map((row) =>
-                        row.file_id === source.file_id ? { ...row, citation_text: citationText } : row
-                      )
-                    )
-                  }
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {papers.length === 0 ? (
-        <div className="card text-center py-12">
+        <div className="card text-center py-12 mb-8">
           <div className="text-gray-400 text-6xl mb-4">📚</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No papers yet</h3>
           <p className="text-gray-500 mb-4">
@@ -285,12 +276,12 @@ const LibraryPage: React.FC = () => {
           </a>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Papers List */}
+        <div className="space-y-6 mb-8">
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-900">Your Papers</h2>
               <button
+                type="button"
                 onClick={() => setShowVersions(!showVersions)}
                 className="btn-secondary text-sm"
               >
@@ -298,118 +289,82 @@ const LibraryPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Sources
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {papers.map(({ paper, referenceCount }) => (
-                    <tr key={paper.paper_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {paper.title}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          v{paper.version} • {paper.citation_style}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {paper.paper_type}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          paper.status === 'completed' 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {paper.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {referenceCount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(paper.created_at)}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium">
-                        <div className="flex flex-wrap gap-x-3 gap-y-1">
-                          <button
-                            type="button"
-                            onClick={() => void openPreview(paper)}
-                            className="text-primary-600 hover:text-primary-900"
-                          >
-                            View
-                          </button>
-                          <Link
-                            to={`/generate?paper=${paper.paper_id}`}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Continue
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => void handleRegenerate(paper)}
-                            disabled={busyId === paper.paper_id}
-                            className="text-primary-600 hover:text-primary-900 disabled:text-gray-400"
-                          >
-                            {busyId === paper.paper_id ? 'Regenerating…' : 'Regenerate'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleExport(paper, 'markdown')}
-                            className="text-gray-700 hover:text-gray-900"
-                          >
-                            Markdown
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleExport(paper, 'word')}
-                            className="text-gray-700 hover:text-gray-900"
-                          >
-                            Word
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePaper(paper.paper_id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="divide-y divide-gray-200">
+              {papersOnPage.map(({ paper, referenceCount }) => (
+                <li key={paper.paper_id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{paper.title}</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        v{paper.version} · {paper.paper_type} · {paper.status} · {referenceCount} sources · {formatDate(paper.created_at)}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-medium">
+                        <button
+                          type="button"
+                          onClick={() => void openPreview(paper)}
+                          className="text-primary-600 hover:text-primary-900"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleRegenerate(paper)}
+                          disabled={busyId === paper.paper_id}
+                          className="text-primary-600 hover:text-primary-900 disabled:text-gray-400"
+                        >
+                          {busyId === paper.paper_id ? 'Regenerating…' : 'Regenerate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleExport(paper, 'markdown')}
+                          className="text-gray-700 hover:text-gray-900"
+                        >
+                          Markdown
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleExport(paper, 'word')}
+                          className="text-gray-700 hover:text-gray-900"
+                        >
+                          Word
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                      <Link
+                        to={`/generate?paper=${paper.paper_id}`}
+                        className="btn-primary text-center"
+                      >
+                        Continue
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeletePaper(paper.paper_id)}
+                        disabled={busyId === paper.paper_id}
+                        aria-label={`Delete ${paper.title}`}
+                        className="btn-danger"
+                      >
+                        {busyId === paper.paper_id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <PaginationBar
+              label="Your papers pagination"
+              page={papersPageSafe}
+              total={papers.length}
+              pageSize={LIBRARY_PAGE_SIZE}
+              onPage={setPapersPage}
+            />
           </div>
 
-          {/* Version History */}
           {showVersions && (
             <div className="card">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Version History</h2>
               <div className="space-y-4">
-                {versionHistory.map(({ title, versions }) => (
+                {versionsOnPage.map(({ title, versions }) => (
                   <div key={title} className="border border-gray-200 rounded-lg p-4">
                     <h3 className="font-medium text-gray-900 mb-2">{title}</h3>
                     <div className="space-y-2">
@@ -438,10 +393,13 @@ const LibraryPage: React.FC = () => {
                               View
                             </button>
                             <button
-                              onClick={() => handleDeletePaper(version.paper_id)}
-                              className="text-xs text-red-600 hover:text-red-900"
+                              type="button"
+                              onClick={() => void handleDeletePaper(version.paper_id)}
+                              disabled={busyId === version.paper_id}
+                              aria-label={`Delete ${title} v${version.version}`}
+                              className="btn-danger text-xs py-1 px-2"
                             >
-                              Delete
+                              {busyId === version.paper_id ? 'Deleting…' : 'Delete'}
                             </button>
                           </div>
                         </div>
@@ -452,6 +410,53 @@ const LibraryPage: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {sources.length > 0 && (
+        <div className="card mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Source citations</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Academic papers include a ready-to-paste citation (PubMed cite button, journal site, DOI).
+            We fetch it on upload when a DOI is present. You can edit or add it here.
+          </p>
+          <ul className="space-y-5">
+            {sourcesOnPage.map((source) => (
+              <li key={source.file_id} className="border-t border-gray-100 pt-4 first:border-t-0 first:pt-0">
+                <div className="flex items-start justify-between gap-4 mb-2">
+                  <p className="text-sm font-medium text-gray-900">{source.file_name}</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteSource(source.file_id, source.file_name)}
+                    disabled={deletingSourceId === source.file_id}
+                    aria-label={`Delete ${source.file_name}`}
+                    className="btn-danger shrink-0 text-xs py-1 px-3"
+                  >
+                    {deletingSourceId === source.file_id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+                <CitationField
+                  fileId={source.file_id}
+                  fileName={source.file_name}
+                  citationText={source.citation_text}
+                  onSaved={(citationText) =>
+                    setSources((prev) =>
+                      prev.map((row) =>
+                        row.file_id === source.file_id ? { ...row, citation_text: citationText } : row
+                      )
+                    )
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+          <PaginationBar
+            label="Source citations pagination"
+            page={sourcesPageSafe}
+            total={sources.length}
+            pageSize={LIBRARY_PAGE_SIZE}
+            onPage={setSourcesPage}
+          />
         </div>
       )}
 
@@ -534,6 +539,16 @@ const LibraryPage: React.FC = () => {
                 {busyId === selectedPaper.paper_id ? 'Regenerating…' : 'Regenerate'}
               </button>
               <button
+                type="button"
+                onClick={() => void handleDeletePaper(selectedPaper.paper_id)}
+                disabled={busyId === selectedPaper.paper_id}
+                aria-label={`Delete ${selectedPaper.title}`}
+                className="btn-danger"
+              >
+                {busyId === selectedPaper.paper_id ? 'Deleting…' : 'Delete'}
+              </button>
+              <button
+                type="button"
                 onClick={closePreview}
                 className="btn-secondary"
               >

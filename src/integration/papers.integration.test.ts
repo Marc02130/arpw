@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { hashEmbedding } from '../../supabase/functions/upload_processor/ingest'
 import { PaperType, Status } from '../types'
 import {
   createDraftPaper,
   createRegenerateDraft,
+  deletePaper,
   listPapers,
   loadPaper,
   saveGeneratedDraft,
   updatePaperConfig,
 } from '../lib/papers'
+import { saveInterrogationExchange } from '../lib/interrogationNotes'
+import { pinPassage } from '../lib/pins'
 import { assertSupabaseUp, createConfirmedUser, deleteUser } from './supabaseTest'
 
 describe('papers integration (dashboard workspace)', () => {
@@ -180,6 +184,83 @@ describe('papers integration (dashboard workspace)', () => {
     } finally {
       await owner.client.from('user_papers').delete().eq('user_id', owner.id)
       await deleteUser(owner.id)
+    }
+  })
+
+  it('should delete a paper and cascade pins and notes (LIB-3)', async () => {
+    const owner = await createConfirmedUser('paper-del')
+    const other = await createConfirmedUser('paper-del-other')
+    try {
+      const paper = await createDraftPaper(owner.client, owner.id, {
+        title: 'Delete me',
+        paperType: PaperType.LITERATURE_REVIEW,
+      })
+      const otherPaper = await createDraftPaper(other.client, other.id, {
+        title: 'Keep me',
+        paperType: PaperType.EMPIRICAL_STUDY,
+      })
+      const fileId = randomUUID()
+      expect(
+        (
+          await owner.client.from('references').insert({
+            file_id: fileId,
+            user_id: owner.id,
+            document_type: 'reference',
+            file_name: 'methods.txt',
+            file_size: 20,
+            source_role: 'literature',
+          })
+        ).error
+      ).toBeNull()
+      const { data: vector, error: vecError } = await owner.client
+        .from('reference_vectors')
+        .insert({
+          file_id: fileId,
+          vector: hashEmbedding('omega-3 cognition'),
+          chunk_text: 'omega-3 cognition',
+          chunk_index: 0,
+          section: 'Discussion',
+          embedding_model: 'hash-384',
+        })
+        .select('vector_id')
+        .single()
+      expect(vecError).toBeNull()
+      await pinPassage(owner.client, owner.id, {
+        paperId: paper.paper_id,
+        fileId,
+        vectorId: vector!.vector_id as string,
+        targetSection: 'Literature Review',
+      })
+      await saveInterrogationExchange(owner.client, owner.id, paper.paper_id, {
+        question: 'What do these papers say about omega-3?',
+        answer: 'They discuss cognition [S1].',
+        filterRole: 'literature',
+        passages: [],
+      })
+
+      await deletePaper(owner.client, paper.paper_id)
+
+      expect(await listPapers(owner.client, owner.id)).toEqual([])
+      const { data: pins } = await owner.client
+        .from('pinned_passages')
+        .select('pin_id')
+        .eq('paper_id', paper.paper_id)
+      expect(pins).toEqual([])
+      const { data: turns } = await owner.client
+        .from('interrogation_turns')
+        .select('turn_id')
+        .eq('paper_id', paper.paper_id)
+      expect(turns).toEqual([])
+
+      await expect(deletePaper(other.client, paper.paper_id)).rejects.toThrow(/not found/i)
+      const otherListed = await listPapers(other.client, other.id)
+      expect(otherListed.map((row) => row.paper_id)).toContain(otherPaper.paper_id)
+    } finally {
+      await owner.client.from('user_papers').delete().eq('user_id', owner.id)
+      await owner.client.from('references').delete().eq('user_id', owner.id)
+      await other.client.from('user_papers').delete().eq('user_id', other.id)
+      await deleteUser(owner.id)
+      await deleteUser(other.id)
     }
   })
 })

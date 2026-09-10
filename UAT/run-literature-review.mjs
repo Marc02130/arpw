@@ -467,10 +467,31 @@ async function main() {
     // Step 7: Pin 2–3 literature chunks
     try {
       await page.goto(`${BASE}/generate?paper=${paperId}`)
-      // Re-query if needed so Pin buttons exist
-      const promptVal = await page.inputValue('#research-prompt').catch(() => '')
-      if (!promptVal) await page.fill('#research-prompt', PROMPT)
-      await page.locator('#research-prompt').blur().catch(() => {})
+      await page.getByText(/Working on/i).waitFor({ timeout: 15000 })
+      await page.waitForFunction(
+        () => {
+          const prompt = document.querySelector('#research-prompt')
+          const btn = document.querySelector('#query-sources')
+          if (!(prompt instanceof HTMLTextAreaElement) || !(btn instanceof HTMLButtonElement)) return false
+          if (prompt.disabled) return false
+          return prompt.value.trim().length > 0 || !btn.disabled
+        },
+        null,
+        { timeout: 15000 }
+      )
+      let promptVal = await page.inputValue('#research-prompt').catch(() => '')
+      if (!promptVal.trim()) {
+        await page.fill('#research-prompt', PROMPT)
+        await page.locator('#research-prompt').blur().catch(() => {})
+      }
+      await page.waitForFunction(
+        () => {
+          const btn = document.querySelector('#query-sources')
+          return btn instanceof HTMLButtonElement && !btn.disabled
+        },
+        null,
+        { timeout: 15000 }
+      )
       if ((await page.getByRole('button', { name: 'Pin' }).count()) < 2) {
         await page.click('#query-sources')
         await page.waitForTimeout(1000)

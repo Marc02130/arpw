@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see twenty-four files pass, currently 106 tests:
+You should see thirty files pass, currently 150 tests:
 
 ```
-Test Files  24 passed (24)
-      Tests  106 passed (106)
+Test Files  30 passed (30)
+      Tests  150 passed (150)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -247,13 +247,15 @@ Files live on the **Upload** tab (`/generate/upload`). Interrogate the corpus on
 
 ### Verification
 
-Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper; Continue reopens Prompt with the saved title, paper type, sections, and research prompt. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
+Indexed references + a prompt that overlaps their text should list passages with a score. Methods on an Empirical Study prefers `primary` files, then literature. A literature-review paper uses literature only. Empty prompt shows “Enter a research prompt to query sources.” While the paper row is loading, Query sources stays disabled and the page says “Loading saved paper…”. A generate with no key must not call xAI. After a successful generate, `/library` shows the paper; Continue reopens Prompt with the saved title, paper type, sections, and research prompt. Pipeline: [`.docs/TECHNICAL_SPECIFICATION.md`](.docs/TECHNICAL_SPECIFICATION.md) §7.
 
 ### Troubleshooting
 
 | What you see | What to do |
 |---|---|
 | “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
+| Query sources disabled; “Loading saved paper…” | The paper row is still loading. Wait for “Working on …”. |
+| Query sources disabled; “Enter a research prompt to query sources.” | Paste or restore the research prompt. Continue should fill it from the saved paper. |
 | Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
 | Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
 | “Grok request timed out after 2 minutes” | That section’s Grok call exceeded NFR-5. Retrieval already finished; retry, generate fewer sections, or check xAI. |
@@ -313,7 +315,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title. **Source citations** are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count. Delete hits the table after a confirm dialog.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title, 25 titles per page. Each paper has **Continue** and **Delete** (confirm; pins and interrogation notes go with the paper). **Source citations** (below, 25 per page) have the same **Delete** for an uploaded file (vectors, metadata, Storage object). Dashboard papers have Continue and Delete. **Source citations** (below the paper list, 25 per page) are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -352,7 +354,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  24 passed (24)` and `Tests  106 passed (106)` (run 2026-09-07).
+- Unit: `Test Files  30 passed (30)` and `Tests  150 passed (150)` (run 2026-09-08).
 - Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not. Live Grok dogfood is the [literature-review UAT](UAT/README.md).

@@ -48,5 +48,16 @@ describe('keyboard primary flows (NFR-6)', () => {
     const layout = readSrc('../components/Layout.tsx')
     expect(layout).toContain('Skip to main content')
     expect(layout).toContain(`id={MAIN_CONTENT_ID}`)
+
+    const library = readSrc('../pages/LibraryPage.tsx')
+    expect(library).toContain('btn-danger')
+    expect(library).toContain('aria-label={`Delete ${paper.title}`}')
+    expect(library).toContain('aria-label={`Delete ${source.file_name}`}')
+    expect(library).toContain('btn-primary')
+
+    const dashboard = readSrc('../pages/HomePage.tsx')
+    expect(dashboard).toContain('btn-danger')
+    expect(dashboard).toContain('btn-primary')
+    expect(dashboard).toContain('aria-label={`Delete ${paper.title}`}')
   })
 })

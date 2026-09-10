@@ -32,6 +32,8 @@ Manual path: drive `http://127.0.0.1:5173` as a throwaway user (`uat-litrev-<dat
 
 `UAT/.uat-grok-key` and `GROK_API_KEY` must contain a value that starts with `xai-`. Never paste the secret into chat, reports, or git. If a saved report failed on HTTP 500 / last4 `.env`, replace the fixture and `--resume` — do not re-upload the 20 PDFs.
 
+Wait for “Working on …” before Query sources. A disabled Query sources after the paper has loaded, while `research_prompt` is saved, is FAIL (QA-2026-09-09-1).
+
 ## Output
 
 Write a short report under `UAT/reports/` using the template in `UAT/README.md`. Do not commit PDFs, `.html` dumps, `.uat-grok-key`, exported drafts, or long quoted draft text.

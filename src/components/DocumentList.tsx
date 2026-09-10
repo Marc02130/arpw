@@ -2,9 +2,9 @@ import React, { Fragment, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { DocumentType } from '../types'
 import {
+  deleteOwnedDocument,
   documentStore,
   indexStatusLabel,
-  storageObjectKey,
   vectorCountFromEmbed,
 } from '../lib/documentStore'
 import { fileTypeIcon, formatFileSize, formatUploadedAt } from '../lib/formatFile'
@@ -154,32 +154,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
         throw new Error('User not authenticated')
       }
 
-      const store = documentStore(documentType)
-
-      const { error: vectorError } = await supabase
-        .from(store.vectorTable)
-        .delete()
-        .eq('file_id', fileId)
-      if (vectorError) {
-        console.warn('Vector deletion error:', vectorError)
-      }
-
-      const { error: dbError } = await supabase
-        .from(store.table)
-        .delete()
-        .eq('file_id', fileId)
-        .eq('user_id', user.id)
-
-      if (dbError) {
-        throw new Error(dbError.message)
-      }
-
-      const { error: storageError } = await supabase.storage
-        .from(store.bucket)
-        .remove([storageObjectKey(user.id, fileId)])
-      if (storageError) {
-        console.warn('Storage deletion error:', storageError)
-      }
+      await deleteOwnedDocument(supabase, user.id, documentType, fileId)
 
       // Remove from local state
       setDocuments(prev => prev.filter(doc => doc.file_id !== fileId))
