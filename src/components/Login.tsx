@@ -104,6 +104,14 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
+          <img
+            src="/arpw-icon.png"
+            alt=""
+            width={56}
+            height={56}
+            className="mx-auto h-14 w-14"
+            aria-hidden="true"
+          />
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             {isSignUp ? 'Create your account' : 'Sign in to your account'}
           </h2>
