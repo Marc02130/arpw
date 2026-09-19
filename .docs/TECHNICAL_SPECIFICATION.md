@@ -20,7 +20,7 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (33 files / 182); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit inventory: 33 files / 183 tests (current baseline has one synthetic-PDF `bad XRef entry` failure); `npm run test:integration`: 13 files / 46 tests against local Auth/REST/RLS plus conditional Storage/Edge paths. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 

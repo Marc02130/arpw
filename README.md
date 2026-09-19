@@ -96,14 +96,14 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see 33 files pass, currently 182 tests:
+The suite currently discovers 33 files and 183 tests. On 2026-09-19, this checkout reported one existing fixture failure:
 
 ```
-Test Files  33 passed (33)
-      Tests  182 passed (182)
+Test Files  1 failed | 32 passed (33)
+     Tests  1 failed | 182 passed (183)
 ```
 
-If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
+The failure is `nfr7Fixture.test.ts` → “should extract the probe token from the fixture PDF” (`bad XRef entry` from `pdf-parse`). The other four fixture checks pass. Do not report the unit suite as green until the synthetic PDF is accepted by the parser. If another file under `src/lib/` fails, fix that helper before touching the live API.
 
 ### Step 3 (optional): Run integration against local Auth
 
@@ -113,7 +113,7 @@ If Docker and `supabase start` are already up from the dashboard tutorial:
 npm run test:integration
 ```
 
-You should see twelve files pass, currently 36 tests, when local API, Storage, and Edge functions are up. Live Storage object isolation and fixture-PDF ingest skip if those services are down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
+The integration config currently discovers 13 files and 46 tests. It requires the local API; live Storage object isolation and fixture-PDF ingest skip if Storage or the relevant Edge function is down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
 
 ### What you built
 
@@ -373,7 +373,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  33 passed (33)` and `Tests  182 passed (182)` (including `chunkRoles.test.ts`).
+- Unit inventory: 33 files / 183 tests. Current baseline: 32 files and 182 tests pass; `nfr7Fixture.test.ts` has one `pdf-parse` `bad XRef entry` failure.
 - Integration: live Auth/REST/RLS/Storage/ingest/pins/retrieval against local API. Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down. Retrieval includes the academic evidence-vs-bibliography filter when `chunk_role` is migrated.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not. Live Grok dogfood is the [literature-review UAT](UAT/README.md).

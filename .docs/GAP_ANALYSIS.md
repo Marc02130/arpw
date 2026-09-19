@@ -28,7 +28,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 33 files / 182 tests. Integration `npm run test:integration` against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
+| Tests | PARTIAL | Unit inventory is 33 files / 183 tests; current run passes 32 files / 182 tests and fails the synthetic-PDF extraction check with `bad XRef entry`. Integration inventory is 13 files / 46 tests and needs the local API; Storage/Edge cases are conditional. Live Grok completion and live hosted embeddings are not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export/outline |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
