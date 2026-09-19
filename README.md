@@ -96,11 +96,11 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see thirty-two files pass, currently 159 tests:
+You should see 33 files pass, currently 182 tests:
 
 ```
-Test Files  32 passed (32)
-      Tests  159 passed (159)
+Test Files  33 passed (33)
+      Tests  182 passed (182)
 ```
 
 If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
@@ -241,7 +241,7 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
 3. Optional: click **Generate outline**, then edit the markdown skeleton. Leave it empty to generate without an outline. Frozen section templates do not change.
 4. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
-5. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. If an outline is saved on the paper, each section prompt includes that section’s bullets. If a section still has uncited sentences, generate runs one repair pass (cite from the retrieved set or drop the sentence). Remaining ⚠ are honest leftovers. **References** looks up each cited file’s DOI or PMID on Crossref/PubMed and formats APA, MLA, or Chicago from that record (the PubMed “cite” button data), not from the PDF filename. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
+5. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. If an outline is saved on the paper, each section prompt includes that section’s bullets. If a section still has uncited sentences, generate runs one repair pass (cite from the retrieved set or drop the sentence). Remaining ⚠ are honest leftovers. **References** prefers each cited file’s stored publisher/PubMed citation text; if it is missing, generate looks up DOI/PMID catalog data and formats APA, MLA, or Chicago. It does not cite the PDF filename. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
 6. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 7. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores title, paper type, sections, the research prompt, and the outline. Sources is the number of cited files.
 
@@ -428,7 +428,7 @@ The same as [How to run tests](#how-to-run-tests). Name tests `it('should …')`
 | `VITE_SUPABASE_ANON_KEY` | anon key from `supabase status` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Local demo service_role (`.env.example`). SPA must not use this. Integration tests use it to confirm users. |
 
-Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (unit), `npm run test:integration` (local Auth/REST/Postgres; Storage/ingest not included while Storage is down).
+Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (unit), `npm run test:integration` (local Auth/REST/Postgres plus conditional Storage/Edge cases; unavailable services cause those cases to skip).
 
 ### Routes (`src/App.tsx`)
 
@@ -671,6 +671,8 @@ src/
 ├── integration/           # *.integration.test.ts (npm run test:integration)
 ├── pages/
 │   ├── DashboardPage.tsx
+│   ├── HomePage.tsx
+│   ├── PaperGenerationPage.tsx
 │   └── LibraryPage.tsx
 ├── types.ts
 ├── supabaseClient.ts
@@ -680,7 +682,7 @@ src/
 vitest.integration.config.ts
 ```
 
-`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata).
+`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/` (init through vector `chunk_role`).
 
 ## Specs
 

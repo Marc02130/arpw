@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-07 (interrogation slices 1–5, QUAL-1–5, library export, NFR-4–7) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-19 (generation slices 1–5, outline slices 1–3, interrogation slices 1–6, QUAL-1–5, library export, NFR-4–7) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
 This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
@@ -64,9 +64,9 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 
 | ID | Status | Evidence |
 |---|---|---|
-| GEN-1 | DONE (UI only) | Checkboxes in `PaperGenerationPage.tsx` |
+| GEN-1 | DONE | Research prompt and section checkboxes in `PaperGenerationPage.tsx`; prompt is passed to outline, retrieval, and generation |
 | GEN-2 | DONE | `PaperType` select; frozen templates in `generationTemplates.ts`; worker uses the same module |
-| GEN-3 | PARTIAL (UI) | APA/MLA/Chicago select; unused |
+| GEN-3 | DONE | APA/MLA/Chicago select is persisted and passed to catalog lookup/reference formatting |
 | GEN-4 | DONE | `match_reference_chunks`: prefer stored `section`, cosine ∪ FTS fused with RRF, filter by `embedding_model`. Hosted `grok-embedding-small` when a Grok key is saved, else hash-384 |
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
@@ -129,7 +129,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 | Vectors deleted after 24h | Would destroy the corpus; not implemented (good) |
 | Grok key on `user_profile` (plaintext) | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Storage `references/{user_id}/{file_id}` | Object key `{user_id}/{file_id}`; Storage RLS first path segment = `auth.uid()` |
-| Quality checks, Word export, outline | QUAL-1–4 and Markdown/Word export shipped; outline (GEN-8) unbuilt |
+| Quality checks, Word export, outline | QUAL-1–4, Markdown/Word export, and outline (GEN-8) shipped |
 | 90%+ check pass rate | Not a metric |
 
 ### 5. RAG design gaps (even after wiring Grok)
@@ -146,7 +146,7 @@ These are not “missing files.” They are product defects if you implement the
 
 - `src/pages/LoginPage.tsx` vs `src/components/Login.tsx` (router uses the latter)
 - `src/pages/ProfilePage.tsx` vs `src/components/Profile.tsx`
-- `src/edge-functions/` empty; real functions are `supabase/functions/upload_processor` and `generate_paper`
+- There is no `src/edge-functions/`; real functions live under `supabase/functions/`
 
 ### 7. Recommended build order
 
@@ -155,13 +155,13 @@ Matches engineering, not README order.
 | Phase | Work | Unlocks |
 |---|---|---|
 | 0 | Keep PII out of git; README that matches reality. Auth (confirm + reset) is shipped. | Trust |
-| 1 | Storage path `{user_id}/{file_id}` shipped. Fixture PDF unit ingest shipped. Remaining: Storage up + live ingest E2E | Corpus |
+| 1 | Storage path `{user_id}/{file_id}`, fixture PDF unit ingest, and conditional live ingest E2E shipped. Storage and Edge must be up to exercise the live case. | Corpus |
 | 2–5 | Generate slices in `.docs/GENERATION_SLICES.md` (`source_role`, templates, retrieval, Grok allow-list, save) | Grounded drafts |
 | 6 | Interrogation slices in `.docs/INTERROGATION_SLICES.md` (pins, interrogate, generate uses pins) | Researcher-directed grounding |
-| 7 | Attribution polish, library export | MVP cut line |
-| 8 | Outline, eval harness | After MVP |
+| 7 | Attribution polish, library export, outline | MVP cut line (shipped) |
+| 8 | Eval harness | Remaining after MVP |
 
-Do not start Word export or cosine “accuracy” before phase 3.
+The dependency remains: retrieval and its allow-list must precede export checks. Cosine similarity is not an “accuracy” score.
 
 ### 8. Local running snapshot (not a PRD gap)
 
@@ -175,7 +175,7 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Generate if `generate_paper` is up and a Grok key is saved; successful generate saves to the library
 
-Does not work: outline. Live hosted `grok-embedding-small` and live Grok completion need a real xAI key. Unconfirmed users cannot reach `/dashboard`.
+Outline works when the `paper_outline` migration is applied, `generate_outline` is served, and a Grok key is saved; an empty outline leaves the existing draft path unchanged. Live hosted `grok-embedding-small` and live Grok completion need a real xAI key. Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 
