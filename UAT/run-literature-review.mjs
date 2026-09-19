@@ -215,17 +215,47 @@ async function waitListed(page, batch, minListed) {
   return listed
 }
 
+async function waitUploadIdle(page, timeoutMs = 180000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const t = await page.locator('body').innerText()
+    if (!/\bUploading\.\.\.|\bProcessing\.\.\./.test(t)) return
+    await page.waitForTimeout(2000)
+  }
+  throw new Error('upload still Uploading/Processing after timeout')
+}
+
+const countIndexStatus = async (page) => {
+  const body = await page.locator('body').innerText()
+  return {
+    indexed: (body.match(/Indexed \((\d+) chunks\)/g) || []).length,
+    notIndexed: (body.match(/Stored \(not indexed\)/g) || []).length,
+  }
+}
+
 /** Wait until DocumentList shows minIndexed Indexed rows and no Stored (not indexed). */
 async function waitIndexed(page, paperId, minIndexed, timeoutMs = 180000) {
   const start = Date.now()
   let indexed = 0
   let notIndexed = 0
   while (Date.now() - start < timeoutMs) {
-    await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
-    const body = await page.locator('body').innerText()
-    indexed = (body.match(/Indexed \((\d+) chunks\)/g) || []).length
-    notIndexed = (body.match(/Stored \(not indexed\)/g) || []).length
-    if (indexed >= minIndexed && notIndexed === 0) return { indexed, notIndexed }
+    if (!page.url().includes('/generate/upload')) {
+      await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
+      await page.waitForSelector('h2:text("Literature")')
+    }
+    const refresh = page.getByRole('button', { name: 'Refresh' }).first()
+    if (await refresh.count()) await refresh.click().catch(() => {})
+    await page
+      .waitForFunction(
+        () => /Indexed \(\d+ chunks\)|Stored \(not indexed\)/.test(document.body.innerText),
+        null,
+        { timeout: 20000 }
+      )
+      .catch(() => {})
+    const got = await countIndexStatus(page)
+    indexed = got.indexed
+    notIndexed = got.notIndexed
+    if (indexed >= minIndexed && notIndexed === 0) return got
     await page.waitForTimeout(3000)
   }
   throw new Error(
@@ -416,6 +446,7 @@ async function main() {
       await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
       await page.waitForSelector('h2:text("Literature")')
       await (await literatureFileInput(page)).setInputFiles(wave1)
+      await waitUploadIdle(page)
       let listed = await waitListed(page, wave1, wave1.length)
       if (/Upload at most 10 files at a time/i.test(await page.locator('body').innerText())) {
         throw new Error('first wave rejected as over the 10-file drop limit')
@@ -423,9 +454,8 @@ async function main() {
       if (listed < wave1.length) throw new Error(`first wave listed ${listed}/${wave1.length}`)
       await waitIndexed(page, paperId, wave1.length)
 
-      await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
-      await page.waitForSelector('h2:text("Literature")')
       await (await literatureFileInput(page)).setInputFiles(wave2)
+      await waitUploadIdle(page)
       listed = await waitListed(page, files, files.length)
       const body = await page.locator('body').innerText()
       if (/Upload at most 10 files at a time/i.test(body)) {

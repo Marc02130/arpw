@@ -223,7 +223,7 @@ Fail-fast on a bad key fixture: step 2 FAIL (or BLOCKED if missing), steps 8–1
 
 Step 8 asks `What evidence do these papers report about omega-3 and cognition?` (`INTERROGATE_QUESTION` in the runner). It requires a 2xx from `interrogate_corpus`, at least one `[S#]` in the UI, and `evidencePassagesLookAcademic`: not only `References ·` passage cards, not a PubMed/DOI dump. A 500 with empty body is FAIL, not a skip. The word “evidence” is the academic retrieve gate (drop citation/boilerplate).
 
-Step 4 uploads `files.slice(0, 10)` then `files.slice(10)`. A 20-file `setInputFiles` is rejected (`Upload at most 10 files at a time`). After each wave, `waitIndexed` requires Indexed count ≥ that wave and **zero** `Stored (not indexed)` rows.
+Step 4 uploads `files.slice(0, 10)` then `files.slice(10)`. A 20-file `setInputFiles` is rejected (`Upload at most 10 files at a time`). After each wave wait until progress is not Uploading/Processing, then `waitIndexed` clicks **Refresh** (do not `goto` mid-upload) and requires Indexed count ≥ that wave and **zero** `Stored (not indexed)` rows. Do not count the list until `Indexed (N chunks)` or `Stored (not indexed)` is visible — a reload that reads the page while DocumentList is still fetching looks like indexed=0.
 
 Step 5 fails (not a soft PASS) if any literature file is still Stored (not indexed). Zero indexed is **BLOCKED** (Storage/Edge down).
 
