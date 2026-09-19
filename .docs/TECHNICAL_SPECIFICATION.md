@@ -2,7 +2,7 @@
 
 ## Overview
 
-Technical specification for ARPW. It describes the **as-built** system as of 2026-09-07 (generate slices, interrogation slices 1–5, QUAL-1–5, library export, NFR-4–7) and the **target** RAG pipeline required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
+Technical specification for ARPW. It describes the **as-built** system as of 2026-09-19 (generation slices 1–5, outline slices 1–3, interrogation slices 1–6, QUAL-1–5, library export, NFR-4–7) and the remaining **target** evaluation/index work required by `.docs/PRODUCT_REQUIREMENTS.md`. Claims about running code cite files. Target design is labeled TARGET.
 
 ## Content
 
@@ -15,12 +15,12 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Routing | react-router-dom 6 | `src/App.tsx` |
 | Auth / DB / Storage | Supabase (local CLI or hosted) | `@supabase/supabase-js` |
 | Vectors | Postgres `vector` extension, 384 dims | `supabase/migrations/20260906133100_init.sql` |
-| Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, IMRaD chunk, academic `chunk_role`, `hash-384`. Live E2E needs Storage |
+| Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, IMRaD chunk, academic `chunk_role`; embedding model is described below. Live E2E needs Storage |
 | Generation | Deno Edge Function `generate_paper` | Section loop, pins first, Grok, citation allow-list, save draft |
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (33 files / 182); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit inventory: 33 files / 183 tests (current baseline has one synthetic-PDF `bad XRef entry` failure); `npm run test:integration`: 13 files / 46 tests against local Auth/REST/RLS plus conditional Storage/Edge paths. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -41,8 +41,8 @@ Browser (Vite SPA)
   +--> Edge Function lookup_citation    (DOI/PMID → preformatted cite)
 
 TARGET:
-  +--> retrieve RPC (cosine ∪ FTS, RRF)
-  +--> QUAL-3/4 polish / export_paper
+  +--> retrieval evaluation harness (recall@k holdout / paraphrase queries)
+  +--> HNSW index after the corpus is large enough to tune it
 ```
 
 The SPA must not hold the Grok key. `generate_paper` reads it with `read_grok_api_key` as service_role.
@@ -67,7 +67,7 @@ Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `u
 
 ### 4. Data model (as-built)
 
-Source of truth: `supabase/migrations/20260906133100_init.sql`, `20260907000000_grok_key_storage.sql`, `20260907010000_reference_upload_cap.sql`. Table `"references"` is quoted because `references` is reserved.
+Source of truth: the ordered files in `supabase/migrations/`, from `20260906133100_init.sql` through `20260919010000_vector_chunk_role.sql`. Later migrations add Grok-key validation, caps, vector metadata/page/model/roles, Storage RLS, source roles, attribution, research prompt/outline, pins, interrogation notes, hybrid retrieval, and bibliographic citation fields. Table `"references"` is quoted because `references` is reserved.
 
 **user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, timestamps. Grok keys are **not** on this table.
 
@@ -90,7 +90,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384` or `grok-embedding-small`), `chunk_role` (`claim` / `finding` / `evaluation` / `method` / `context` / `experience` / `citation` / `boilerplate`, nullable on historical rows). TARGET: doi/authors.
 
-**user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
+**user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `research_prompt`, `outline`, `attribution jsonb`, `version`, `status` (`draft`/`completed`).
 
 **paper_references:** (`paper_id`, `file_id`).
 
@@ -190,9 +190,9 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 
 Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 
-### 8. Library and export (as-built vs TARGET)
+### 8. Library and export (as-built)
 
-Library reads `user_papers`, groups by title, shows latest version, **25 titles per page**. Each paper has **Continue** and **Delete**. **Source citations** lists uploaded `"references"` rows (25 per page) with an editable `citation_text` and **Delete** (`deleteOwnedDocument`: vectors, metadata row, Storage object). Source count on the paper table comes from `paper_references(count)`. View uses `DraftPreview` and the same cite field on cited files. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, and `research_prompt` once the row is loaded. Paper **Delete** confirms then removes that `user_papers` row; pins, interrogation notes, and `paper_references` cascade. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. Files are not uploaded to the `papers` bucket (TARGET).
+Library reads `user_papers`, groups by title, shows latest version, **25 titles per page**. Each paper has **Continue** and **Delete**. **Source citations** lists uploaded `"references"` rows (25 per page) with an editable `citation_text` and **Delete** (`deleteOwnedDocument`: vectors, metadata row, Storage object). Source count on the paper table comes from `paper_references(count)`. View uses `DraftPreview` and the same cite field on cited files. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, `research_prompt`, and `outline` once the row is loaded. Paper **Delete** confirms then removes that `user_papers` row; pins, interrogation notes, and `paper_references` cascade. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. The `papers` Storage bucket is currently unused.
 
 ### 9. Security (as-built)
 
@@ -209,41 +209,22 @@ Library reads `user_papers`, groups by title, shows latest version, **25 titles 
 
 Frontend: `src/App.tsx`, `src/main.tsx`, `src/supabaseClient.ts`, `src/hooks/useAuth.tsx`, `src/components/{Login,VerifyEmail,ForgotPassword,ResetPassword,Layout,Profile,UploadZone,DocumentList,InterrogatePanel,DraftPreview,AuthShell,AuthAlert,CitationField,PaginationBar}.tsx`, `src/pages/{HomePage,PaperGenerationPage,DashboardPage,LibraryPage}.tsx`, `src/lib/*`.
 
-Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/generate_outline/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/embed_text/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through paper `outline`), `supabase/config.toml`.
+Backend: `supabase/functions/upload_processor/{index.ts,ingest.ts}`, `supabase/functions/generate_paper/index.ts`, `supabase/functions/generate_outline/index.ts`, `supabase/functions/interrogate_corpus/index.ts`, `supabase/functions/embed_text/index.ts`, `supabase/functions/lookup_citation/index.ts`, `supabase/functions/_shared/`, `supabase/migrations/` (init through vector `chunk_role`), `supabase/config.toml`.
 
 Tests: `src/lib/*.test.ts`, `src/integration/*.integration.test.ts`, `src/integration/supabaseTest.ts`, `vite.config.ts` `test`, `vitest.integration.config.ts`.
 
-Dead: `LoginPage.tsx`, `ProfilePage.tsx`, empty `src/edge-functions/`.
+Dead: `LoginPage.tsx`, `ProfilePage.tsx`. There is no `src/edge-functions/`; deployed function sources live under `supabase/functions/`.
 
-### 11. TARGET retrieval RPC (sketch)
+### 11. Retrieval RPCs (as-built)
 
-```sql
--- TARGET, not in repo yet
-create or replace function match_reference_chunks(
-  query_embedding vector(384),
-  match_count int,
-  filter_user uuid
-)
-returns table (
-  vector_id uuid,
-  file_id uuid,
-  chunk_text text,
-  score float
-)
-language sql
-stable
-as $$
-  select v.vector_id, v.file_id, v.chunk_text,
-         1 - (v.vector <=> query_embedding) as score
-  from reference_vectors v
-  join "references" r on r.file_id = v.file_id
-  where r.user_id = filter_user
-  order by v.vector <=> query_embedding
-  limit match_count;
-$$;
-```
+Migration `20260907260000_hybrid_fts_rrf.sql` defines both hybrid RPCs as `LANGUAGE sql STABLE` invoker functions and grants execution only to `authenticated`. `20260919010000_vector_chunk_role.sql` extends the current `match_reference_chunks` return shape with `chunk_role`.
 
-Call only with the user’s JWT so RLS still applies if rewritten without `filter_user`. Prefer `auth.uid()` inside the function instead of a client-supplied uuid.
+| RPC | Inputs | Behavior |
+|---|---|---|
+| `match_reference_chunks` | 384-d query vector, count, optional `source_role`, preferred section, embedding model, query text | Joins `"references"`, scopes rows with `auth.uid()`, filters the embedding model, unions cosine and English FTS pools, fuses them with RRF, ranks the preferred stored section first, and caps k at 20 |
+| `match_example_chunks` | 384-d query vector, count, preferred section, embedding model, query text | Applies the same hybrid/model/section logic to the caller’s example rows and caps k at 10; results are style-only |
+
+No client-supplied user id is accepted. Pins are loaded separately and prepended by `retrieveForSection`; Interrogate applies academic `chunk_role` filtering after the reference RPC returns.
 
 ### 12. Tests (as-built)
 
@@ -256,7 +237,7 @@ Two Vitest suites. `npm test` is the default and must not require Docker.
 
 Integration helper `src/integration/supabaseTest.ts`: health-check `/auth/v1/health`; `signUp` then `admin.updateUserById({ email_confirm: true })` because `enable_confirmations = true`; local demo JWT fallback; `deleteUser` cleanup. Service role is for confirm/admin seed only; user JWTs exercise RLS.
 
-Not as-built: live `upload_processor` HTTP while Storage/Edge are down; live Grok completion while `generate_paper` is down or no key. Unit tests cover refuse-unknown-citation-id (NFR-7) and the 2-minute Grok abort (NFR-5).
+Conditional live coverage: `ingest.integration.test.ts` invokes `upload_processor` when Storage and Edge are available and skips that case otherwise. There is no live Grok-completion test; missing-key behavior is covered when the functions are available. Unit tests cover refuse-unknown-citation-id (NFR-7) and the 2-minute Grok abort (NFR-5).
 
 How-to and file tables: `../README.md#how-to-run-tests`, `../README.md#tests`. Why the split: `../README.md#why-two-test-suites`.
 

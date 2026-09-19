@@ -96,14 +96,14 @@ That is `vitest run` with `vite.config.ts`: `src/**/*.test.ts`, excluding `*.int
 
 ### Step 2: Read the result
 
-You should see thirty-two files pass, currently 159 tests:
+The suite currently discovers 33 files and 183 tests. On 2026-09-19, this checkout reported one existing fixture failure:
 
 ```
-Test Files  32 passed (32)
-      Tests  159 passed (159)
+Test Files  1 failed | 32 passed (33)
+     Tests  1 failed | 182 passed (183)
 ```
 
-If a file under `src/lib/` fails, the helper that the upload UI or ingest path calls is wrong. Fix that before touching the live API.
+The failure is `nfr7Fixture.test.ts` → “should extract the probe token from the fixture PDF” (`bad XRef entry` from `pdf-parse`). The other four fixture checks pass. Do not report the unit suite as green until the synthetic PDF is accepted by the parser. If another file under `src/lib/` fails, fix that helper before touching the live API.
 
 ### Step 3 (optional): Run integration against local Auth
 
@@ -113,7 +113,7 @@ If Docker and `supabase start` are already up from the dashboard tutorial:
 npm run test:integration
 ```
 
-You should see twelve files pass, currently 36 tests, when local API, Storage, and Edge functions are up. Live Storage object isolation and fixture-PDF ingest skip if those services are down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
+The integration config currently discovers 13 files and 46 tests. It requires the local API; live Storage object isolation and fixture-PDF ingest skip if Storage or the relevant Edge function is down. Details: [How to run tests](#how-to-run-tests). Why this is a second command: [Why two test suites](#why-two-test-suites).
 
 ### What you built
 
@@ -241,7 +241,7 @@ A confirmed session, a paper started from `/dashboard`, indexed files on the Upl
 2. Enter a research prompt (required; saved on the paper). Toggle sections. Pick paper type, citation style, output format.
 3. Optional: click **Generate outline**, then edit the markdown skeleton. Leave it empty to generate without an outline. Frozen section templates do not change.
 4. Click **Query sources**. Literature and original research list as evidence; example papers as style only. Pin a chunk to this paper (Unpin from the pinned list). Example papers cannot be pinned. Pinned passages are listed first.
-5. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. If an outline is saved on the paper, each section prompt includes that section’s bullets. If a section still has uncited sentences, generate runs one repair pass (cite from the retrieved set or drop the sentence). Remaining ⚠ are honest leftovers. **References** looks up each cited file’s DOI or PMID on Crossref/PubMed and formats APA, MLA, or Chicago from that record (the PubMed “cite” button data), not from the PDF filename. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
+5. Click **Generate Paper** (or Tab to it and press Enter). The Edge function retrieves pins first, then the same role-filtered search, calls Grok (one section aborts after 2 minutes), strips unknown `[S#]` citations, and writes `user_papers` plus `paper_references`. If an outline is saved on the paper, each section prompt includes that section’s bullets. If a section still has uncited sentences, generate runs one repair pass (cite from the retrieved set or drop the sentence). Remaining ⚠ are honest leftovers. **References** prefers each cited file’s stored publisher/PubMed citation text; if it is missing, generate looks up DOI/PMID catalog data and formats APA, MLA, or Chicago. It does not cite the PDF filename. The draft shows inline ⚠ on uncited sentences, citation/format warnings, cited files, and a human-review disclaimer.
 6. If you have not saved a key, the page shows “Save a Grok API key on Profile before generating.” with a link to `/profile`.
 7. Open `/library`. The paper is listed as completed. View shows the same preview (warnings + disclaimer). Continue restores title, paper type, sections, the research prompt, and the outline. Sources is the number of cited files.
 
@@ -334,7 +334,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title, 25 titles per page. Each paper has **Continue** and **Delete** (confirm; pins and interrogation notes go with the paper). **Source citations** (below, 25 per page) have the same **Delete** for an uploaded file (vectors, metadata, Storage object). Dashboard papers have Continue and Delete. **Source citations** (below the paper list, 25 per page) are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title, 25 titles per page. Each paper has **Continue** and **Delete** (confirm; pins and interrogation notes go with the paper). **Source citations** (below, 25 per page) have the same **Delete** for an uploaded file (vectors, metadata, Storage object). Dashboard papers have Continue and Delete. **Source citations** (below the paper list, 25 per page) are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, the saved prompt, and the outline. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -373,7 +373,7 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  33 passed (33)` and `Tests  182 passed (182)` (including `chunkRoles.test.ts`).
+- Unit inventory: 33 files / 183 tests. Current baseline: 32 files and 182 tests pass; `nfr7Fixture.test.ts` has one `pdf-parse` `bad XRef entry` failure.
 - Integration: live Auth/REST/RLS/Storage/ingest/pins/retrieval against local API. Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down. Retrieval includes the academic evidence-vs-bibliography filter when `chunk_role` is migrated.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not. Live Grok dogfood is the [literature-review UAT](UAT/README.md).
@@ -428,7 +428,7 @@ The same as [How to run tests](#how-to-run-tests). Name tests `it('should …')`
 | `VITE_SUPABASE_ANON_KEY` | anon key from `supabase status` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Local demo service_role (`.env.example`). SPA must not use this. Integration tests use it to confirm users. |
 
-Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (unit), `npm run test:integration` (local Auth/REST/Postgres; Storage/ingest not included while Storage is down).
+Commands: `npm run dev` (Vite), `npm run build` (`tsc && vite build`), `npm run preview`, `npm run lint`, `npm test` (unit), `npm run test:integration` (local Auth/REST/Postgres plus conditional Storage/Edge cases; unavailable services cause those cases to skip).
 
 ### Routes (`src/App.tsx`)
 
@@ -478,7 +478,7 @@ Client validation (`Login.tsx` / `ResetPassword.tsx`): email required and `^[^\s
 
 ### Grok key RPCs
 
-Source: `supabase/migrations/20260907000000_grok_key_storage.sql`. Client wrappers: `setGrokApiKey` / `clearGrokApiKey` in `src/hooks/useAuth.tsx`. UI: `src/components/Profile.tsx`.
+Sources: `supabase/migrations/20260907000000_grok_key_storage.sql` (storage/RPCs) and `20260907270000_grok_key_shape.sql` (`xai-` prefix and filesystem-path rejection). Client wrappers: `setGrokApiKey` / `clearGrokApiKey` in `src/hooks/useAuth.tsx`. UI: `src/components/Profile.tsx`.
 
 | RPC | Who | Args | Returns |
 |---|---|---|---|
@@ -569,6 +569,12 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `generatePaper.test.ts` | Section loop strips `[S99]` (NFR-7); ignores client `sourceIds` / `systemPrompt`; one section after retrieval is under 2 minutes (NFR-5) |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body; hanging request aborts after the section budget (NFR-5) |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |
+| `generateOutline.test.ts` | GEN-8 outline request, citation allow-list, empty-section rejection |
+| `outline.test.ts` | Outline prompt headings and per-section extraction |
+| `bibliographicCitation.test.ts` | APA/MLA/Chicago catalog-reference formatting |
+| `bibliographicLookup.test.ts` | DOI/PMID extraction and catalog-record validation |
+| `libraryPage.test.ts` | Library grouping, pagination, and selected-paper helpers |
+| `nfrBudgets.test.ts` | NFR timing constants |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
@@ -600,7 +606,7 @@ How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-t
 npm run dev      # Vite
 npm run build    # tsc && vite build
 npm run preview  # vite preview
-npm run lint              # eslint . --ext ts,tsx
+npm run lint              # eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
 npm test                  # unit (src/lib/*.test.ts)
 npm run test:watch        # unit, watch mode
 npm run test:integration  # local Supabase Auth/REST (needs supabase start)
@@ -656,7 +662,7 @@ Storage is a third system. `supabase_storage_arpw` is often `Exited` if image ta
 
 ```
 src/
-├── components/            # Screens the router actually mounts
+├── components/            # Routed screens and shared UI
 │   ├── Login.tsx
 │   ├── VerifyEmail.tsx
 │   ├── ForgotPassword.tsx
@@ -664,13 +670,21 @@ src/
 │   ├── Layout.tsx
 │   ├── Profile.tsx
 │   ├── UploadZone.tsx
-│   └── DocumentList.tsx
+│   ├── DocumentList.tsx
+│   ├── InterrogatePanel.tsx
+│   ├── DraftPreview.tsx
+│   ├── CitationField.tsx
+│   ├── PaginationBar.tsx
+│   ├── AuthShell.tsx
+│   └── AuthAlert.tsx
 ├── hooks/
 │   └── useAuth.tsx        # AuthProvider
 ├── lib/                   # Pure helpers + *.test.ts (npm test)
 ├── integration/           # *.integration.test.ts (npm run test:integration)
 ├── pages/
-│   ├── DashboardPage.tsx
+│   ├── DashboardPage.tsx  # Re-export alias for HomePage
+│   ├── HomePage.tsx       # Mounted at /dashboard
+│   ├── PaperGenerationPage.tsx
 │   └── LibraryPage.tsx
 ├── types.ts
 ├── supabaseClient.ts
@@ -680,7 +694,7 @@ src/
 vitest.integration.config.ts
 ```
 
-`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/` (init, grok key, reference/example caps, vector chunk metadata).
+`pages/LoginPage.tsx` and `pages/ProfilePage.tsx` exist but are unused. Schema: `supabase/migrations/` (init through vector `chunk_role`).
 
 ## Specs
 

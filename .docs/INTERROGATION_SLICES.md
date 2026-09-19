@@ -97,11 +97,11 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 - User-editable system prompts
 - Query rewrite / HyDE; generate-side chunk-role filter
 
-### Tests (written and run 2026-09-07)
+### Tests
 
-Unit (`npm test`, no network): **33 files, 182 passed** after slice 6, including `chunkRoles.test.ts`, `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first + bibliography drop), `interrogationNotes.test.ts`.
+Unit (`npm test`, no network): **33 files, 183 tests** after slice 6, including `chunkRoles.test.ts`, `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first + bibliography drop), `interrogationNotes.test.ts`. Current baseline passes 182 tests; the remaining `nfr7Fixture.test.ts` extraction check fails in `pdf-parse` with `bad XRef entry`.
 
-Integration (`npm run test:integration`, local API): **12 files, 36 passed** with Storage and Edge functions up, including:
+Integration (`npm run test:integration`, local API): **13 files, 46 tests**; Storage and Edge cases run when those services are up, including:
 
 | File | Coverage |
 |---|---|
@@ -120,6 +120,6 @@ Slices 1–6 are **DONE**. Remaining product work is outside this tracker (eval 
 
 - `.docs/PRODUCT_REQUIREMENTS.md` — INT-1–3, PIN-1–2
 - `.docs/TECHNICAL_SPECIFICATION.md` — interrogation as-built
-- `.docs/GAP_ANALYSIS.md` — remaining QUAL/export
+- `.docs/GAP_ANALYSIS.md` — current shipped status and remaining evaluation work
 - `.docs/GENERATION_SLICES.md` — generate cut (shipped)
 - `src/pages/PaperGenerationPage.tsx` — Prompt / Upload / Interrogate

@@ -7,8 +7,8 @@ Product requirements for AI Research Paper Writer (ARPW), a web app that helps a
 - Product: ARPW
 - Audience: individual academic users (researchers, PIs, graduate students)
 - Platform: web (desktop first)
-- Version of this PRD: 1.4
-- Date: 2026-09-07
+- Version of this PRD: 1.5
+- Date: 2026-09-19
 - Status: current product intent on `main`
 
 ARPW is a **grounded drafting assistant**. The researcher interrogates their own corpus, pins passages to include, then generates section drafts with citations that map to those passages (pins first, then retrieval). It requires human review before anything looks like a submission. It is not a paper mill and it must not emit citations that are not in the retrieved-or-pinned set.
@@ -88,8 +88,8 @@ Each item has an ID for the gap analysis.
 |---|---|---|
 | GEN-1 | Research prompt textarea (topic, question, constraints). Pins are structured includes, not free-text prompts. Interrogation chat is not generation text. Section checkboxes (Abstract through References). | P0 |
 | GEN-2 | Paper type: Empirical Study, Literature Review, Theoretical Paper, Case Study. Type selects the server template pack. | P0 |
-| GEN-3 | Citation style: APA for MVP (MLA/Chicago later). | P1 |
-| GEN-4 | Retrieve relevant reference chunks per section (hybrid search + rerank later); filter by `source_role` (see generation slices); **pins first**, then vector search; show sources in the UI. | P0 |
+| GEN-3 | Citation style: APA, MLA, or Chicago for the References list; grounded inline citations remain retrieved `[S#]` ids. References prefer each source’s stored publisher/PubMed citation text. | P1 |
+| GEN-4 | Retrieve relevant reference chunks per section with hybrid cosine + full-text search and RRF; filter by `source_role` (see generation slices); **pins first**, then search; show sources in the UI. | P0 |
 | GEN-5 | Generate **section by section**. Each section uses a frozen server template for that paper type × section, its own retrieval, and the research prompt. | P0 |
 | GEN-6 | Citations only from retrieved `source_id`s; drop invented citations. | P0 |
 | GEN-7 | Example papers constrain tone/structure only; they are not evidence. | P1 |
@@ -157,7 +157,7 @@ Each item has an ID for the gap analysis.
 
 Empty states: no files, no papers, failed parse, missing API key.
 
-### 6. Success metrics (after generation ships)
+### 6. Evaluation metrics
 
 Measure these; do not invent pass rates.
 
@@ -188,5 +188,5 @@ Everything else can follow without pretending it is done.
 - `.docs/TECHNICAL_SPECIFICATION.md` — as-built and target architecture
 - `.docs/GENERATION_SLICES.md` — generate build slices
 - `.docs/GAP_ANALYSIS.md` — PRD vs code
-- `supabase/migrations/20260906133100_init.sql` — current schema
+- `supabase/migrations/` — schema history; later migrations extend the init schema
 - `.docs/legacy/AI_Research_Paper_Writer_User_Stories.markdown` — original stories (stale; superseded where they conflict)

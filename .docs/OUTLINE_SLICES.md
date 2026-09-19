@@ -27,7 +27,8 @@ Locked product calls (2026-09-10):
 - Auto-toggling section checkboxes from headings
 - Per-section prompt editor
 - Outline as Query sources evidence
-- UAT playbook step (add when dogfooding outline)
+
+The literature-review UAT requires Generate outline and verifies draft/Continue behavior (`UAT/README.md` steps 6, 10, and 13).
 
 ## References
 
@@ -35,3 +36,5 @@ Locked product calls (2026-09-10):
 - `.docs/GENERATION_SLICES.md` — frozen templates
 - `src/pages/PaperGenerationPage.tsx` — Outline card
 - `supabase/functions/generate_outline/index.ts`
+- `supabase/migrations/20260910010000_paper_outline.sql`
+- `UAT/README.md` — outline dogfood gates

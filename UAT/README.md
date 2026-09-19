@@ -77,7 +77,7 @@ You will start the local stack, put a real xAI key in a gitignored fixture, and 
 - Vite on [http://127.0.0.1:5173](http://127.0.0.1:5173)
 - The 20 PDFs in `UAT/papers/`
 - A real xAI secret that starts with `xai-` (never a path to `.env`)
-- Playwright Chromium (`npx playwright install chromium` once if the runner cannot launch a browser)
+- A resolvable `playwright` module plus Chromium (`npx playwright install chromium` once if the runner cannot launch a browser). The runner imports `playwright`, but this repo does not declare it directly in `package.json`; confirm it is available in the environment before starting a long run.
 
 ### Step 1: Bring the stack up
 
@@ -153,7 +153,7 @@ The runner writes `UAT/reports/.uat-state.json` (email, paper id, per-step statu
 node UAT/run-literature-review.mjs --resume
 ```
 
-`--resume` logs in as the saved throwaway user (password is `const password` in `UAT/run-literature-review.mjs`), skips a fresh signup and re-upload when those steps already passed, and continues from interrogate / generate. It still re-saves the Grok key on Profile.
+`--resume` logs in as the saved throwaway user (password is `const password` in `UAT/run-literature-review.mjs`), unconditionally skips steps 3–7, and continues from the missing-key/interrogate/generate path. Use it only when the paper, upload, index, outline/query, and initial pins are already usable. If one of steps 3–7 failed and must be rerun, start a new run. Resume still re-saves the Grok key on Profile.
 
 Needs step 1 email and step 3 `paper=` id in the saved state. If that file is missing, start a new run.
 
@@ -196,7 +196,7 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Wait for Unpin on the thread. Prompt shows **Pinned passages**, not “No pins yet” while pins are loading |
 | 10 | Generate Paper | Draft saved; headings for selected sections; draft follows the outline where headings match; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer. Wall clock is not instant |
 | 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none). References is not “No retrieved sources” and does not dump `Citation:` boilerplate |
-| 12 | Library: **Your Papers** listed first (25 per page) with **Delete**. **Source citations** still listed (25 per page). Paper listed completed. View preview (cited sources show the cite field). Export Markdown and Word | Files download; both include the human-review disclaimer. Delete confirms and removes the paper |
+| 12 | Library: verify **Source citations** and the completed paper, then export Markdown and Word. Manual runs may additionally inspect View, pagination, and Delete confirmation. | Runner: both files download and Markdown includes the human-review disclaimer. Manual: View shows the preview and Delete confirms/removes the paper |
 | 13 | Continue from library | Wait for “Working on …”, then Prompt restores title, **Literature Review**, the research prompt, and the outline (`##` headings) |
 
 The runner also clears the Profile key between step 2 and step 8 and checks that Interrogate refuses without a key (`step 2b`). That is a QA extra, not a numbered playbook step. Re-save the fixture key before Ask.
@@ -223,7 +223,7 @@ Fail-fast on a bad key fixture: step 2 FAIL (or BLOCKED if missing), steps 8–1
 
 Step 8 asks `What evidence do these papers report about omega-3 and cognition?` (`INTERROGATE_QUESTION` in the runner). It requires a 2xx from `interrogate_corpus`, at least one `[S#]` in the UI, and `evidencePassagesLookAcademic`: not only `References ·` passage cards, not a PubMed/DOI dump. A 500 with empty body is FAIL, not a skip. The word “evidence” is the academic retrieve gate (drop citation/boilerplate).
 
-Step 4 uploads `files.slice(0, 10)` then `files.slice(10)`. A 20-file `setInputFiles` is rejected (`Upload at most 10 files at a time`). After each wave wait until progress is not Uploading/Processing, then `waitIndexed` clicks **Refresh** (do not `goto` mid-upload) and requires Indexed count ≥ that wave and **zero** `Stored (not indexed)` rows. Do not count the list until `Indexed (N chunks)` or `Stored (not indexed)` is visible — a reload that reads the page while DocumentList is still fetching looks like indexed=0.
+Step 4 uploads `files.slice(0, 10)` then `files.slice(10)`. A 20-file `setInputFiles` is rejected (`Upload at most 10 files at a time`). The runner’s step-4 list check accepts at least 18 visible names, but step 5 still requires all 20 rows indexed and zero `Stored (not indexed)`. After each wave wait until progress is not Uploading/Processing, then `waitIndexed` clicks **Refresh** (do not `goto` mid-upload). Do not count the list until `Indexed (N chunks)` or `Stored (not indexed)` is visible — a reload that reads the page while DocumentList is still fetching looks like indexed=0.
 
 Step 5 fails (not a soft PASS) if any literature file is still Stored (not indexed). Zero indexed is **BLOCKED** (Storage/Edge down).
 
@@ -239,7 +239,7 @@ Step 13 waits for “Working on …” and `#paper-type === 'Literature Review'`
 
 ## Reference: reports
 
-Write `UAT/reports/<date>-literature-review.md`. The whole `UAT/reports/` tree is gitignored. Include:
+The runner always overwrites `UAT/reports/2026-09-07-literature-review.md`; manual reports may use `UAT/reports/<date>-literature-review.md`. The whole `UAT/reports/` tree is gitignored. Include:
 
 - Operator (Grok Bot id or human)
 - Git SHA (`git rev-parse --short HEAD`)
