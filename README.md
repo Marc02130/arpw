@@ -334,7 +334,7 @@ RPC signatures: [Reference: Grok key](#grok-key-rpcs). Why it is not on the prof
 
 ## How to use the library and profile
 
-**Library (`/library`):** lists `user_papers` for the current user, grouped by title, 25 titles per page. Each paper has **Continue** and **Delete** (confirm; pins and interrogation notes go with the paper). **Source citations** (below, 25 per page) have the same **Delete** for an uploaded file (vectors, metadata, Storage object). Dashboard papers have Continue and Delete. **Source citations** (below the paper list, 25 per page) are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, and the saved prompt. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count.
+**Library (`/library`):** lists `user_papers` for the current user, grouped by title, 25 titles per page. Each paper has **Continue** and **Delete** (confirm; pins and interrogation notes go with the paper). **Source citations** (below, 25 per page) have the same **Delete** for an uploaded file (vectors, metadata, Storage object). Dashboard papers have Continue and Delete. **Source citations** (below the paper list, 25 per page) are the publisher/PubMed preformatted cite stored on each uploaded literature file (fetched on upload when a DOI is present; you can paste or look up). After generate, the row is `completed` and View shows the markdown with inline uncited warnings, citation/format issues, and a human-review disclaimer. Continue opens Paper generation and restores title, paper type, sections, the saved prompt, and the outline. **Regenerate** creates the next version and runs generate (needs a research prompt and Grok key). **Markdown** / **Word** download the draft plus checks and the disclaimer. Sources is the `paper_references` count.
 
 **Profile (`/profile`):** change **Full Name** (required, at least 2 characters). Email is read-only. Grok key: [How to save a Grok API key](#how-to-save-a-grok-api-key).
 
@@ -478,7 +478,7 @@ Client validation (`Login.tsx` / `ResetPassword.tsx`): email required and `^[^\s
 
 ### Grok key RPCs
 
-Source: `supabase/migrations/20260907000000_grok_key_storage.sql`. Client wrappers: `setGrokApiKey` / `clearGrokApiKey` in `src/hooks/useAuth.tsx`. UI: `src/components/Profile.tsx`.
+Sources: `supabase/migrations/20260907000000_grok_key_storage.sql` (storage/RPCs) and `20260907270000_grok_key_shape.sql` (`xai-` prefix and filesystem-path rejection). Client wrappers: `setGrokApiKey` / `clearGrokApiKey` in `src/hooks/useAuth.tsx`. UI: `src/components/Profile.tsx`.
 
 | RPC | Who | Args | Returns |
 |---|---|---|---|
@@ -569,6 +569,12 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `generatePaper.test.ts` | Section loop strips `[S99]` (NFR-7); ignores client `sourceIds` / `systemPrompt`; one section after retrieval is under 2 minutes (NFR-5) |
 | `grokComplete.test.ts` | Chat completions POST; non-OK does not echo the body; hanging request aborts after the section budget (NFR-5) |
 | `generatePaperClient.test.ts` | Missing-key JSON wins over the generic invoke error |
+| `generateOutline.test.ts` | GEN-8 outline request, citation allow-list, empty-section rejection |
+| `outline.test.ts` | Outline prompt headings and per-section extraction |
+| `bibliographicCitation.test.ts` | APA/MLA/Chicago catalog-reference formatting |
+| `bibliographicLookup.test.ts` | DOI/PMID extraction and catalog-record validation |
+| `libraryPage.test.ts` | Library grouping, pagination, and selected-paper helpers |
+| `nfrBudgets.test.ts` | NFR timing constants |
 
 #### Integration files (`src/integration/*.integration.test.ts`)
 
@@ -600,7 +606,7 @@ How-to: [How to run tests](#how-to-run-tests). Why: [Why two test suites](#why-t
 npm run dev      # Vite
 npm run build    # tsc && vite build
 npm run preview  # vite preview
-npm run lint              # eslint . --ext ts,tsx
+npm run lint              # eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
 npm test                  # unit (src/lib/*.test.ts)
 npm run test:watch        # unit, watch mode
 npm run test:integration  # local Supabase Auth/REST (needs supabase start)
@@ -656,7 +662,7 @@ Storage is a third system. `supabase_storage_arpw` is often `Exited` if image ta
 
 ```
 src/
-├── components/            # Screens the router actually mounts
+├── components/            # Routed screens and shared UI
 │   ├── Login.tsx
 │   ├── VerifyEmail.tsx
 │   ├── ForgotPassword.tsx
@@ -664,14 +670,20 @@ src/
 │   ├── Layout.tsx
 │   ├── Profile.tsx
 │   ├── UploadZone.tsx
-│   └── DocumentList.tsx
+│   ├── DocumentList.tsx
+│   ├── InterrogatePanel.tsx
+│   ├── DraftPreview.tsx
+│   ├── CitationField.tsx
+│   ├── PaginationBar.tsx
+│   ├── AuthShell.tsx
+│   └── AuthAlert.tsx
 ├── hooks/
 │   └── useAuth.tsx        # AuthProvider
 ├── lib/                   # Pure helpers + *.test.ts (npm test)
 ├── integration/           # *.integration.test.ts (npm run test:integration)
 ├── pages/
-│   ├── DashboardPage.tsx
-│   ├── HomePage.tsx
+│   ├── DashboardPage.tsx  # Re-export alias for HomePage
+│   ├── HomePage.tsx       # Mounted at /dashboard
 │   ├── PaperGenerationPage.tsx
 │   └── LibraryPage.tsx
 ├── types.ts

@@ -88,7 +88,7 @@ Each item has an ID for the gap analysis.
 |---|---|---|
 | GEN-1 | Research prompt textarea (topic, question, constraints). Pins are structured includes, not free-text prompts. Interrogation chat is not generation text. Section checkboxes (Abstract through References). | P0 |
 | GEN-2 | Paper type: Empirical Study, Literature Review, Theoretical Paper, Case Study. Type selects the server template pack. | P0 |
-| GEN-3 | Citation style: APA, MLA, or Chicago. References prefer each source’s stored publisher/PubMed citation text. | P1 |
+| GEN-3 | Citation style: APA, MLA, or Chicago for the References list; grounded inline citations remain retrieved `[S#]` ids. References prefer each source’s stored publisher/PubMed citation text. | P1 |
 | GEN-4 | Retrieve relevant reference chunks per section with hybrid cosine + full-text search and RRF; filter by `source_role` (see generation slices); **pins first**, then search; show sources in the UI. | P0 |
 | GEN-5 | Generate **section by section**. Each section uses a frozen server template for that paper type × section, its own retrieval, and the research prompt. | P0 |
 | GEN-6 | Citations only from retrieved `source_id`s; drop invented citations. | P0 |
@@ -188,5 +188,5 @@ Everything else can follow without pretending it is done.
 - `.docs/TECHNICAL_SPECIFICATION.md` — as-built and target architecture
 - `.docs/GENERATION_SLICES.md` — generate build slices
 - `.docs/GAP_ANALYSIS.md` — PRD vs code
-- `supabase/migrations/20260906133100_init.sql` — current schema
+- `supabase/migrations/` — schema history; later migrations extend the init schema
 - `.docs/legacy/AI_Research_Paper_Writer_User_Stories.markdown` — original stories (stale; superseded where they conflict)

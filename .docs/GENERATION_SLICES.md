@@ -50,11 +50,12 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 **Done when:** `match_reference_chunks` (or equivalent) filters `auth.uid()`, optional `source_role`, k per section; dashboard shows passages for the current prompt/section; NFR-7 fixture: query containing `nfr7probe` hits the fixture chunk.
 
-**Role filter (TARGET):**
+**Role filter (as built, after pin support):**
 
 | Section | Prefer |
 |---|---|
-| Abstract, Introduction, Literature Review | `literature` |
+| Abstract, Introduction | `literature`; union `primary` for non-Literature-Review paper types |
+| Literature Review | `literature` |
 | Methods, Results | `primary` first; literature only if primary is empty |
 | Discussion, Conclusion | both |
 | References | no retrieval (generated from cited ids) |
@@ -64,7 +65,7 @@ Hash-384 is the fallback. Hosted embeddings are `grok-embedding-small` at 384-d,
 
 **Not in this slice:** writing `user_papers`; QUAL flags.
 
-**Shipped:** `match_reference_chunks` RPC; `src/lib/retrievePassages.ts` (primary then literature); Prompt tab **Show passages**. NFR-7 hit is the integration test with `nfr7probe`.
+**Shipped:** `match_reference_chunks` RPC; `src/lib/retrievePassages.ts` (primary then literature); Prompt tab **Query sources**. NFR-7 hit is the integration test with `nfr7probe`.
 
 ### Slice 4 — Grok section loop + allow-list
 
@@ -78,7 +79,7 @@ Worker reads the key via `read_grok_api_key` (service_role). SPA never sees the 
 
 ### Slice 5 — Save draft
 
-**Done when:** a successful generate inserts `user_papers` (title, content, sections, type, citation style, format, version, status) and `paper_references` for cited `file_id`s; library lists the row; GEN-9/10.
+**Done when:** a successful generate updates the existing `user_papers` draft (content, sections, citation style, format, attribution, status) without overwriting its type or outline, and writes `paper_references` for cited `file_id`s; library lists the row; GEN-9/10.
 
 **Shipped:** `saveGeneratedDraft` updates the dashboard draft (`content`, sections, citation style, output format, `status=completed`) without overwriting `paper_type` or `outline`, and replaces `paper_references` with cited `file_id`s the user owns. `generate_paper` saves after Grok; it does not trust SPA-supplied source ids. Library lists the row and shows the source count. Unit + `papers.integration.test.ts`.
 

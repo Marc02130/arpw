@@ -2,7 +2,7 @@
 
 ## Overview
 
-Gap analysis of ARPW as of 2026-09-19 (generation slices 1–5, outline slices 1–3, interrogation slices 1–6, QUAL-1–5, library export, NFR-4–7) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
+Gap analysis of ARPW as of 2026-09-19 (generation slices 1–5, outline slices 1–3, interrogation slices 1–6 including vector `chunk_role`, QUAL-1–5, library export, NFR-4–7) against `.docs/PRODUCT_REQUIREMENTS.md`. Status values: **DONE**, **PARTIAL**, **MISSING**, **BROKEN**, **WRONG-BY-DESIGN**.
 
 This is the document to use for planning work. The old `.docs/legacy/*.markdown` files describe a finished RAG product that does not exist.
 
@@ -21,7 +21,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
 | Vector ingest | PARTIAL | TXT/DOCX/PDF parse, heading-aware chunk, academic `chunk_role`, skip captions/ICMJE/page-number soup, `grok-embedding-small` when a Grok key is saved else `hash-384`. Live fixture ingest (no key) is hash-384 in &lt; 2 min when Storage is up |
-| Retrieval | DONE | `match_reference_chunks` + Show passages; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384. Interrogate also filters academic chunk roles |
+| Retrieval | DONE | `match_reference_chunks` + Query sources; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384. Interrogate also filters academic chunk roles |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | DONE | Prompt tab Outline card; `generate_outline`; draft generate reads `user_papers.outline` |
@@ -71,8 +71,8 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | GEN-5 | DONE | `generate_paper` loops selected sections with type×section templates + retrieval |
 | GEN-6 | DONE | Unknown `[S#]` dropped in `stripUnknownCitations`; worker does not trust SPA source ids |
 | GEN-7 | DONE | `match_example_chunks` + style prefix in the section prompt; example ids are not in the citation allow-list |
-| GEN-8 | DONE | `user_papers.outline`; Prompt Generate outline; `generate_paper` injects `outlineForSection` |
-| GEN-9 | DONE | Dashboard creates the draft; `generate_paper` writes content, sections, type, style, format, `status=completed` |
+| GEN-8 | DONE | `20260910010000_paper_outline.sql`; Prompt Generate outline via `generate_outline`; `generate_paper` injects `outlineForSection` |
+| GEN-9 | DONE | `HomePage.tsx` / `createDraftPaper` creates the draft; `generate_paper` writes content, sections, style, format, attribution, `status=completed` without overwriting type or outline |
 | GEN-10 | DONE | `paper_references` for cited `file_id`s the user owns; library shows the count |
 | GEN-4 pins | DONE | Pins first (section or unscoped), then role-filtered vectors; examples rejected |
 
@@ -118,7 +118,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 | NFR-4 | DONE | Live `ingest.integration.test.ts`: fixture PDF → `upload_processor` → visible `hash-384` chunks containing `nfr7probe` in under `INGEST_VISIBLE_CHUNKS_MS` (120s). Skips if Storage or Edge is down |
 | NFR-5 | DONE | `completeWithGrok` aborts after `GROK_SECTION_TIMEOUT_MS` (120s). Unit: hanging fetch times out; one-section draft after retrieval is under the budget. Live Grok E2E is still not in either suite |
 | NFR-6 | DONE | Labeled login fields + submit; upload zone `role=button`, Enter/Space, focus ring; generate prompt/selects labeled; Query sources / Generate Paper native buttons; skip-to-main |
-| NFR-7 | DONE | Fixture PDF unit + live ingest; retrieval hit on `nfr7probe`; `stripUnknownCitations` / generate drop unknown `[S#]`. Live Grok completion is not required for refuse-unknown-id |
+| NFR-7 | PARTIAL | Live fixture ingest/retrieval covers `nfr7probe`, and `stripUnknownCitations` / generate drop unknown `[S#]`; 4/5 fixture unit checks pass, but `pdf-parse` rejects the synthetic PDF with `bad XRef entry`. Live Grok completion is not required for refuse-unknown-id |
 
 ### 4. Code vs old documentation
 
@@ -134,13 +134,13 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 ### 5. RAG design gaps (even after wiring Grok)
 
-These are not “missing files.” They are product defects if you implement the old tech doc as written.
+These are design findings, not “missing files.” **PARTIAL** items remain defects; **MITIGATED** records an old risk the current pipeline addresses.
 
 1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Each chunk is labeled with an academic `chunk_role`; captions and author-contribution soup are not embedded; bibliography is stored for “what do they cite.” Generate retrieve prefers matching `section` then hybrid cosine+FTS (RRF). Interrogate additionally drops citation/boilerplate unless asked. Inside a section still 1000/200 characters. No layout/bbox parse.
 2. **Embeddings** — **PARTIAL.** Hosted plan is xAI `grok-embedding-small` at 384-d (same Grok key, not MiniLM-L6-v2). Hash-384 remains the fallback when no key or the API fails. Rows store `embedding_model`; retrieve filters by it. Live hosted E2E still needs a real xAI key.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.
-5. **Example papers in the same retriever** will be cited as evidence.
+5. **Example-paper evidence leakage — MITIGATED.** Examples use `match_example_chunks`, feed a style-only prompt block, and never enter the numbered evidence allow-list.
 
 ### 6. Dead code and duplication
 
@@ -174,8 +174,9 @@ Works today if Docker + `supabase start` (Homebrew CLI, not `npx`) + `.env` + Vi
 - `npm run test:integration` (live Storage/ingest/generate-Grok cases skip if those services are down)
 - Upload to Storage only if `supabase_storage_arpw` is up
 - Generate if `generate_paper` is up and a Grok key is saved; successful generate saves to the library
+- Generate an outline if `generate_outline` is up, `20260910010000_paper_outline.sql` is applied, and a Grok key is saved
 
-Outline works when the `paper_outline` migration is applied, `generate_outline` is served, and a Grok key is saved; an empty outline leaves the existing draft path unchanged. Live hosted `grok-embedding-small` and live Grok completion need a real xAI key. Unconfirmed users cannot reach `/dashboard`.
+An empty outline leaves the existing draft path unchanged. Live hosted `grok-embedding-small` and live Grok completion need a real xAI key. Unconfirmed users cannot reach `/dashboard`.
 
 ## References
 

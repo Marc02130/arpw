@@ -67,7 +67,7 @@ Auth gate (`App.tsx`): `user && email_confirmed_at && !isRecovery`. A missing `u
 
 ### 4. Data model (as-built)
 
-Source of truth: `supabase/migrations/20260906133100_init.sql`, `20260907000000_grok_key_storage.sql`, `20260907010000_reference_upload_cap.sql`. Table `"references"` is quoted because `references` is reserved.
+Source of truth: the ordered files in `supabase/migrations/`, from `20260906133100_init.sql` through `20260919010000_vector_chunk_role.sql`. Later migrations add Grok-key validation, caps, vector metadata/page/model/roles, Storage RLS, source roles, attribution, research prompt/outline, pins, interrogation notes, hybrid retrieval, and bibliographic citation fields. Table `"references"` is quoted because `references` is reserved.
 
 **user_profile:** `user_id` PK → `auth.users`, `email`, `full_name`, timestamps. Grok keys are **not** on this table.
 
@@ -190,7 +190,7 @@ See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Inte
 
 Grok key: worker calls `read_grok_api_key(for_user)` as service_role. If no key, HTTP 400 `missing_grok_key` (“Save a Grok API key on Profile before generating.”). Model: `grok-4.3`. Retrieval uses the caller’s JWT so RLS applies; the service role is only for the key.
 
-### 8. Library and export (as-built vs TARGET)
+### 8. Library and export (as-built)
 
 Library reads `user_papers`, groups by title, shows latest version, **25 titles per page**. Each paper has **Continue** and **Delete**. **Source citations** lists uploaded `"references"` rows (25 per page) with an editable `citation_text` and **Delete** (`deleteOwnedDocument`: vectors, metadata row, Storage object). Source count on the paper table comes from `paper_references(count)`. View uses `DraftPreview` and the same cite field on cited files. **Continue** opens `/generate?paper=…` and restores title, `paper_type`, sections, `research_prompt`, and `outline` once the row is loaded. Paper **Delete** confirms then removes that `user_papers` row; pins, interrogation notes, and `paper_references` cascade. **Regenerate** inserts `version+1` for the same title (`createRegenerateDraft`) then calls `generate_paper`; the empty row is deleted if generate fails. **Export** downloads Markdown or Word (`docx`) with a checks summary and `DRAFT_DISCLAIMER`. The `papers` Storage bucket is currently unused.
 
@@ -217,7 +217,7 @@ Dead: `LoginPage.tsx`, `ProfilePage.tsx`. There is no `src/edge-functions/`; dep
 
 ### 11. Retrieval RPCs (as-built)
 
-Migration `20260907260000_hybrid_fts_rrf.sql` defines both RPCs as `LANGUAGE sql STABLE` invoker functions and grants execution only to `authenticated`.
+Migration `20260907260000_hybrid_fts_rrf.sql` defines both hybrid RPCs as `LANGUAGE sql STABLE` invoker functions and grants execution only to `authenticated`. `20260919010000_vector_chunk_role.sql` extends the current `match_reference_chunks` return shape with `chunk_role`.
 
 | RPC | Inputs | Behavior |
 |---|---|---|

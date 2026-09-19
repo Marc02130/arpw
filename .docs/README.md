@@ -33,6 +33,6 @@ Index of product and engineering specs for ARPW. These files are the source of i
 ## References
 
 - Local setup and tests: `../README.md`
-- Schema: `../supabase/migrations/` (init through grok key, caps, vectors, storage RLS, source_role, match RPCs, pins, interrogation notes, vector `page`, prefer_section, embedding_model filter, hybrid FTS/RRF, `chunk_role`)
+- Schema: `../supabase/migrations/` (init through Grok key/shape, caps, vector metadata/page, storage RLS, `source_role`, paper attribution/research prompt/outline, match RPCs, pins, interrogation notes/delete policy, embedding-model filter, hybrid FTS/RRF, bibliographic/citation text, and `chunk_role`)
 - Unit tests: `../src/lib/*.test.ts`
 - Integration tests: `../src/integration/*.integration.test.ts`
