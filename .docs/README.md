@@ -13,7 +13,7 @@ Index of product and engineering specs for ARPW. These files are the source of i
 | [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md) | As-built + TARGET | Stack, schema, RPCs, ingest, tests, TARGET RAG |
 | [GENERATION_SLICES.md](./GENERATION_SLICES.md) | Generate cut | Slice tracker: `source_role`, templates, retrieval, Grok, save (shipped) |
 | [OUTLINE_SLICES.md](./OUTLINE_SLICES.md) | Outline (GEN-8) | Persist, generate outline, draft follows outline (shipped) |
-| [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) | Interrogate + pins | Slice tracker: pin schema, interrogate tab, pin from Q&A, generate uses pins, chat as notes |
+| [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) | Interrogate + pins | Slice tracker: pin schema, interrogate tab, pin from Q&A, generate uses pins, chat as notes, academic chunk roles |
 | [GAP_ANALYSIS.md](./GAP_ANALYSIS.md) | Planning | PRD vs code; build order |
 | [../UAT/README.md](../UAT/README.md) | UAT / dogfood | Literature-review playbook: Playwright runner, `xai-` key fixture, Source citations, academic References, pin-from-thread, Continue. PDFs stay in `UAT/papers/` (gitignored) |
 | [legacy/](./legacy/) | Superseded | Drafts; ignore where they conflict |
@@ -24,15 +24,15 @@ Index of product and engineering specs for ARPW. These files are the source of i
 - Literature-review UAT / Grok Bot dogfood: [../UAT/README.md](../UAT/README.md)
 - About to write code: [GAP_ANALYSIS.md](./GAP_ANALYSIS.md)
 - About to implement generate: [GENERATION_SLICES.md](./GENERATION_SLICES.md)
-- About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–5 shipped)
+- About to implement interrogate/pins: [INTERROGATION_SLICES.md](./INTERROGATION_SLICES.md) (slices 1–6 shipped)
 - About to implement outline: [OUTLINE_SLICES.md](./OUTLINE_SLICES.md) (slices 1–3 shipped)
-- Remaining after generate: eval harness (recall@k holdout / paraphrase retrieval — not UAT). Outline (GEN-8) shipped. Uncited ⚠ after one repair pass is QUAL-1 leftover, not a missing check.
+- Remaining after generate: eval harness (recall@k holdout / paraphrase retrieval — not UAT). Outline (GEN-8) and academic interrogate retrieve (chunk roles) shipped. Uncited ⚠ after one repair pass is QUAL-1 leftover, not a missing check.
 - Schema, RPCs, embeddings, test commands: [TECHNICAL_SPECIFICATION.md](./TECHNICAL_SPECIFICATION.md)
 - What “MVP” still means: [PRODUCT_REQUIREMENTS.md](./PRODUCT_REQUIREMENTS.md)
 
 ## References
 
 - Local setup and tests: `../README.md`
-- Schema: `../supabase/migrations/` (init through grok key, caps, vectors, storage RLS, source_role, match RPCs, pins, interrogation notes, vector `page`, prefer_section, embedding_model filter, hybrid FTS/RRF)
+- Schema: `../supabase/migrations/` (init through grok key, caps, vectors, storage RLS, source_role, match RPCs, pins, interrogation notes, vector `page`, prefer_section, embedding_model filter, hybrid FTS/RRF, `chunk_role`)
 - Unit tests: `../src/lib/*.test.ts`
 - Integration tests: `../src/integration/*.integration.test.ts`

@@ -7,8 +7,10 @@ import {
   chunkPages,
   chunkText,
   hashEmbedding,
+  labelIngestChunks,
   linesFromDocxXml,
   parseHeading,
+  passageEmbedText,
   storageObjectKey,
   storageTarget,
   textFromDocxXml,
@@ -162,6 +164,31 @@ describe('linesFromDocxXml', () => {
     expect(fromDocx.find((chunk) => chunk.section === 'Methods')?.text).toContain('twelve participants')
     expect(fromDocx.find((chunk) => chunk.section === 'Methods')?.text).not.toContain('Smith, A. (2020)')
     expect(fromDocx.find((chunk) => chunk.section === 'References')?.text).toContain('Smith, A. (2020)')
+  })
+})
+
+describe('labelIngestChunks', () => {
+  it('should drop ICMJE junk, keep bibliography, and prefix IMRaD embeddings', () => {
+    const icmje =
+      'Substantial contributions to the conception or design of the work, the ' +
+      'acquisition, analysis, or interpretation of data for the work; final approval ' +
+      'of the version to be published; and agreement to be accountable for all aspects.'
+    const methods =
+      'Non-parametric data were examined using the Mann-Whitney U-test. ' +
+      'Statistical analyses were performed using GraphPad Prism 8.0.'
+    const bib =
+      'Tetzlaff J, Altman DG (2009) Preferred reporting items for systematic reviews. ' +
+      'https://doi.org/10.1371/journal.pmed.1000097 et al. et al. et al. Extra filler so this exceeds the minimum chunk length used at ingest.'
+    const labeled = labelIngestChunks([
+      { text: icmje, chunkIndex: 0, section: 'Other', page: 1 },
+      { text: methods, chunkIndex: 1, section: 'Methods', page: 2 },
+      { text: bib, chunkIndex: 2, section: 'References', page: 3 },
+    ])
+    expect(labeled.map((chunk) => chunk.section)).toEqual(['Methods', 'References'])
+    expect(labeled[0].chunkRole).toBe('method')
+    expect(labeled[1].chunkRole).toBe('citation')
+    expect(passageEmbedText(labeled[0])).toMatch(/^\[Methods\] /)
+    expect(passageEmbedText(labeled[1])).toMatch(/^\[References\] /)
   })
 })
 

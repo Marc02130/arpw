@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashEmbedding } from '../upload_processor/ingest.ts'
 import { HASH_EMBEDDING_MODEL, type QueryEmbedFn } from './embedText.ts'
+import { filterPassagesForQuestion } from './chunkRoles.ts'
 import {
   type RetrievalRole,
   buildRetrievalQuery,
@@ -8,6 +9,8 @@ import {
 } from './generationTemplates.ts'
 
 export const DEFAULT_MATCH_COUNT = 12
+/** Over-fetch then drop citation/boilerplate for academic interrogate. SQL k is capped at 20. */
+export const DEFAULT_INTERROGATE_POOL = 20
 
 export type RetrievedPassage = {
   vector_id: string
@@ -19,6 +22,7 @@ export type RetrievedPassage = {
   score: number
   paperSection: string
   pinned?: boolean
+  chunk_role?: string | null
 }
 
 export type EvidencePin = RetrievedPassage & { target_section: string | null }
@@ -179,6 +183,7 @@ const matchChunks = async (
     source_role: String(row.source_role ?? ''),
     score: typeof row.score === 'number' ? row.score : Number(row.score),
     paperSection: '',
+    chunk_role: row.chunk_role == null || row.chunk_role === '' ? null : String(row.chunk_role),
   }))
 }
 
@@ -386,8 +391,11 @@ export const retrieveForQuestion = async (
     throw new Error('Enter a question')
   }
   const query = await embedQueryText(topic, embed)
-  const rows = await matchWithModelFallback(client, query, filterRole, matchCount, null, topic)
-  return rows.map((row) => ({ ...row, paperSection: 'Interrogate' }))
+  const poolCount = Math.max(matchCount, DEFAULT_INTERROGATE_POOL)
+  const rows = await matchWithModelFallback(client, query, filterRole, poolCount, null, topic)
+  return filterPassagesForQuestion(topic, rows)
+    .slice(0, matchCount)
+    .map((row) => ({ ...row, paperSection: 'Interrogate' }))
 }
 
 export const retrieveForPaper = async (

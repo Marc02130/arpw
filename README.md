@@ -19,7 +19,7 @@ Product intent, architecture, and the remaining gap list live in [`.docs/`](.doc
 | Kind | Where |
 |---|---|
 | Tutorial | [Get to the dashboard](#tutorial-get-to-the-dashboard), [Run the unit tests](#tutorial-run-the-unit-tests) |
-| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Interrogate](#how-to-interrogate-the-corpus), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test), [Literature-review UAT](UAT/README.md) |
+| How-to | [Confirm email](#how-to-confirm-your-email), [Reset password](#how-to-reset-your-password), [Upload](#how-to-upload-a-reference), [List and delete](#how-to-list-and-delete-a-file), [Generate](#how-to-generate-a-paper), [Interrogate](#how-to-interrogate-the-corpus), [Serve Edge functions](#how-to-serve-edge-functions), [Grok key](#how-to-save-a-grok-api-key), [Library and profile](#how-to-use-the-library-and-profile), [Run tests](#how-to-run-tests), [Add a test](#how-to-add-a-test), [Literature-review UAT](UAT/README.md) |
 | Reference | [Ports and env](#ports-and-env), [Routes](#routes-srcapptsx), [Auth](#auth-behavior-srchooksuseauthts), [Grok RPCs](#grok-key-rpcs), [Uploads](#upload-constraints-srccomponentsuploadzonetsx), [Tests](#tests), [npm scripts](#npm-scripts) |
 | Explanation | [Why email confirmation](#why-email-confirmation), [Why the Grok key is not on the profile](#why-the-grok-key-is-not-on-the-profile), [Why the reference cap is on the table](#why-the-reference-cap-is-on-the-table), [Why two test suites](#why-two-test-suites) |
 | Specs | [`.docs/`](.docs/README.md), [Literature-review UAT](UAT/README.md) |
@@ -257,30 +257,47 @@ Indexed references + a prompt that overlaps their text should list passages with
 | “Save a Grok API key on Profile before generating.” | Save a key on `/profile`. The SPA never reads it back. |
 | Query sources disabled; “Loading saved paper…” | The paper row is still loading. Wait for “Working on …”. |
 | Query sources disabled; “Enter a research prompt to query sources.” | Paste or restore the research prompt. Continue should fill it from the saved paper. |
-| Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve` (installed CLI). |
+| Generate 404 / function not found | A `supabase start` from before `generate_paper` existed will not register it. Run `supabase functions serve --network-id supabase_network_arpw`. |
 | Generate 503 BOOT_ERROR | Deno imports in `supabase/functions/_shared` must use `.ts` extensions. |
 | “Grok request timed out after 2 minutes” | That section’s Grok call exceeded NFR-5. Retrieval already finished; retry, generate fewer sections, or check xAI. |
-| Interrogate 404 / function not found | `interrogate_corpus` is a new Edge function. Run `supabase functions serve` (installed CLI) so it registers next to `generate_paper`. |
+| Interrogate 404 / function not found | `interrogate_corpus` is a new Edge function. Run `supabase functions serve --network-id supabase_network_arpw` so it registers next to `generate_paper`. |
+| Evidence question returns only `References ·` cards | Academic role filter not serving. Restart functions with `--network-id supabase_network_arpw`. Apply `chunk_role` migration. Re-upload is optional (query-time classify still runs). |
 | Upload/index 502, logs say lock file hash mismatch | Delete `supabase/functions/**/deno.lock` (gitignored). `deno.json` sets `"lock": false` so esm.sh republishes do not break ingest. |
 
 ## How to interrogate the corpus
 
-Ask a question of your literature and/or original research. The worker retrieves chunks, Grok answers using only those `[S#]` ids, and unknown ids are dropped. Turns are saved as notes on the paper. They are not evidence.
+Ask a question of your literature and/or original research. The worker retrieves academic chunks, Grok answers using only those `[S#]` ids, and unknown ids are dropped. Turns are saved as notes on the paper. They are not evidence.
+
+Retrieve is tuned for papers, not a mixed PDF chat. Evidence and hypothesis questions drop bibliography and funding/acknowledgement boilerplate. Ask what the papers cite if you want the reference list.
 
 ### Prerequisites
 
-A confirmed session, a paper from `/dashboard`, indexed literature or original research, and a Grok API key on `/profile`.
+A confirmed session, a paper from `/dashboard`, indexed literature or original research, a Grok API key on `/profile`, and Edge functions served ([How to serve Edge functions](#how-to-serve-edge-functions)).
 
 ### Steps
 
 1. Open the Interrogate tab (`/generate/interrogate?paper=…`).
 2. Choose sources: both, literature only, or original research only. Example papers are never searched.
-3. Enter a question and click **Ask**.
-4. Read the thread. Pin a passage (optional target section, or any section). Unpin from this list or from the Prompt tab. Reload the tab: the thread is still there.
+3. Enter a question and click **Ask**. For findings, use evidence wording, for example “What evidence do these papers report about omega-3 and cognition?” For methods, ask how they measured or which protocol. For the bibliography, ask what they cite.
+4. Read the thread. Passage cards show IMRaD section (`Results ·`, `Discussion ·`). An evidence answer should not be a wall of `References ·` cards. Pin a passage (optional target section, or any section). Unpin from this list or from the Prompt tab. Reload the tab: the thread is still there.
 
 ### Verification
 
-A question that overlaps indexed text should list passages with `[S#]` labels. Pin, then open Prompt: the pin is listed. Reload Interrogate: the Q&A remains. A missing key shows the same Profile error as generate. Example-paper-only corpora should match nothing. Chat notes must not appear in Query sources.
+A question that overlaps indexed text should list passages with `[S#]` labels. Evidence / hypothesis questions should prefer findings, claims, and evaluation — not the bibliography — unless you ask what the papers cite. Pin, then open Prompt: the pin is listed. Reload Interrogate: the Q&A remains. A missing key shows the same Profile error as generate. Example-paper-only corpora should match nothing. Chat notes must not appear in Query sources. Re-upload already-indexed PDFs if you want stored `chunk_role` and section-prefixed embeddings; unlabeled rows are still classified when you ask.
+
+Literature-review dogfood of this path: [UAT/README.md](UAT/README.md) step 8.
+
+## How to serve Edge functions
+
+Ingest, interrogate, generate, outline, and catalog citation lookup run as Deno Edge functions. `supabase start` is not enough after you pull function code.
+
+The local Docker network name is **`supabase_network_arpw`** (`docker network ls`). Catalog lookup (Crossref, PubMed, doi.org) needs that network.
+
+```bash
+supabase functions serve --network-id supabase_network_arpw
+```
+
+Serve: `upload_processor`, `embed_text`, `generate_paper`, `generate_outline`, `interrogate_corpus`, `lookup_citation`. Restart this process after Edge changes. Apply migrations through `20260919010000_vector_chunk_role.sql` if Studio does not show `reference_vectors.chunk_role`.
 
 ## How to save a Grok API key
 
@@ -355,8 +372,8 @@ You will run the unit suite, then (if local Supabase is up) the Auth/REST/RLS in
 
 ### Verification
 
-- Unit: `Test Files  32 passed (32)` and `Tests  159 passed (159)` (run 2026-09-10).
-- Integration: `Test Files  12 passed (12)` and `Tests  36 passed (36)` against local API with Storage and Edge functions up (run 2026-09-07). Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down.
+- Unit: `Test Files  33 passed (33)` and `Tests  182 passed (182)` (including `chunkRoles.test.ts`).
+- Integration: live Auth/REST/RLS/Storage/ingest/pins/retrieval against local API. Storage object isolation and fixture-PDF ingest skip if Storage or `upload_processor` is down. Generate/interrogate missing-key cases skip if those functions are down. Retrieval includes the academic evidence-vs-bibliography filter when `chunk_role` is migrated.
 - `npm test` must not execute `src/integration/*.integration.test.ts` (excluded in `vite.config.ts`).
 - Neither suite calls xAI. Missing-Grok-key paths are covered; a live completion is not. Live Grok dogfood is the [literature-review UAT](UAT/README.md).
 
@@ -405,6 +422,7 @@ The same as [How to run tests](#how-to-run-tests). Name tests `it('should …')`
 | Studio | `http://127.0.0.1:54323` |
 | Mail (Mailpit/Inbucket) | `http://127.0.0.1:54324` |
 | Postgres | Port `54322`; URL is printed by `supabase status` (local default user `postgres`) |
+| Edge functions | `supabase functions serve --network-id supabase_network_arpw` |
 | `VITE_SUPABASE_URL` | API URL from `supabase status` |
 | `VITE_SUPABASE_ANON_KEY` | anon key from `supabase status` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Local demo service_role (`.env.example`). SPA must not use this. Integration tests use it to confirm users. |
@@ -528,13 +546,14 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | `documentStore.test.ts` | Table/bucket/vector table map, `{user_id}/{file_id}` key, index labels |
 | `formatFile.test.ts` | Size, date, icon |
 | `validateAuth.test.ts` | Email, password, confirm, full name, login fields, Grok key length |
-| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, heading parse, Methods/References isolation, PDF page |
+| `ingest.test.ts` | `storageTarget` `{user_id}/{file_id}`, `userOwnsStorageKey`, `validateIngestFile`, DOCX XML, heading parse, Methods/References isolation, PDF page, junk skip, citation kept |
 | `nfr7Fixture.test.ts` | Synthetic fixture PDF (no PII): valid size, probe token in bytes, pdf-parse extract, chunk + hash-384; Methods chunks exclude bibliography (NFR-7) |
 | `embedText.test.ts` | Hosted `grok-embedding-small` 384-d; hash-384 fallback; query/passage prefixes; no MiniLM |
 | `keyboardFlows.test.ts` | NFR-6: Enter/Space activate upload; login/generate control ids wired in UI |
 | `sourceRole.test.ts` | `literature` / `primary` parse and labels (DOCS-8) |
 | `generationTemplates.test.ts` | Paper type × section frozen templates; Empirical Methods ≠ Lit Review Introduction |
-| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; RRF hybrid merge; Methods-labeled chunks rank first; chunk page parse |
+| `retrievePassages.test.ts` | Primary-then-literature attempts; pin-first merge; RRF hybrid merge; Methods-labeled chunks rank first; chunk page parse; interrogate drops bibliography |
+| `chunkRoles.test.ts` | Academic chunk/query roles; bibliography vs review lede; junk captions; evidence query excludes citation |
 | `pins.test.ts` | Target section parse; `Interrogate` rejected; attach file/chunk; lookup by `vector_id` |
 | `interrogateCorpus.test.ts` | Paper + question required; unknown `[S#]` stripped; no Grok call when nothing matched |
 | `interrogationNotes.test.ts` | user/assistant roles; stored passages are notes, not `reference_vectors` |

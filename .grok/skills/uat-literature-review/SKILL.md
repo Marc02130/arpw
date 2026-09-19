@@ -32,7 +32,17 @@ Manual path: drive `http://127.0.0.1:5173` as a throwaway user (`uat-litrev-<dat
 
 `UAT/.uat-grok-key` and `GROK_API_KEY` must contain a value that starts with `xai-`. Never paste the secret into chat, reports, or git. If a saved report failed on HTTP 500 / last4 `.env`, replace the fixture and `--resume` — do not re-upload the 20 PDFs.
 
-Wait for “Working on …” before Query sources or Generate outline. A disabled Query sources after the paper has loaded, while `research_prompt` is saved, is FAIL (QA-2026-09-09-1). After the prompt is saved, click **Generate outline** and require `##` headings in `#paper-outline`. Continue must restore the outline. `functions serve` must include `generate_outline`.
+Wait for “Working on …” before Query sources or Generate outline. A disabled Query sources after the paper has loaded, while `research_prompt` is saved, is FAIL (QA-2026-09-09-1). After the prompt is saved, click **Generate outline** and require `##` headings in `#paper-outline`. Continue must restore the outline.
+
+`functions serve` must include `generate_outline`, `interrogate_corpus`, `lookup_citation`, and `upload_processor`. Use the local Docker network:
+
+```bash
+supabase functions serve --network-id supabase_network_arpw
+```
+
+That name is `docker network ls` for this project. Restart serve after Edge changes (academic `chunk_role` ingest lives in `upload_processor`).
+
+Step 8 asks “What evidence do these papers report about omega-3 and cognition?” and must not retrieve only bibliography (`References ·` cards / PubMed-DOI dump). Uncited ⚠ in the draft is QUAL-1 leftover — do not fail the UAT for that. Fail a non-academic References list.
 
 ## Output
 

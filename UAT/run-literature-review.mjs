@@ -17,6 +17,8 @@ const KEY_FILE = path.join(__dirname, '.uat-grok-key')
 const BASE = 'http://127.0.0.1:5173'
 const MAILPIT = 'http://127.0.0.1:54324'
 const PROMPT = 'Synthesize a literature review of the gut-brain axis in Alzheimer’s disease from the uploaded papers only. Cover microbiome, inflammation, omega-3 fatty acids, and clinical-trial evidence. Cite only retrieved [S#] ids. Do not invent studies, n, or outcomes.'
+const INTERROGATE_QUESTION =
+  'What evidence do these papers report about omega-3 and cognition?'
 const TITLE = 'Gut-brain axis in Alzheimer’s disease: a literature review'
 const WANT_SECTIONS = new Set(['Abstract', 'Introduction', 'Literature Review', 'Discussion', 'Conclusion', 'References'])
 const DISCLAIMER = 'AI-generated draft. Requires human review'
@@ -141,6 +143,20 @@ function referencesLooksAcademic(text) {
   if (/\b1\.\s+\S+\.pdf\b/i.test(refs) || /Works cited from the uploaded corpus/i.test(refs)) {
     return 'References listed PDF filenames'
   }
+  return null
+}
+
+/** Evidence questions must not drown in bibliography chunks (academic chunk roles). */
+function evidencePassagesLookAcademic(text) {
+  const body = String(text || '')
+  const sidRefs = (body.match(/\[S\d+\] References ·/g) || []).length
+  const sidLabeled = (body.match(/\[S\d+\] [A-Z][A-Za-z ]+ ·/g) || []).length
+  const sidOther = Math.max(sidLabeled - sidRefs, 0)
+  if (sidRefs > 0 && sidOther === 0) return 'evidence question retrieved only References passages'
+  if (sidRefs >= 3 && sidRefs > sidOther) return 'evidence question retrieved mostly bibliography'
+  const pubmed = (body.match(/\[pubmed:|\bpmid:\s*\d+/gi) || []).length
+  const dois = (body.match(/doi\.org/gi) || []).length
+  if (pubmed + dois >= 5 && sidOther === 0) return 'evidence passages look like a reference list'
   return null
 }
 
@@ -584,7 +600,7 @@ async function main() {
       if (!/No key saved/i.test(body) && !/API key removed/i.test(body)) throw new Error('after clear: expected No key saved; got: ' + body.slice(0, 220))
       await page.goto(`${BASE}/generate/interrogate?paper=${paperId}`)
       await page.locator('#interrogate-filter').selectOption('literature')
-      await page.getByLabel('Interrogation question').fill('What do these papers say about omega-3 and cognition?')
+      await page.getByLabel('Interrogation question').fill(INTERROGATE_QUESTION)
       await page.getByRole('button', { name: 'Ask' }).click()
       await page.waitForTimeout(2500)
       body = await page.locator('body').innerText()
@@ -611,7 +627,7 @@ async function main() {
       await page.goto(`${BASE}/generate/interrogate?paper=${paperId}`, { waitUntil: 'domcontentloaded' })
       await page.waitForSelector('#interrogate-filter', { timeout: 20000 })
       await page.locator('#interrogate-filter').selectOption('literature')
-      await page.getByLabel('Interrogation question').fill('What do these papers say about omega-3 and cognition?')
+      await page.getByLabel('Interrogation question').fill(INTERROGATE_QUESTION)
       const askResp = page.waitForResponse(
         (r) => r.url().includes('interrogate_corpus') || r.url().includes('/functions/v1/interrogate'),
         { timeout: 180000 }
@@ -638,6 +654,8 @@ async function main() {
       if (!sids.length) {
         throw new Error('interrogate 2xx but no [S#] in UI; gate requires citations')
       }
+      const bibErr = evidencePassagesLookAcademic(body)
+      if (bibErr) throw new Error(bibErr)
       record(8, 'PASS', `answer sids=${sids.slice(0, 8).join(',')}; last4=${last4 || 'n/a'}; http=${status}`)
     } catch (e) {
       crashLog('step8 fail ' + (e && e.message || e))

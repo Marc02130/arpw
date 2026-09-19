@@ -6,9 +6,11 @@ import { hasUsableBibliographicRecord } from '../_shared/bibliographicCitation.t
 import { lookupBibliographicRecord, lookupCitationText } from '../_shared/bibliographicLookup.ts'
 import {
   chunkLines,
+  labelIngestChunks,
   linesFromDocxXml,
   linesFromText,
   pagesFromExtractText,
+  passageEmbedText,
   storageTarget,
   validateIngestFile,
   type IngestDocumentType,
@@ -107,7 +109,7 @@ const storeVectors = async (
   await supabase.from(tableName).delete().eq('file_id', fileId)
 
   const embedded = await embedTexts(
-    chunks.map((chunk) => chunk.text),
+    chunks.map((chunk) => passageEmbedText(chunk)),
     { apiKey, purpose: 'passage', allowHashFallback: true }
   )
 
@@ -119,6 +121,7 @@ const storeVectors = async (
     section: chunk.section,
     page: chunk.page,
     embedding_model: embedded.model,
+    chunk_role: chunk.chunkRole ?? null,
   }))
 
   const batchSize = 100
@@ -185,9 +188,9 @@ serve(async (req: Request) => {
       throw new Error('File appears to be empty or could not be parsed')
     }
 
-    const chunks = chunkLines(lines)
+    const chunks = labelIngestChunks(chunkLines(lines))
     if (chunks.length === 0) {
-      throw new Error('No valid text chunks could be extracted from the file')
+      throw new Error('No usable text after dropping captions and boilerplate')
     }
 
     await storeDocumentMetadata(

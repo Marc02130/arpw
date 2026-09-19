@@ -10,6 +10,7 @@ import {
   parseInterrogateFilter,
   preferMatchingSection,
   retrievalAttempts,
+  retrieveForQuestion,
   rrfMerge,
   unionPrimaryForSection,
   type EvidencePin,
@@ -166,6 +167,53 @@ describe('preferMatchingSection', () => {
     const rows = [row('a', 'References'), row('b', 'Unknown')]
     expect(preferMatchingSection(rows, 'Methods')).toEqual(rows)
     expect(preferMatchingSection(rows, 'References')).toEqual(rows)
+  })
+})
+
+describe('retrieveForQuestion academic roles', () => {
+  it('should drop bibliography on an evidence question and keep a review lede', async () => {
+    const review =
+      'Worldwide efforts continue to unravel the complex pathological pathways ' +
+      'that lead to Alzheimer’s disease. The gut–brain–microbiome axis is emerging ' +
+      'as a potential mechanism involved in Alzheimer’s disease pathogenesis.'
+    const bib =
+      'Tetzlaff J, Altman DG (2009) Preferred reporting items for systematic reviews. ' +
+      'https://doi.org/10.1371/journal.pmed.1000097 et al. et al. et al.'
+    const client = {
+      rpc: async () => ({
+        data: [
+          {
+            vector_id: 'review',
+            file_id: 'file-1',
+            chunk_text: review,
+            section: 'Introduction',
+            source_role: 'literature',
+            score: 0.8,
+            page: 1,
+            chunk_role: 'context',
+          },
+          {
+            vector_id: 'bib',
+            file_id: 'file-1',
+            chunk_text: bib,
+            section: 'References',
+            source_role: 'literature',
+            score: 0.9,
+            page: 20,
+            chunk_role: 'context',
+          },
+        ],
+        error: null,
+      }),
+    }
+    const rows = await retrieveForQuestion(
+      client as never,
+      'what hypotheses have the best evidence',
+      'both'
+    )
+    expect(rows.map((row) => row.vector_id)).toEqual(['review'])
+    expect(rows[0]?.paperSection).toBe('Interrogate')
+    expect(rows[0]?.chunk_role).toBe('context')
   })
 })
 

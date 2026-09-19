@@ -26,6 +26,7 @@ Locked product calls (2026-09-07):
 | 3 | Pin from interrogation | **DONE** | Pins from a real question |
 | 4 | Generate uses pins first | **DONE** | Draft follows marked passages |
 | 5 | Persist interrogation chat as notes | **DONE** | Continue the conversation |
+| 6 | Academic chunk roles on interrogate | **DONE** | Bibliography does not drown findings |
 
 Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**.
 
@@ -80,17 +81,25 @@ Status values: **NEXT**, **IN PROGRESS**, **DONE**, **NOT STARTED**, **BLOCKED**
 
 **Not in this slice:** exporting the thread as a PDF; Ragged import.
 
+### Slice 6 — Academic chunk roles on interrogate
+
+**Done when:** ingest labels each reference chunk with a role (`claim`, `finding`, `evaluation`, `method`, `context`, `experience`, `citation`, `boilerplate`); captions / author-contribution / page-number soup are not embedded; bibliography chunks are stored; Interrogate classifies the question and **hard-drops citation and boilerplate** unless the question asks for references; unlabeled historical chunks are classified at query time. Generate retrieve is unchanged.
+
+**Shipped:** `chunkRoles.ts` (academic port of Ragged `classify.py`: default retrieve is claim/finding/evaluation/context, no diary experience; IMRaD section defaults). `reference_vectors.chunk_role` (`20260919010000_vector_chunk_role.sql`). `labelIngestChunks` skips junk and still embeds citation. `retrieveForQuestion` over-fetches then `filterPassagesForQuestion`. Unit tests port Ragged bibliography / zwsp DOI / PubMed / review-lede / hypothesis / method fixtures.
+
+**Not in this slice:** query rewrite / HyDE; generate `retrieveForSection` role filter; re-upload of already-indexed files (old rows work via query-time classify; re-upload stores `chunk_role` and section-prefixed embeddings).
+
 ### Out of these slices
 
 - Merging or wrapping Ragged
 - Importing a chat transcript as a reference file
 - Eval harness / paraphrase retrieval (PRD §6 recall@k holdout; not UAT)
-- Outline (GEN-8), Word export (LIB-4)
 - User-editable system prompts
+- Query rewrite / HyDE; generate-side chunk-role filter
 
 ### Tests (written and run 2026-09-07)
 
-Unit (`npm test`, no network): **20 files, 92 passed** at slice 5 land, including `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first), `interrogationNotes.test.ts`. QUAL-2 adds `citationCheck.test.ts` on a later branch.
+Unit (`npm test`, no network): **33 files, 182 passed** after slice 6, including `chunkRoles.test.ts`, `pins.test.ts`, `interrogateCorpus.test.ts`, `retrievePassages.test.ts` (pin-first + bibliography drop), `interrogationNotes.test.ts`.
 
 Integration (`npm run test:integration`, local API): **12 files, 36 passed** with Storage and Edge functions up, including:
 
@@ -98,14 +107,14 @@ Integration (`npm run test:integration`, local API): **12 files, 36 passed** wit
 |---|---|
 | `pins.integration.test.ts` | Own pin/list/unpin; RLS; cannot pin another user’s chunk or examples; invalid target CHECK |
 | `interrogate.integration.test.ts` | 401 anonymous; missing Grok key (skips if function down) |
-| `retrieval.integration.test.ts` | Role filter; pinned literature chunk leads Methods retrieval |
+| `retrieval.integration.test.ts` | Role filter; pinned literature chunk leads Methods retrieval; interrogate drops bibliography on evidence questions |
 | `interrogationNotes.integration.test.ts` | Save/reload thread; other user hidden; chat text not in `match_reference_chunks` |
 
-**Not covered:** live Grok completion (no xAI call in either suite). Missing-key paths are covered. Generate with a real key against pinned passages is manual.
+**Not covered:** live Grok completion (no xAI call in either suite). Missing-key paths are covered. Generate with a real key against pinned passages is manual. Literature-review UAT step 8 dogfoods academic retrieve: evidence question must not return only bibliography (`UAT/README.md`, `evidencePassagesLookAcademic` in the runner).
 
 ### How to use this file
 
-Slices 1–5 are **DONE**. Remaining product work is outside this tracker (outline, hybrid/rerank).
+Slices 1–6 are **DONE**. Remaining product work is outside this tracker (eval harness, generate-side role filter).
 
 ## References
 

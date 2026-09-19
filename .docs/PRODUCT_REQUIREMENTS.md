@@ -102,7 +102,7 @@ Each item has an ID for the gap analysis.
 | ID | Requirement | Priority |
 |---|---|---|
 | INT-1 | Interrogate tab on the current paper: ask a question of literature and/or original research; show retrieved passages; Grok answers using only those `[S#]` ids. | P0 |
-| INT-2 | Interrogation uses the same corpus, embeddings, and Grok key path as generate. SPA never sees the key. | P0 |
+| INT-2 | Interrogation uses the same corpus, embeddings, and Grok key path as generate. SPA never sees the key. Retrieve is academic-paper-tuned: drop bibliography and boilerplate unless the question asks for citations. | P0 |
 | INT-3 | Saved interrogation turns are notes. They must not be retrieved as evidence or numbered as `[S#]`. | P0 |
 
 #### PIN

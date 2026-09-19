@@ -1,120 +1,49 @@
 # Supabase Edge Functions
 
-This directory contains the Edge Functions for the ARPW application.
+Local Deno functions for ingest, retrieve, generate, outline, interrogate, and citation lookup. Stay on the Homebrew CLI (`which supabase` is a binary, not `npx`). Do not deploy these to hosted project `uqcjcnnpqukxpwumugsp` from this playbook.
+
+## Serve (local)
+
+The Docker network name is **`supabase_network_arpw`**.
+
+```bash
+supabase functions serve --network-id supabase_network_arpw
+```
+
+Restart after pulling Edge code. Catalog lookup (Crossref, PubMed, doi.org) needs that network id.
+
+Required functions: `upload_processor`, `embed_text`, `generate_paper`, `generate_outline`, `interrogate_corpus`, `lookup_citation`.
 
 ## Functions
 
 ### interrogate_corpus
 
-Grounded Q&A on the current paper’s literature and/or original research. Auth JWT required. Same Grok key path as generate (`read_grok_api_key`; SPA never sees it). Retrieves with `match_reference_chunks` only — no example papers. Client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`. Does not persist the turn.
+Grounded Q&A on the current paper’s literature and/or original research. Auth JWT required. Same Grok key path as generate (`read_grok_api_key`; SPA never sees it). Retrieves with `match_reference_chunks` only — no example papers — then filters academic `chunk_role` (citation/boilerplate dropped unless the question asks for references). Client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`. The SPA persists the turn as notes.
 
 ### generate_paper
 
-Section-by-section draft. Auth JWT required. Reads the Grok key with service_role `read_grok_api_key` (the SPA never sees it). Retrieves chunks itself — client `sourceIds` / `systemPrompt` are ignored. Drops `[S#]` citations that were not in the retrieved set. Missing key: HTTP 400 `missing_grok_key`.
+Section-by-section draft. Auth JWT required. Reads the Grok key with service_role `read_grok_api_key`. Retrieves chunks itself (pins first) — client `sourceIds` / `systemPrompt` are ignored. Drops unknown `[S#]`. One uncited repair pass per section. Missing key: HTTP 400 `missing_grok_key`.
 
-POST body: `{ paperId, paperType, sections, researchPrompt, citationStyle?, outputFormat? }`. After Grok, updates that `user_papers` row and replaces `paper_references` with cited file ids the user owns.
+POST body: `{ paperId, paperType, sections, researchPrompt, citationStyle?, outputFormat? }`. After Grok, updates that `user_papers` row and replaces `paper_references` with cited file ids the user owns. Does not write `paper_type`.
+
+### generate_outline
+
+Optional Prompt-tab outline. Same retrieve + Grok key path. Saves `user_papers.outline`.
+
+### lookup_citation
+
+DOI/PMID catalog lookup (Crossref, then PubMed, then doi.org APA cite). Needs `--network-id supabase_network_arpw`.
 
 ### upload_processor
 
-Processes uploaded documents by:
-- Validating file type and size
-- Parsing content (PDF, DOCX, TXT)
-- Chunking text into manageable pieces
-- Generating embeddings (`grok-embedding-small` when a Grok key is saved, else `hash-384`)
-- Storing metadata and vectors in the database
+Parses PDF/DOCX/TXT, splits on IMRaD headings, skips captions/author-contribution/page-number soup, labels academic `chunk_role`, embeds (`grok-embedding-small` with a key, else `hash-384`), stores vectors. Bibliography chunks are stored (interrogation drops them unless asked). Best-effort DOI/PMID catalog fill on literature files.
 
-## Setup
+POST: `{ fileId, fileName, fileSize, documentType }`. Downloads `{auth.uid()}/{fileId}` from `references` or `examples`. Does not take `storagePath` or `userId` from the client.
 
-1. Install Supabase CLI:
-   ```bash
-   npm install -g supabase
-   ```
+### embed_text
 
-2. Initialize Supabase project:
-   ```bash
-   supabase init
-   ```
+Hosted `grok-embedding-small` (384-d) with `query:` / `passage:` prefixes. Hash-384 fallback.
 
-3. Link to your Supabase project:
-   ```bash
-   supabase link --project-ref your-project-ref
-   ```
+## Deno
 
-4. Deploy the function:
-   ```bash
-   supabase functions deploy upload_processor
-   ```
-
-## Environment Variables
-
-The function requires these environment variables to be set in your Supabase project:
-
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
-
-## Dependencies
-
-The function uses these external dependencies, managed through `deno.json`:
-- `@supabase/supabase-js`: Supabase client
-- `@langchain/community`: Langchain embeddings
-- `langchain`: Text processing utilities
-- `pdf-parse`: PDF parsing
-- `docx`: DOCX parsing
-
-All dependencies are configured in the `deno.json` file for proper import management.
-
-## Configuration
-
-Each Edge Function has its own `deno.json` file for dependency management. The `upload_processor/deno.json` file manages all imports and dependencies:
-
-```json
-{
-  "imports": {
-    "std/": "https://deno.land/std@0.168.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "@langchain/community": "https://esm.sh/@langchain/community@0.0.20",
-    "langchain": "https://esm.sh/langchain@0.0.200",
-    "pdf-parse": "https://esm.sh/pdf-parse@1.1.1",
-    "docx": "https://esm.sh/docx@9.5.1"
-  },
-  "compilerOptions": {
-    "allowJs": true,
-    "lib": ["deno.window"],
-    "strict": true
-  }
-}
-```
-
-This allows for clean imports in the Edge Function code without long URLs and provides proper isolation between functions.
-
-### Best Practice: Individual deno.json Files
-
-Each Edge Function should have its own `deno.json` file in its directory. This provides:
-
-- **Isolation**: Each function manages its own dependencies
-- **Version Control**: Different functions can use different versions of the same package
-- **Maintainability**: Easier to update dependencies per function
-- **Deployment**: Supabase can properly resolve imports for each function
-
-## Usage
-
-The function is called automatically when files are uploaded through the UploadZone component. It expects a POST request with:
-
-```json
-{
-  "fileId": "uuid",
-  "fileName": "document.pdf",
-  "fileSize": 1024000,
-  "documentType": "reference"
-}
-```
-
-The function downloads `{auth.uid()}/{fileId}` from the `references` or `examples` bucket. It does not take `storagePath` or `userId` from the client.
-
-## Error Handling
-
-The function includes comprehensive error handling:
-- File validation (type, size)
-- Authentication verification
-- Processing error recovery
-- Automatic cleanup of failed uploads
+Each function has its own `deno.json` (`"lock": false`). Shared helpers live in `_shared/` and must be imported with `.ts` extensions.

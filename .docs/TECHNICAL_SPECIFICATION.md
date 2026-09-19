@@ -15,12 +15,12 @@ Technical specification for ARPW. It describes the **as-built** system as of 202
 | Routing | react-router-dom 6 | `src/App.tsx` |
 | Auth / DB / Storage | Supabase (local CLI or hosted) | `@supabase/supabase-js` |
 | Vectors | Postgres `vector` extension, 384 dims | `supabase/migrations/20260906133100_init.sql` |
-| Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, chunk, `hash-384`. Live E2E needs Storage |
+| Ingest (as-built) | Deno Edge Function `upload_processor` | TXT/DOCX/PDF parse, IMRaD chunk, academic `chunk_role`, `hash-384`. Live E2E needs Storage |
 | Generation | Deno Edge Function `generate_paper` | Section loop, pins first, Grok, citation allow-list, save draft |
 | Interrogation | Deno Edge Function `interrogate_corpus` | Grounded Q&A; notes on `interrogation_turns` |
 | Embeddings (as-built) | `grok-embedding-small` at 384-d when a Grok key is saved; else `hash-384` | `embedText.ts`; never mix models in one cosine search; MiniLM-L6-v2 is not the plan |
 | LLM | xAI Grok `grok-4.3` via `https://api.x.ai/v1/chat/completions` | User key from `read_grok_api_key`; SPA sees last4; 120s abort per section (NFR-5) |
-| Tests | Vitest 2 | `npm test` unit (32 files / 159); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
+| Tests | Vitest 2 | `npm test` unit (33 files / 182); `npm run test:integration` live Auth/REST/RLS/Storage/ingest/pins/embed_text hash path. No live Grok completion |
 
 Local run: Docker + `supabase start` (API `http://127.0.0.1:54321`, Studio `:54323`, mail UI `:54324`) and `npm run dev` on `:5173` (`server.host = true` so `127.0.0.1` works for auth redirects). Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Integration tests also use `SUPABASE_SERVICE_ROLE_KEY` (local demo in `.env.example`; SPA must not). Use the installed Supabase CLI (`supabase start`), not `npx supabase`, or image tags can drift and Storage can fail to boot.
 
@@ -88,7 +88,7 @@ SPA: `useAuth.tsx` `setGrokApiKey` / `clearGrokApiKey` / `grokKey`; `Profile.tsx
 
 **examples:** same shape except `document_type = 'example'`. `file_name` must match `\.(pdf|docx|txt)$`. Trigger `examples_file_cap`: max 10 rows per `user_id`.
 
-**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384` or `grok-embedding-small`). TARGET: doi/authors.
+**reference_vectors / example_vectors:** `vector_id`, `file_id`, `vector vector(384)`, `chunk_text`, `chunk_index`, `section` (canonical IMRaD or `Unknown`/`Other`), `page` (PDF page when `unpdf` returns per-page text), `embedding_model` (`hash-384` or `grok-embedding-small`), `chunk_role` (`claim` / `finding` / `evaluation` / `method` / `context` / `experience` / `citation` / `boilerplate`, nullable on historical rows). TARGET: doi/authors.
 
 **user_papers:** `paper_id`, `user_id`, `title`, `content`, `sections text[]`, `paper_type`, `citation_style`, `output_format`, `version`, `status` (`draft`/`completed`).
 
@@ -173,13 +173,13 @@ Example-paper vectors: `match_example_chunks` + style prefix on the section prom
 
 **Pins and interrogation**
 
-See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Turns persist on `interrogation_turns` (notes). Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks` (PIN-2). Example pins and chat notes are not evidence. Literature Review paper type ignores `primary`. Abstract/Introduction also union primary when this is not a literature-review paper.
+See `.docs/INTERROGATION_SLICES.md`. As-built: `pinned_passages` (slice 1). Interrogate tab `/generate/interrogate` + Edge `interrogate_corpus` (slice 2): user question, `literature` / `primary` / `both` filter, `match_reference_chunks` (no examples), Grok, `stripUnknownCitations`. Academic chunk roles (slice 6): ingest labels `chunk_role` and skips captions/author-contribution/page-number soup; bibliography is stored. `retrieveForQuestion` classifies the question, over-fetches, then hard-drops citation/boilerplate unless the question asks for references. Default academic retrieve is claim/finding/evaluation/context (not diary experience). Unlabeled rows are classified at query time. Generate `retrieveForSection` is unchanged. Turns persist on `interrogation_turns` (notes). Prompt tab lists/unpins; Query sources and Interrogate can pin literature/primary chunks (optional `target_section`). Generate allow-list = pins for that section (or unscoped) ∪ role-filtered `match_reference_chunks` (PIN-2). Example pins and chat notes are not evidence. Literature Review paper type ignores `primary`. Abstract/Introduction also union primary when this is not a literature-review paper.
 
 **Pipeline**
 
 1. Embed the research prompt with the same family as the chunks (`grok-embedding-small` if a Grok key is saved, else `hash-384`). `match_*` filters `embedding_model` so hash and hosted vectors are never compared. If hosted retrieve is empty, fall back to hash-384.
 2. For each selected section, take pins for that section or unscoped, then rewrite the retrieval query from the frozen template (e.g. “Methods: …” + research prompt) and apply the role filter above. Rank stored `section` matches first, then hybrid RRF. Dedup by `vector_id`.
-3. SQL RPC `match_reference_chunks(..., query_text)`: cosine pool ∪ English FTS on `chunk_tsv`, fused with reciprocal rank fusion (k=60). Matching stored `section` still ranks first. `filter_model` keeps hash and hosted vectors apart. k capped at 20. Interrogate passes the question as `query_text`.
+3. SQL RPC `match_reference_chunks(..., query_text)`: cosine pool ∪ English FTS on `chunk_tsv`, fused with reciprocal rank fusion (k=60). Matching stored `section` still ranks first. `filter_model` keeps hash and hosted vectors apart. k capped at 20. Interrogate passes the question as `query_text`, then filters by academic `chunk_role` (citation/boilerplate dropped unless asked).
 4. Light rerank is RRF over the hybrid lists (not a cross-encoder). Pins still prepend.
 5. Prompt Grok with the section template, research prompt, retrieved passages, and (if set) the paper’s `outline` block for that section (`outlineForSection`). Instruct: only cite `source_id`s in that set; quote or paraphrase with `[S12]`. Each `completeWithGrok` call aborts after 2 minutes (NFR-5, `GROK_SECTION_TIMEOUT_MS`). **Generate outline** is Edge `generate_outline`: one retrieve, Grok markdown headings, strip unknown `[S#]`, save `user_papers.outline`. **References** uses `references.citation_text` when set (publisher/PubMed preformatted cite, fetched on upload via DOI content negotiation `text/x-bibliography`, editable on Library). Otherwise it looks up DOI/PMID on Crossref/PubMed. Users can paste the cite button text. Filenames are not citations.
 6. Parse output; **drop unknown ids** (GEN-6, NFR-7). If any sentence still has no `[S#]` and retrieval was non-empty, one repair Grok call rewrites that section (cite or omit). Leftover uncited sentences stay flagged ⚠ (QUAL-1). QUAL-2 is `runCitationCheck` on remaining `[S#]`.

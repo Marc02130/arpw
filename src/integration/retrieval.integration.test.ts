@@ -4,7 +4,7 @@ import { hashEmbedding } from '../../supabase/functions/upload_processor/ingest'
 import { NFR7_PROBE, NFR7_TEXT } from '../lib/nfr7Fixture'
 import { pinPassage } from '../lib/pins'
 import { createDraftPaper } from '../lib/papers'
-import { retrieveForSection } from '../lib/retrievePassages'
+import { retrieveForQuestion, retrieveForSection } from '../lib/retrievePassages'
 import { PaperType } from '../types'
 import { anonClient, assertSupabaseUp, createConfirmedUser, deleteUser } from './supabaseTest'
 
@@ -383,6 +383,77 @@ describe('retrieval integration (slice 3 / NFR-7)', () => {
       if (vectorStemRank >= 0) {
         expect(stemRank).toBeLessThanOrEqual(vectorStemRank)
       }
+    } finally {
+      await user.client.from('references').delete().eq('user_id', user.id)
+      await deleteUser(user.id)
+    }
+  })
+
+  it('should drop bibliography chunks for an academic evidence question', async () => {
+    const user = await createConfirmedUser('ret-roles')
+    const reviewId = randomUUID()
+    const bibId = randomUUID()
+    try {
+      expect(
+        (
+          await user.client.from('references').insert([
+            {
+              file_id: reviewId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'review.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+            {
+              file_id: bibId,
+              user_id: user.id,
+              document_type: 'reference',
+              file_name: 'refs.txt',
+              file_size: 80,
+              source_role: 'literature',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const review =
+        'Worldwide efforts continue to unravel the complex pathological pathways ' +
+        'that lead to Alzheimer’s disease. The gut–brain–microbiome axis is emerging ' +
+        'as a potential mechanism involved in Alzheimer’s disease pathogenesis.'
+      const bib =
+        '182. Vogt NM, et al. (2017) Gut microbiome alterations in Alzheimer’s disease. ' +
+        'Sci Rep 7(1):13537. [PubMed: 29051531] et al. et al.'
+      const query = 'what hypotheses have the strongest evidence'
+      const vector = hashEmbedding(query)
+      expect(
+        (
+          await user.client.from('reference_vectors').insert([
+            {
+              file_id: reviewId,
+              vector,
+              chunk_text: review,
+              chunk_index: 0,
+              section: 'Introduction',
+              embedding_model: 'hash-384',
+              chunk_role: 'context',
+            },
+            {
+              file_id: bibId,
+              vector,
+              chunk_text: bib,
+              chunk_index: 0,
+              section: 'References',
+              embedding_model: 'hash-384',
+              chunk_role: 'context',
+            },
+          ])
+        ).error
+      ).toBeNull()
+
+      const rows = await retrieveForQuestion(user.client, query, 'literature')
+      expect(rows.some((row) => row.file_id === reviewId)).toBe(true)
+      expect(rows.some((row) => row.file_id === bibId)).toBe(false)
     } finally {
       await user.client.from('references').delete().eq('user_id', user.id)
       await deleteUser(user.id)

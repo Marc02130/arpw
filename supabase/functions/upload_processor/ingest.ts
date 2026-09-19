@@ -1,3 +1,5 @@
+import { classifyChunk, isJunkChunk, type ChunkRole } from '../_shared/chunkRoles.ts'
+
 export const INGEST_EXTENSIONS = ['pdf', 'docx', 'txt'] as const
 export const MAX_INGEST_BYTES = 10 * 1024 * 1024
 export const EMBEDDING_DIMS = 384
@@ -35,6 +37,7 @@ export type TextChunk = {
   chunkIndex: number
   section: ChunkSection
   page: number | null
+  chunkRole?: ChunkRole
 }
 
 export type SourceLine = {
@@ -285,6 +288,23 @@ export const chunkPages = (
   chunkSize = CHUNK_SIZE,
   overlap = CHUNK_OVERLAP
 ): TextChunk[] => chunkLines(linesFromPages(pages), chunkSize, overlap)
+
+export const passageEmbedText = (chunk: TextChunk): string => {
+  if (chunk.section === UNKNOWN_SECTION || chunk.section === OTHER_SECTION) return chunk.text
+  return `[${chunk.section}] ${chunk.text}`
+}
+
+export const labelIngestChunks = (chunks: TextChunk[]): TextChunk[] => {
+  const out: TextChunk[] = []
+  for (const chunk of chunks) {
+    if (isJunkChunk(chunk.text, chunk.section)) continue
+    out.push({
+      ...chunk,
+      chunkRole: classifyChunk(chunk.text, chunk.section),
+    })
+  }
+  return out
+}
 
 export const hashEmbedding = (text: string, dims = EMBEDDING_DIMS): number[] => {
   const vec = new Float64Array(dims)

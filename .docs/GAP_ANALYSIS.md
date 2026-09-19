@@ -20,15 +20,15 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | Profile name | DONE | Saves full name |
 | Grok key storage | DONE | Encrypted `user_grok_keys`; SPA sees last4 only |
 | Reference upload UI | DONE | PDF/DOCX/TXT, 10 MB, 500 vs stored rows; list/delete. Live upload needs Storage up |
-| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, heading-aware chunk, `grok-embedding-small` when a Grok key is saved else `hash-384`. Live fixture ingest (no key) is hash-384 in &lt; 2 min when Storage is up |
-| Retrieval | DONE | `match_reference_chunks` + Show passages; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384 |
+| Vector ingest | PARTIAL | TXT/DOCX/PDF parse, heading-aware chunk, academic `chunk_role`, skip captions/ICMJE/page-number soup, `grok-embedding-small` when a Grok key is saved else `hash-384`. Live fixture ingest (no key) is hash-384 in &lt; 2 min when Storage is up |
+| Retrieval | DONE | `match_reference_chunks` + Show passages; prefer stored section; filter by `embedding_model`; hosted Grok embed or hash-384. Interrogate also filters academic chunk roles |
 | Paper generation | DONE | Section loop + Grok + allow-list; draft saved to `user_papers` + `paper_references` |
 | Interrogation / pins | DONE | Pins, Interrogate, generate prefers pins, chat notes persisted (not evidence) |
 | Outline mode | DONE | Prompt tab Outline card; `generate_outline`; draft generate reads `user_papers.outline` |
 | Quality checks | DONE | QUAL-1–4: uncited, citation check, section headings, preview warnings + disclaimer. QUAL-5: no cosine “accuracy” score |
 | Library | DONE | View, Continue, delete (confirm), regenerate (new version + generate), export Markdown/Word with disclaimer |
 | Export | DONE | Library Markdown and Word downloads include checks summary and human-review disclaimer |
-| Tests | PARTIAL | Unit `npm test` 27 files / 129 tests (2026-09-07). Integration `npm run test:integration` 13 files / 40 tests against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
+| Tests | PARTIAL | Unit `npm test` 33 files / 182 tests. Integration `npm run test:integration` against local API with Storage and Edge up. Live Grok completion and live hosted embeddings are not in either suite. |
 | Docs vs product | DONE | README matches generate/interrogate/pins/preview/export/outline |
 | PII hygiene | DONE (this clone) | `.docs/*.pdf` ignored; old public SHA 404 |
 
@@ -81,7 +81,7 @@ You can sign up, confirm email, reset a password, upload files, ingest them into
 | ID | Status | Evidence |
 |---|---|---|
 | INT-1 | DONE | `/generate/interrogate` + `InterrogatePanel` |
-| INT-2 | DONE | Edge `interrogate_corpus`; same Grok key path; `match_reference_chunks` + strip unknown `[S#]` |
+| INT-2 | DONE | Edge `interrogate_corpus`; same Grok key path; `match_reference_chunks` + academic chunk-role filter + strip unknown `[S#]` |
 | INT-3 | DONE | `interrogation_turns` notes; RLS own rows; not in `match_reference_chunks` |
 | PIN-1 | DONE | `pinned_passages`; Prompt list/unpin; Interrogate Pin with optional target section; cannot pin another user’s chunk or examples |
 | PIN-2 | DONE | `retrieveForSection` / `generate_paper` merge pins first; Query sources matches |
@@ -136,7 +136,7 @@ Draft markdown is shown on the Prompt tab and stored on `user_papers`. Interroga
 
 These are not “missing files.” They are product defects if you implement the old tech doc as written.
 
-1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Generate retrieve prefers matching `section` then hybrid cosine+FTS (RRF). Inside a section still 1000/200 characters. No layout/bbox parse.
+1. **Character chunking** — **PARTIAL.** Ingest splits on IMRaD headings and does not window across `References`. Each chunk is labeled with an academic `chunk_role`; captions and author-contribution soup are not embedded; bibliography is stored for “what do they cite.” Generate retrieve prefers matching `section` then hybrid cosine+FTS (RRF). Interrogate additionally drops citation/boilerplate unless asked. Inside a section still 1000/200 characters. No layout/bbox parse.
 2. **Embeddings** — **PARTIAL.** Hosted plan is xAI `grok-embedding-small` at 384-d (same Grok key, not MiniLM-L6-v2). Hash-384 remains the fallback when no key or the API fails. Rows store `embedding_model`; retrieve filters by it. Live hosted E2E still needs a real xAI key.
 3. **Top-k 10–20 for a whole paper** cannot ground Methods and Results. Retrieve per section.
 4. **Regex `(Author, Year)`** is not citation correctness.

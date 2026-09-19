@@ -19,9 +19,9 @@ Product walkthrough: [`../README.md`](../README.md). Specs: [`../.docs/README.md
 
 ## Goal
 
-Prove the grounded path on a real pile of papers. Fail if generate runs without a real `xai-` key, if a citation is not from the uploaded set, if indexing never shows chunks, if **References** is not an academic list, or if Continue restores a paper type other than Literature Review.
+Prove the grounded path on a real pile of papers. Fail if generate runs without a real `xai-` key, if a citation is not from the uploaded set, if indexing never shows chunks, if **References** is not an academic list, if Interrogate on an evidence question returns only bibliography chunks, or if Continue restores a paper type other than Literature Review.
 
-Uncited-sentence ⚠ marks in the draft body are QUAL-2. They do not fail this UAT. A bad **References** list does.
+Uncited-sentence ⚠ marks in the draft body are QUAL-1 leftovers after one repair pass. They do not fail this UAT. A bad **References** list does. QUAL-2 is: every remaining `[S#]` was in the retrieved set.
 
 ## Corpus
 
@@ -81,7 +81,7 @@ You will start the local stack, put a real xAI key in a gitignored fixture, and 
 
 ### Step 1: Bring the stack up
 
-Follow [How to bring the local stack up](#how-to-bring-the-local-stack-up). You should see API `:54321`, Mailpit `:54324`, Vite `:5173`, and `functions serve` logging `lookup_citation` next to `generate_paper`.
+Follow [How to bring the local stack up](#how-to-bring-the-local-stack-up). You should see API `:54321`, Mailpit `:54324`, Vite `:5173`, and `functions serve --network-id supabase_network_arpw` logging `lookup_citation` next to `generate_paper`.
 
 ### Step 2: Put the Grok key in the fixture
 
@@ -111,15 +111,15 @@ supabase status  # API :54321, Studio :54323, Mailpit :54324
 
 If Storage is down, this UAT is **BLOCKED**. Do not treat ingest as passable while Storage is down.
 
-Apply local migrations through `20260910010000_paper_outline.sql` (also `reference_citation_text`, `grok_key_shape`, `reference_bibliographic`). `supabase db push --local` can miss history on this repo. If Studio or REST does not show `user_papers.outline` or `references.citation_text`, apply the SQL with `psql` against local Postgres `:54322`, insert the version into `supabase_migrations.schema_migrations`, then `NOTIFY pgrst, 'reload schema';`.
+Apply local migrations through `20260919010000_vector_chunk_role.sql` (also outline, `reference_citation_text`, `grok_key_shape`, `reference_bibliographic`). `supabase db push --local` can miss history on this repo. If Studio or REST does not show `reference_vectors.chunk_role`, `user_papers.outline`, or `references.citation_text`, apply the SQL with `psql` against local Postgres `:54322`, insert the version into `supabase_migrations.schema_migrations`, then `NOTIFY pgrst, 'reload schema';`.
 
-Serve Edge functions so ingest, generate, outline, interrogate, and citation lookup use current code. The Docker network name is the local project’s network:
+Serve Edge functions so ingest, generate, outline, interrogate, and citation lookup use current code. The local Docker network name is **`supabase_network_arpw`** (`docker network ls`). Catalog lookup (Crossref, PubMed, doi.org) and ingest need that network; without it, Library citation fields stay empty.
 
 ```bash
 supabase functions serve --network-id supabase_network_arpw
 ```
 
-You need all of: `upload_processor`, `embed_text`, `generate_paper`, `generate_outline`, `interrogate_corpus`, `lookup_citation`. Restart this process after pulling Edge changes. Catalog lookup (Crossref, PubMed, doi.org) needs that network id; without it, Library citation fields stay empty.
+You need all of: `upload_processor`, `embed_text`, `generate_paper`, `generate_outline`, `interrogate_corpus`, `lookup_citation`. Restart this process after pulling Edge changes, including academic chunk-role ingest. Confirm `reference_vectors.chunk_role` exists (migration `20260919010000_vector_chunk_role.sql`).
 
 ```bash
 npm run dev      # http://127.0.0.1:5173  (strictPort)
@@ -192,7 +192,7 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min). Open **Library**: **Source citations** | At least one file shows a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
 | 6 | Prompt tab: wait for “Working on …”, paste the research prompt. **Generate outline**, then **Query sources** | Outline textarea has `##` headings for selected sections (not PDF filenames). Passages appear with `literature` (not primary). Section labels and `p.N` may show |
 | 7 | Pin 2–3 literature chunks to Literature Review or unscoped. If you re-open Prompt, wait for “Working on …” and the saved prompt before Query sources | Pinned list shows them first on the next Query sources. Fail if Query sources stays disabled after the paper has loaded |
-| 8 | Interrogate: “What do these papers say about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent. HTTP 2xx. A missing key must refuse before you re-save |
+| 8 | Interrogate: “What evidence do these papers report about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent. HTTP 2xx. A missing key must refuse before you re-save. Passages are findings/claims/context, not a bibliography (not only `References ·` cards, not a PubMed/DOI list) |
 | 9 | Interrogate: pin one passage **from the answer thread** (do not reload the tab first) | Wait for Unpin on the thread. Prompt shows **Pinned passages**, not “No pins yet” while pins are loading |
 | 10 | Generate Paper | Draft saved; headings for selected sections; draft follows the outline where headings match; **References** uses stored citation strings (author, journal, DOI), not PDF filenames; footer disclaimer. Wall clock is not instant |
 | 11 | Spot-check citations | Every `[S#]` was in the queried/pinned set. No invented author-year. Literature Review did not pull original-research files (there are none). References is not “No retrieved sources” and does not dump `Citation:` boilerplate |
@@ -221,7 +221,7 @@ node UAT/run-literature-review.mjs --resume
 
 Fail-fast on a bad key fixture: step 2 FAIL (or BLOCKED if missing), steps 8–13 BLOCKED, process exits before signup.
 
-Step 8 requires a 2xx from `interrogate_corpus` **and** at least one `[S#]` in the UI. A 500 with empty body is FAIL, not a skip.
+Step 8 asks `What evidence do these papers report about omega-3 and cognition?` (`INTERROGATE_QUESTION` in the runner). It requires a 2xx from `interrogate_corpus`, at least one `[S#]` in the UI, and `evidencePassagesLookAcademic`: not only `References ·` passage cards, not a PubMed/DOI dump. A 500 with empty body is FAIL, not a skip. The word “evidence” is the academic retrieve gate (drop citation/boilerplate).
 
 Step 7 waits for “Working on …” and a non-empty `#research-prompt` (or an enabled Query sources) before clicking Query sources. Do not fill the prompt before the paper row hydrates (QA-2026-09-09-1).
 
@@ -262,6 +262,7 @@ Do not paste long draft excerpts that quote the PDFs into git. Do not commit a P
 - Generate outline succeeds with no Grok key, returns empty, lists PDF filenames as the outline, or 404s because `generate_outline` is not served
 - Continue restores no outline after a successful Generate outline
 - References says “No retrieved sources”, lists PDF filenames as if they were citations, dumps publisher “Citation:” boilerplate, or omits cited works while other sections used `[S#]`
+- Interrogate on the evidence question returns only bibliography / `References ·` passages, or the passage list is a PubMed/DOI dump (`evidencePassagesLookAcademic`)
 
 Do not fail solely because the draft body still has ⚠ uncited sentences after generate’s one repair pass (QUAL-1). Do fail if the References section is not an academic list of the cited uploads (that list quality is GEN-9 / catalog cites, not QUAL-2). QUAL-2 is: every `[S#]` in the draft was in the retrieved set.
 
@@ -281,6 +282,8 @@ Do not fail solely because the draft body still has ⚠ uncited sentences after 
 
 **Outline then draft.** Generate outline is optional in the product and required in this playbook. It uses the same Grok key and retrieve allow-list as generate. The draft reads `user_papers.outline` from the row, not from a client-supplied system prompt. Continue must restore the outline textarea.
 
+**Evidence questions skip the bibliography.** Academic papers embed a huge reference list. Cosine+FTS will rank those chunks for almost any biomedical query. Interrogate classifies the question and hard-drops `citation` / `boilerplate` unless you ask what the papers cite. Step 8 uses an **evidence** wording so that filter runs. A thread that only shows `References ·` cards is FAIL even if Grok still emits `[S#]`. Generate retrieve is not this gate.
+
 ## Troubleshooting
 
 | What you see | What to do |
@@ -288,6 +291,7 @@ Do not fail solely because the draft body still has ⚠ uncited sentences after 
 | Runner exits immediately: key looks like a filesystem path / must start with `xai-` | Replace `GROK_API_KEY` or `UAT/.uat-grok-key` with a real xAI secret. Then `--resume` if steps 1–7 already passed. |
 | Profile last4 is `.env` | Same as above. The saved secret was a path. |
 | Interrogate/generate HTTP 500, no `[S#]` | Usually a bad key or functions not serving current code. Check `functions serve` logs. Do not mark step 8 PASS. |
+| Step 8 FAIL: only References passages / looks like a reference list | Academic chunk-role filter missing. Restart `supabase functions serve --network-id supabase_network_arpw`. Apply `20260919010000_vector_chunk_role.sql`. Query-time classify still works on old chunks; re-upload if you want stored `chunk_role`. |
 | “No pins yet” on Prompt after a successful pin | Wait for the pin list; do not treat the loading empty state as FAIL. If it stays empty, you left the Interrogate thread too early. |
 | Continue shows Empirical Study | FAIL. Hydrate/persist bug or generate wrote `paper_type`. Confirm migrations and current SPA. |
 | Query sources disabled; “Loading saved paper…” | Wait for “Working on …”. Fail if it lasts past a few seconds. |
@@ -297,7 +301,7 @@ Do not fail solely because the draft body still has ⚠ uncited sentences after 
 | Garbled author (`Ş., A.`) or `Citation:` boilerplate | Stale title-page jsonb without catalog `source`. Look up from DOI/PMID on Library, save, regenerate. |
 | Library has no Source citations heading | No `references` rows for this user, or `citation_text` migration not applied / PostgREST schema not reloaded. |
 | Index stuck on “Stored (not indexed)” | Storage or `upload_processor` down. **BLOCKED**. Bring Storage up; do not pass ingest. |
-| `functions serve` 404 on `lookup_citation` or `generate_outline` | Restart serve so the new function registers. Apply `paper_outline` if the Outline card will not save. |
+| `functions serve` 404 on `lookup_citation` or `generate_outline` | Restart serve so the new function registers. Apply `paper_outline` if the Outline card will not save. Always pass `--network-id supabase_network_arpw`. |
 | Generate outline stays disabled | Wait for “Working on …” and a non-empty research prompt, same as Query sources. |
 | Outline empty after Generate outline | FAIL if HTTP was 2xx. Check functions logs. |
 | `--resume` throws | Missing `.uat-state.json`, or step 1/3 notes lack email / `paper=` uuid. Start a new run. |
