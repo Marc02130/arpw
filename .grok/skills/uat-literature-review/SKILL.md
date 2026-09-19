@@ -32,6 +32,8 @@ Manual path: drive `http://127.0.0.1:5173` as a throwaway user (`uat-litrev-<dat
 
 `UAT/.uat-grok-key` and `GROK_API_KEY` must contain a value that starts with `xai-`. Never paste the secret into chat, reports, or git. If a saved report failed on HTTP 500 / last4 `.env`, replace the fixture and `--resume` — do not re-upload the 20 PDFs.
 
+Upload the 20 PDFs in **two waves of 10**. The drop zone refuses 11+ (`UPLOAD_BATCH_SIZE`). After each wave wait until DocumentList has no “Stored (not indexed)”. Step 5 fails if leftover files stay unindexed.
+
 Wait for “Working on …” before Query sources or Generate outline. A disabled Query sources after the paper has loaded, while `research_prompt` is saved, is FAIL (QA-2026-09-09-1). After the prompt is saved, click **Generate outline** and require `##` headings in `#paper-outline`. Continue must restore the outline.
 
 `functions serve` must include `generate_outline`, `interrogate_corpus`, `lookup_citation`, and `upload_processor`. Use the local Docker network:

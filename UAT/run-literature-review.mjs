@@ -195,19 +195,42 @@ async function mailpitConfirmLink(email, timeoutMs = 60000) {
   throw new Error('No confirmation email found in Mailpit for ' + email)
 }
 
-async function waitIndexed(page, timeoutMs = 180000) {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    const body = await page.locator('body').innerText()
-    const m = body.match(/Indexed \((\d+) chunks\)/g) || []
-    if (m.length > 0) return m
-    if (/Stored \(not indexed\)/.test(body)) {
-      await page.waitForTimeout(3000)
-      continue
-    }
+async function literatureFileInput(page) {
+  const litInput = page
+    .locator('[aria-label="Upload reference files"]')
+    .locator('xpath=ancestor::div[1]//input[@type="file"]')
+    .first()
+  return (await litInput.count()) ? litInput : page.locator('input[type="file"]').first()
+}
+
+async function waitListed(page, batch, minListed) {
+  let listed = 0
+  const names = batch.map((f) => path.basename(f))
+  for (let i = 0; i < 45; i++) {
+    const t = await page.locator('body').innerText()
+    listed = names.filter((name) => t.includes(name) || t.includes(name.replace(/\.pdf$/i, ''))).length
+    if (listed >= minListed) return listed
     await page.waitForTimeout(2000)
   }
-  throw new Error('No Indexed (N chunks) within timeout')
+  return listed
+}
+
+/** Wait until DocumentList shows minIndexed Indexed rows and no Stored (not indexed). */
+async function waitIndexed(page, paperId, minIndexed, timeoutMs = 180000) {
+  const start = Date.now()
+  let indexed = 0
+  let notIndexed = 0
+  while (Date.now() - start < timeoutMs) {
+    await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
+    const body = await page.locator('body').innerText()
+    indexed = (body.match(/Indexed \((\d+) chunks\)/g) || []).length
+    notIndexed = (body.match(/Stored \(not indexed\)/g) || []).length
+    if (indexed >= minIndexed && notIndexed === 0) return { indexed, notIndexed }
+    await page.waitForTimeout(3000)
+  }
+  throw new Error(
+    `expected ≥${minIndexed} indexed and 0 stored-not-indexed; got indexed=${indexed} not-indexed=${notIndexed}`
+  )
 }
 
 function writeReport() {
@@ -386,36 +409,33 @@ async function main() {
       throw e
     }
 
-    // Step 4: Upload 20 literature PDFs
+    // Step 4: Upload 20 literature PDFs in two waves of 10 (UPLOAD_BATCH_SIZE)
     try {
+      const wave1 = files.slice(0, 10)
+      const wave2 = files.slice(10)
       await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
       await page.waitForSelector('h2:text("Literature")')
-      // literature upload zone is first file input under Literature heading
-      const litSection = page.locator('h2', { hasText: 'Literature' }).first()
-      const zone = litSection.locator('xpath=ancestor::div[contains(@class,"space-y") or contains(@class,"card") or true()][1]')
-      // Prefer aria-label Upload reference files near Literature
-      const litInput = page.locator('[aria-label="Upload reference files"]').locator('xpath=ancestor::div[1]//input[@type="file"]').first()
-      const input = (await litInput.count()) ? litInput : page.locator('input[type="file"]').first()
-      await input.setInputFiles(files)
-      // wait for upload progress to settle
-      await page.waitForTimeout(5000)
+      await (await literatureFileInput(page)).setInputFiles(wave1)
+      let listed = await waitListed(page, wave1, wave1.length)
+      if (/Upload at most 10 files at a time/i.test(await page.locator('body').innerText())) {
+        throw new Error('first wave rejected as over the 10-file drop limit')
+      }
+      if (listed < wave1.length) throw new Error(`first wave listed ${listed}/${wave1.length}`)
+      await waitIndexed(page, paperId, wave1.length)
+
+      await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
+      await page.waitForSelector('h2:text("Literature")')
+      await (await literatureFileInput(page)).setInputFiles(wave2)
+      listed = await waitListed(page, files, files.length)
       const body = await page.locator('body').innerText()
-      const rejected = /rejected|not an accepted|too large|error uploading/i.test(body)
-      // listed filenames
-      let listed = 0
-      for (const f of files) {
-        const base = path.basename(f)
-        if (body.includes(base) || body.includes(base.replace(/\.pdf$/i, ''))) listed++
+      if (/Upload at most 10 files at a time/i.test(body)) {
+        throw new Error('second wave rejected as over the 10-file drop limit')
       }
-      // DocumentList may take a moment
-      for (let i = 0; i < 30 && listed < 15; i++) {
-        await page.waitForTimeout(2000)
-        const t = await page.locator('body').innerText()
-        listed = files.filter((f) => t.includes(path.basename(f))).length
+      if (/rejected|not an accepted|too large|error uploading/i.test(body) && listed < 18) {
+        throw new Error('upload rejection message seen')
       }
-      if (rejected) throw new Error('upload rejection message seen')
       if (listed < 18) throw new Error(`only ${listed}/20 filenames listed after upload`)
-      record(4, 'PASS', `${listed}/20 literature PDFs listed`)
+      record(4, 'PASS', `${listed}/20 literature PDFs listed (two waves of 10)`)
     } catch (e) {
       await shot(page, 'step4-fail')
       record(4, 'FAIL', e.message)
@@ -423,15 +443,12 @@ async function main() {
 
     // Step 5: indexing
     try {
-      await page.goto(`${BASE}/generate/upload?paper=${paperId}`)
-      const indexed = await waitIndexed(page, 180000)
-      state.filesIndexed = indexed.length
+      const got = await waitIndexed(page, paperId, files.length)
+      state.filesIndexed = got.indexed
+      state.filesFailed = got.notIndexed
       const body = await page.locator('body').innerText()
       const emb = body.match(/grok-embedding-small|hash-384/i)
       if (emb) state.embeddingModel = emb[0]
-      // try DB via UI text for embedding
-      const notIndexed = (body.match(/Stored \(not indexed\)/g) || []).length
-      state.filesFailed = notIndexed
       await page.goto(`${BASE}/library`)
       await page.getByRole('heading', { name: 'Source citations' }).waitFor({ timeout: 20000 })
       const areas = page.locator('textarea[id^="citation-"]')
@@ -443,10 +460,12 @@ async function main() {
         if (v.trim().length > 40 && /doi\.org|doi:|PMID/i.test(v)) filled++
       }
       state.notes.push(`Library source citations: ${filled}/${n} look like publisher cites`)
-      record(5, 'PASS', `${indexed.length} files show chunk counts; not-indexed=${notIndexed}; citations filled=${filled}/${n}`)
+      record(5, 'PASS', `${got.indexed} files show chunk counts; not-indexed=${got.notIndexed}; citations filled=${filled}/${n}`)
     } catch (e) {
       await shot(page, 'step5-fail')
-      record(5, 'BLOCKED', e.message)
+      const msg = String(e && e.message || e)
+      const noneIndexed = /indexed=0\b/i.test(msg) || /No Indexed/i.test(msg)
+      record(5, noneIndexed ? 'BLOCKED' : 'FAIL', msg)
     }
 
     // Step 6: Query sources

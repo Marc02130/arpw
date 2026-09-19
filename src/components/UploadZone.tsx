@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { UploadProgress, DocumentType, type SourceRole } from '../types'
 import { ACCEPTED_UPLOAD_EXTENSIONS, validateUploadFile } from '../lib/validateFile'
-import { uploadCapError } from '../lib/fileCap'
+import { UPLOAD_BATCH_SIZE, uploadBatchError, uploadCapError } from '../lib/fileCap'
 import { documentStore, storageObjectKey } from '../lib/documentStore'
 import {
   patchFileProgress,
@@ -94,17 +94,21 @@ const UploadZone: React.FC<UploadZoneProps> = ({
         patchFileProgress(prev, fileId, { progress: 80, status: 'processing' })
       )
 
-      try {
-        await supabase.functions.invoke('upload_processor', {
-          body: {
-            fileId,
-            fileName: file.name,
-            fileSize: file.size,
-            documentType,
-          },
-        })
-      } catch (processError) {
-        console.warn('Indexing skipped or failed:', processError)
+      const { data, error: processError } = await supabase.functions.invoke('upload_processor', {
+        body: {
+          fileId,
+          fileName: file.name,
+          fileSize: file.size,
+          documentType,
+        },
+      })
+      if (processError) {
+        throw new Error(processError.message || 'Indexing failed')
+      }
+      if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+        const message =
+          'error' in data && typeof data.error === 'string' ? data.error : 'Indexing failed'
+        throw new Error(message)
       }
 
       setUploadProgress((prev) =>
@@ -148,6 +152,12 @@ const UploadZone: React.FC<UploadZoneProps> = ({
       return
     }
 
+    const batchError = uploadBatchError(fileArray.length)
+    if (batchError) {
+      onUploadError(batchError)
+      return
+    }
+
     const capError = uploadCapError(maxFiles, existing, fileArray.length)
     if (capError) {
       onUploadError(capError)
@@ -158,9 +168,8 @@ const UploadZone: React.FC<UploadZoneProps> = ({
     setUploadProgress([])
 
     try {
-      const batchSize = 10
-      for (let i = 0; i < fileArray.length; i += batchSize) {
-        const batch = fileArray.slice(i, i + batchSize)
+      for (let i = 0; i < fileArray.length; i += UPLOAD_BATCH_SIZE) {
+        const batch = fileArray.slice(i, i + UPLOAD_BATCH_SIZE)
         await Promise.all(batch.map((file) => uploadFile(file)))
       }
 
@@ -327,7 +336,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
             {documentType === DocumentType.REFERENCE
               ? `Up to ${maxFiles} reference documents`
               : `Up to ${maxFiles} example papers`}{' '}
-            (PDF, DOCX, TXT)
+            (PDF, DOCX, TXT) · at most {UPLOAD_BATCH_SIZE} at a time
             {existingCount !== null ? ` · ${existingCount} stored` : ''}
           </p>
           

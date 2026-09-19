@@ -187,13 +187,13 @@ You will store a PDF, DOCX, or TXT. Literature and original research share a 500
 ### Steps
 
 1. On the **Upload** tab, use **Literature** for published papers you will cite, or **Original research** for your own work on this paper’s topic. `N stored` is the combined reference count (cap 500).
-2. Use `.pdf`, `.docx`, or `.txt` only. Each file must be larger than 0 bytes and at most 10 MB. `.doc` is rejected before upload.
-3. Wait until the progress row says Completed. The list under that section should show the file.
+2. Use `.pdf`, `.docx`, or `.txt` only. Each file must be larger than 0 bytes and at most 10 MB. `.doc` is rejected before upload. Select **at most 10 files per drop**; the zone refuses 11+. Stored cap is still 500 references (10 examples).
+3. Wait until the progress row says Completed (and Indexed in the list). The list under that section should show the file. Drop the next 10 after the first wave finishes.
 4. **Example papers** (voice/style only) use the same types, cap 10.
 
 ### Verification
 
-- Drop zone: `Up to 500 reference documents (PDF, DOCX, TXT) · N stored` with N increased.
+- Drop zone: `Up to 500 reference documents (PDF, DOCX, TXT) · at most 10 at a time · N stored` with N increased.
 - List: filename in **Reference Documents**.
 - REST `GET /rest/v1/references?select=file_name,file_size` as the signed-in user returns the row.
 - A `.doc` insert fails check `references_file_name_ext`.
@@ -208,6 +208,7 @@ Constraints and object key: [Reference: uploads](#upload-constraints-srccomponen
 |---|---|
 | Unsupported format / empty / too large | Use PDF, DOCX, or TXT; 1 byte through 10 MB. |
 | File cap reached / “can add N more” | Delete a listed reference, then retry. The cap includes rows already stored, not only this drop. |
+| “Upload at most 10 files at a time.” | Drop or pick 10 or fewer. Wait for Completed, then upload the next 10. |
 | `name resolution failed` | Storage container is down. Start the local stack with the installed `supabase` CLI, not `npx supabase`. |
 | Banner “Indexing may still fail” | Storage/ingest error. TXT/DOCX/PDF should index as `hash-384` chunks; check Edge logs. |
 
@@ -510,6 +511,7 @@ Client (`UploadZone.tsx`, references zone `maxFiles={500}`):
 | Extensions | `.pdf`, `.docx`, `.txt` (not `.doc`) |
 | Size | `0 < size <= 10485760` (10 MiB) |
 | Cap | `count(*)` of `"references"` for `auth.uid()` plus this batch must be ≤ 500 |
+| Per drop | At most `UPLOAD_BATCH_SIZE` (10) files. Concurrent ingest is that same 10. |
 | Bucket | `references` |
 | Object key | `{user_id}/{file_id}` (from `auth.uid()` and the new file id; original name is only on the metadata row) |
 | Metadata | insert `{ file_id, user_id, document_type: 'reference', file_name, file_size }` after Storage succeeds; Storage object is removed if insert fails |
@@ -541,7 +543,7 @@ Vitest 2 (`package.json`). Two configs so `npm test` never talks to the network.
 | File | What it locks |
 |---|---|
 | `validateFile.test.ts` | PDF/DOCX/TXT, empty, >10 MB, `.doc`, no extension |
-| `fileCap.test.ts` | `remainingSlots` / `uploadCapError`; example cap 10 |
+| `fileCap.test.ts` | `remainingSlots` / `uploadCapError`; example cap 10; 10-file drop limit |
 | `uploadProgress.test.ts` | Per-file progress rows and status labels (DOCS-3) |
 | `documentStore.test.ts` | Table/bucket/vector table map, `{user_id}/{file_id}` key, index labels |
 | `formatFile.test.ts` | Size, date, icon |

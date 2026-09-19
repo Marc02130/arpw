@@ -188,8 +188,8 @@ Record **PASS / FAIL / BLOCKED** per step. BLOCKED needs the exact error.
 | 1 | Open `/login`, sign up, confirm email via Mailpit `:54324`, land on Dashboard | Confirmed session; unconfirmed cannot open `/dashboard` |
 | 2 | Profile: save a Grok key | Last4 only; key never shown in full; value started with `xai-` |
 | 3 | Dashboard: **Start paper** with the title and Literature Review | Redirect to `/generate?paper=…` |
-| 4 | Upload tab: **Literature** only. Upload all 20 PDFs as literature. Do not use Original research. | Each file listed; none rejected for type/size. Each literature row has a **Citation** field |
-| 5 | Wait until index status is not “Stored (not indexed)” (first PDF chunks visible in &lt; 2 min). Open **Library**: **Source citations** | At least one file shows a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
+| 4 | Upload tab: **Literature** only. Upload the 20 PDFs as literature in **two waves of 10** (the drop zone refuses 11+ in one selection). Do not use Original research. | Each file listed; none rejected for type/size. Each literature row has a **Citation** field |
+| 5 | After each wave, wait until that wave is **Indexed** and **Stored (not indexed) = 0**. Open **Library**: **Source citations** | All 20 files show a chunk count. Library lists uploaded files with a citation textarea. Files with a DOI should show a publisher/PubMed cite (not the filename). Empty fields: paste the cite or **Look up from DOI/PMID** |
 | 6 | Prompt tab: wait for “Working on …”, paste the research prompt. **Generate outline**, then **Query sources** | Outline textarea has `##` headings for selected sections (not PDF filenames). Passages appear with `literature` (not primary). Section labels and `p.N` may show |
 | 7 | Pin 2–3 literature chunks to Literature Review or unscoped. If you re-open Prompt, wait for “Working on …” and the saved prompt before Query sources | Pinned list shows them first on the next Query sources. Fail if Query sources stays disabled after the paper has loaded |
 | 8 | Interrogate: “What evidence do these papers report about omega-3 and cognition?” Sources: literature | Answer uses only `[S#]` from retrieved passages; unknown ids absent. HTTP 2xx. A missing key must refuse before you re-save. Passages are findings/claims/context, not a bibliography (not only `References ·` cards, not a PubMed/DOI list) |
@@ -222,6 +222,10 @@ node UAT/run-literature-review.mjs --resume
 Fail-fast on a bad key fixture: step 2 FAIL (or BLOCKED if missing), steps 8–13 BLOCKED, process exits before signup.
 
 Step 8 asks `What evidence do these papers report about omega-3 and cognition?` (`INTERROGATE_QUESTION` in the runner). It requires a 2xx from `interrogate_corpus`, at least one `[S#]` in the UI, and `evidencePassagesLookAcademic`: not only `References ·` passage cards, not a PubMed/DOI dump. A 500 with empty body is FAIL, not a skip. The word “evidence” is the academic retrieve gate (drop citation/boilerplate).
+
+Step 4 uploads `files.slice(0, 10)` then `files.slice(10)`. A 20-file `setInputFiles` is rejected (`Upload at most 10 files at a time`). After each wave, `waitIndexed` requires Indexed count ≥ that wave and **zero** `Stored (not indexed)` rows.
+
+Step 5 fails (not a soft PASS) if any literature file is still Stored (not indexed). Zero indexed is **BLOCKED** (Storage/Edge down).
 
 Step 7 waits for “Working on …” and a non-empty `#research-prompt` (or an enabled Query sources) before clicking Query sources. Do not fill the prompt before the paper row hydrates (QA-2026-09-09-1).
 
@@ -256,6 +260,7 @@ Do not paste long draft excerpts that quote the PDFs into git. Do not commit a P
 - Draft cites `[S99]` or a file that was not uploaded
 - Original-research upload was used for this literature-review paper
 - Indexing never produces chunks (Storage/Edge down counts as **BLOCKED**, not a product fail)
+- After both 10-file waves, any literature file is still **Stored (not indexed)** (FAIL). A 20-file drop that the zone accepts is FAIL (limit is 10 at a time).
 - Export missing `AI-generated draft. Requires human review…`
 - Continue shows a paper type other than **Literature Review** after “Working on …” (the generate save must not rewrite type)
 - Query sources stays disabled after “Working on …” while the paper has a saved research prompt (QA-2026-09-09-1)

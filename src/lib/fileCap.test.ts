@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { EXAMPLE_FILE_CAP, REFERENCE_FILE_CAP, remainingSlots, uploadCapError } from './fileCap'
+import {
+  EXAMPLE_FILE_CAP,
+  REFERENCE_FILE_CAP,
+  UPLOAD_BATCH_SIZE,
+  remainingSlots,
+  uploadBatchError,
+  uploadCapError,
+} from './fileCap'
 
 describe('remainingSlots', () => {
   it('should return how many files can still be added', () => {
@@ -48,5 +55,15 @@ describe('example paper cap (DOCS-2)', () => {
   it('should keep the reference cap at 500', () => {
     expect(REFERENCE_FILE_CAP).toBe(500)
     expect(uploadCapError(REFERENCE_FILE_CAP, 10, 5)).toBeNull()
+  })
+})
+
+describe('upload batch size', () => {
+  it('should allow 10 files in one drop and refuse 11', () => {
+    expect(UPLOAD_BATCH_SIZE).toBe(10)
+    expect(uploadBatchError(10)).toBeNull()
+    expect(uploadBatchError(1)).toBeNull()
+    expect(uploadBatchError(11)).toBe('Upload at most 10 files at a time.')
+    expect(uploadBatchError(20)).toBe('Upload at most 10 files at a time.')
   })
 })
